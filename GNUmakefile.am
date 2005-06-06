@@ -1,0 +1,5 @@
+OPTDIRS = 
+
+SUBDIRS = include rtskbuff rtpc rt_serv stack drivers $(OPTDIRS) highlevel tools
+
+EXTRA_DIST = autogen.sh

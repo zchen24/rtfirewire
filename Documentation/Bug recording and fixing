@@ -1,0 +1,39 @@
+BUG recording and fixing
+=======================================
+
+2005-6-1
+=======
+ohci:	the isr routine has a serious problem, using the rt server concept. 
+	The problem shows up when there are 2 cards or more under the driver, 
+	the second card initialization will pointer the interrupt event, e.g. async request reception
+	to its own server, and the same goes on for each newly initializaed card. Therefore, the rt
+	server concept must be modified here. 
+Problem:	to completely prioritize various isr for devices, we need to have different server for 
+	different device, like when we have 2 FireWire cards, we need to have two asynchronous 
+	request receive handlers for two cards, to meet the needs when one is connected to real-time
+	network, while another is not. But the problem is how to distinguish interrupts from different device, 
+	while still use one top half routine for devices of same type, like both FireWire card. Note that this 
+	problem doesnt exsit in Ethernet drivers, because they simply put everything (hardware related) to top
+	half. 
+Solution:	each isr routine will came up with the dev_id argument, which is specific to hardware, e.g. to FireWire card.
+	Dev_id is used as pointer to device specific information storage, e.g. ti_ohci structure to FireWire card. 
+	Now, we add the some event substructures to the ti_ohci structure, as to represent the various interrupt events from same 
+	IRQ, and to get the event structures queued to the bottomhalf server. Since it is not clear that if the RTOS, e.g. RTAI,
+	triggers rescheduling in isr, it is safe to use a broker between top half and bottom half. The top half pends the events 
+	to broker's queue and Wakeup broker JUST BEFORE "return" (so it is like no re-scheduling in isr). The broker, which 
+	is unpreemptable by other tasks because its high priority, moves all the pending events to the corresponding server's queue, 
+	and wakeup the servers respectively. To avoid a list "lookup" operation, there is pointer to corresponding server's queue in 
+	each event structure. So two APIs are made: 
+	
+	-	void tobrk(struct evt):	to pend the evt to broker.
+	-	void wkbrk(void):		to wakeup broker.
+	
+
+2005-6-2
+=======
+ohci: 	Bottomhalf servers can lock each other on same machine. This is a classical priority inversion problem. 
+	I.e. when two servers are dealing with same piece of hardware, and the low priority server locks the hardware. 
+	An example is the DMA channel in ohci. 
+Solution:	Avoid two or more servers sharing hardware. LIke in ohci, each DMA channel in use can only have one server. 
+	
+	

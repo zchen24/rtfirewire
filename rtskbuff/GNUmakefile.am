@@ -1,0 +1,39 @@
+moduledir = $(DESTDIR)@RTFW_MODULE_DIR@
+modext = @RTFW_MODULE_EXT@
+
+EXTRA_LIBRARIES = libkernel_rtskbuff.a
+
+libkernel_rtskbuff_a_CPPFLAGS = \
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include \
+	@RTAI_KMOD_CFLAGS@
+	
+	
+libkernel_rtskbuff_a_SOURCES = \
+    rtskbuff.c          
+
+OBJS = \
+	  rtskbuff$(modext) 
+
+rtskbuff.o: libkernel_rtskbuff.a
+	$(LD) --whole-archive $< -r -o $@
+
+rtskbuff.ko: @RTFW_KBUILD_ENV@
+rtskbuff.ko: $(libkernel_rtskbuff_a_SOURCES) FORCE
+	@RTFW_KBUILD_CMD@
+
+all-local: $(OBJS)
+
+install-exec-local: $(OBJS)
+	$(mkinstalldirs) $(moduledir)
+	$(INSTALL_DATA) $^ $(moduledir)
+
+clean-local: $(libkernel_rtskbuff_a_SOURCES)
+	@RTFW_KBUILD_CLEAN@
+   
+
+EXTRA_DIST = Makefile.kbuild
+
+DISTCLEANFILES = Makefile
+
+.PHONY: FORCE

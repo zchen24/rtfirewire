@@ -1,0 +1,50 @@
+moduledir = $(DESTDIR)@RTFW_MODULE_DIR@
+modext = @RTFW_MODULE_EXT@
+
+OPTDIRS =
+
+SUBDIRS = $(OPTDIRS)
+
+EXTRA_LIBRARIES = libkernel_ieee1394.a
+
+libkernel_ieee1394_a_CPPFLAGS = \
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include \
+	@RTAI_KMOD_CFLAGS@
+
+libkernel_ieee1394_a_SOURCES = \
+    ieee1394_core.c\
+    ieee1394_transactions.c\
+    hosts.c\
+    csr.c\
+    csr1212.c\
+    config_roms.c\
+    dma.c\
+    highlevel.c\
+    iso.c\
+    ieee1394_chrdev.c\
+    ieee1394_module.c
+
+OBJS = rt_ieee1394$(modext)
+
+rt_ieee1394.o: libkernel_ieee1394.a
+	$(LD) --whole-archive $< -r -o $@
+
+rt_ieee1394.ko: @RTFW_KBUILD_ENV@
+rt_ieee1394.ko: $(libkernel_ieee1394_a_SOURCES) FORCE
+	@RTFW_KBUILD_CMD@
+
+all-local: $(OBJS)
+
+install-exec-local: $(OBJS)
+	$(mkinstalldirs) $(moduledir)
+	$(INSTALL_DATA) $^ $(moduledir)
+
+clean-local: $(libkernel_ieee1394_a_SOURCES)
+	@RTFW_KBUILD_CLEAN@
+
+EXTRA_DIST = Makefile.kbuild
+
+DISTCLEANFILES = Makefile
+
+.PHONY: FORCE

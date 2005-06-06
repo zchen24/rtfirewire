@@ -1,0 +1,39 @@
+moduledir = $(DESTDIR)@RTFW_MODULE_DIR@
+modext = @RTFW_MODULE_EXT@
+
+EXTRA_LIBRARIES = libkernel_bis1394.a
+
+libkernel_bis1394_a_CPPFLAGS = \
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include \
+	@RTAI_KMOD_CFLAGS@
+	
+	
+libkernel_bis1394_a_SOURCES = \
+    bis1394.c          
+
+OBJS = \
+	  bis1394$(modext) 
+
+bis1394.o: libkernel_bis1394.a
+	$(LD) --whole-archive $< -r -o $@
+
+bis1394.ko: @RTFW_KBUILD_ENV@
+bis1394.ko: $(libkernel_bis1394_a_SOURCES) FORCE
+	@RTFW_KBUILD_CMD@
+
+all-local: $(OBJS)
+
+install-exec-local: $(OBJS)
+	$(mkinstalldirs) $(moduledir)
+	$(INSTALL_DATA) $^ $(moduledir)
+
+clean-local: $(libkernel_bis1394_a_SOURCES)
+	@RTFW_KBUILD_CLEAN@
+   
+
+EXTRA_DIST = Makefile.kbuild
+
+DISTCLEANFILES = Makefile
+
+.PHONY: FORCE

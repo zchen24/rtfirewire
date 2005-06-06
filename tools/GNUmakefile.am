@@ -1,0 +1,17 @@
+OPTPROGS =
+OPTSCRIPTS =
+
+
+sbin_PROGRAMS = hostconfig rtping $(OPTPROGS)
+
+AM_CPPFLAGS = \
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include
+
+all-local: hostconfig rtping $(OPTPROGS)
+
+install-exec-local: $(OPTSCRIPTS)
+	$(mkinstalldirs) $(DESTDIR)$(sbindir)
+	for FILE in $^; do					\
+ 		$(INSTALL_SCRIPT) $$FILE $(DESTDIR)$(sbindir);	\
+	done
