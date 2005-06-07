@@ -707,7 +707,6 @@ int hpsb_send_packet(struct hpsb_packet *packet)
                             packet->header_size);
         }
 
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
         return host->driver->transmit_packet(host, packet);
 }
 

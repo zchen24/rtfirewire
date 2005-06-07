@@ -93,7 +93,6 @@ int rtpc_dispatch_call(rtpc_proc proc, unsigned int timeout,
     unsigned long       flags;
     int                 ret;
 
-    rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
     call = kmalloc(sizeof(struct rt_proc_call) + priv_data_size, GFP_KERNEL);
     if (call == NULL) {
         if (call->cleanup_handler != NULL)
@@ -108,14 +107,12 @@ int rtpc_dispatch_call(rtpc_proc proc, unsigned int timeout,
     call->result          = 0;
     call->cleanup_handler = cleanup_handler;
     atomic_set(&call->ref_count, 2);    /* dispatcher + rt-procedure */
-    rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
     init_waitqueue_head(&call->call_wq);
 
     rtos_spin_lock_irqsave(&pending_calls_lock, flags);
     list_add_tail(&call->list_entry, &pending_calls);
     rtos_spin_unlock_irqrestore(&pending_calls_lock, flags);
 
-    rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
     rtos_event_sem_signal(dispatch_event);
 
     if (timeout > 0) {
@@ -126,8 +123,6 @@ int rtpc_dispatch_call(rtpc_proc proc, unsigned int timeout,
     } else
         ret = wait_event_interruptible(call->call_wq, call->processed);
     
-    rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
-
     if (ret >= 0) {
         if (copy_back_handler != NULL)
             copy_back_handler(call, priv_data);

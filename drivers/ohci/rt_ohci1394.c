@@ -1014,7 +1014,6 @@ static int ohci_devctl(struct hpsb_host *host, enum devctl_cmd cmd, int arg)
 	int retval = 0;
 	int phy_reg;
 
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	switch (cmd) {
 	case RESET_BUS:
 		switch (arg) {
@@ -1024,11 +1023,9 @@ static int ohci_devctl(struct hpsb_host *host, enum devctl_cmd cmd, int arg)
 			set_phy_reg(ohci, 5, phy_reg); /* set ISBR */
 			break;
 		case LONG_RESET:
-			rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 			phy_reg = get_phy_reg(ohci, 1);
 			phy_reg |= 0x40;
 			set_phy_reg(ohci, 1, phy_reg); /* set IBR */
-			rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 			break;
 		case SHORT_RESET_NO_FORCE_ROOT:
 			phy_reg = get_phy_reg(ohci, 1);
@@ -1066,7 +1063,6 @@ static int ohci_devctl(struct hpsb_host *host, enum devctl_cmd cmd, int arg)
 		default:
 			retval = -1;
 		}
-		rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		break;
 
 	case GET_CYCLE_COUNTER:
@@ -1224,7 +1220,6 @@ static int ohci_devctl(struct hpsb_host *host, enum devctl_cmd cmd, int arg)
 			cmd);
 		break;
 	}
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return retval;
 }
 
@@ -2602,7 +2597,6 @@ static void ohci_irq_handler(unsigned int irq, void *dev_id)
 	}
 
 	if (event & OHCI1394_busReset) {
-		rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		/* The busReset event bit can't be cleared during the
 		 * selfID phase, so we disable busReset interrupts, to
 		 * avoid burying the cpu in interrupt requests. */
@@ -2858,7 +2852,6 @@ static __inline__ int packet_length(struct dma_rcv_ctx *d, int idx, quadlet_t *b
 /* Tasklet that processes dma receive buffers */
 static void dma_rcv_routine (unsigned long data)
 {
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	struct dma_rcv_ctx *d = (struct dma_rcv_ctx*)data;
 	struct ti_ohci *ohci = (struct ti_ohci*)(d->ohci);
 	unsigned int split_left, idx, offset, rescount;
@@ -3011,7 +3004,6 @@ static void dma_rcv_routine (unsigned long data)
 */
 static void dma_trm_routine (unsigned long data)
 {
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	struct dma_trm_ctx *d = (struct dma_trm_ctx*)data;
 	struct ti_ohci *ohci = (struct ti_ohci*)(d->ohci);
 	struct hpsb_packet *packet, *ptmp;
@@ -3633,7 +3625,6 @@ int ohci_found1(struct pci_dev *pdev)
 	pci_set_drvdata(pdev, ohci);
 	/* We don't want hardware swapping */
 	pci_write_config_dword(pdev, OHCI1394_PCI_HCI_Control, 0);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* Some oddball Apple controllers do not order the selfid
 	 * properly, so we make up for it here.  */
@@ -3708,7 +3699,6 @@ int ohci_found1(struct pci_dev *pdev)
 			      OHCI1394_AsReqRcvContextBase) < 0)
 		FAIL(-ENOMEM, "Failed to allocate AR Req context");
 	ohci->reqrx.sync = &ohci->ar_req_context.srv->event;
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* AR DMA response context allocation */
 	if (alloc_dma_rcv_ctx(ohci, &ohci->ar_resp_context,
@@ -3717,7 +3707,6 @@ int ohci_found1(struct pci_dev *pdev)
 			      OHCI1394_AsRspRcvContextBase) < 0)
 		FAIL(-ENOMEM, "Failed to allocate AR Resp context");
 	ohci->resprx.sync = &ohci->ar_resp_context.srv->event;
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* AT DMA request context */
 	if (alloc_dma_trm_ctx(ohci, &ohci->at_req_context,
@@ -3725,7 +3714,6 @@ int ohci_found1(struct pci_dev *pdev)
 			      OHCI1394_AsReqTrContextBase) < 0)
 		FAIL(-ENOMEM, "Failed to allocate AT Req context");
 	ohci->reqtx.sync = &ohci->at_req_context.srv->event;
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* AT DMA response context */
 	if (alloc_dma_trm_ctx(ohci, &ohci->at_resp_context,
@@ -3733,12 +3721,10 @@ int ohci_found1(struct pci_dev *pdev)
 			      OHCI1394_AsRspTrContextBase) < 0)
 		FAIL(-ENOMEM, "Failed to allocate AT Resp context");
 	ohci->resptx.sync = &ohci->at_resp_context.srv->event;
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	
 	/* Start off with a soft reset, to clear everything to a sane
 	 * state. */
 	ohci_soft_reset(ohci);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* Now enable LPS, which we need in order to start accessing
 	 * most of the registers.  In fact, on some cards (ALI M5251),
@@ -3792,7 +3778,6 @@ int ohci_found1(struct pci_dev *pdev)
 			
 	ohci->init_state = OHCI_INIT_HAVE_IRQ;
 	ohci_initialize(ohci);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	/*! set certain csr values */
 	host->csr.guid_hi = reg_read(ohci, OHCI1394_GUIDHi);
 	host->csr.guid_lo = reg_read(ohci, OHCI1394_GUIDLo);

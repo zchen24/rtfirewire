@@ -62,7 +62,6 @@ static int ieee1394_ioctl(struct inode *inode, struct file *file,
 	struct list_head        *lh;
 	int                      ret;
     	
-    rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
@@ -83,7 +82,6 @@ static int ieee1394_ioctl(struct inode *inode, struct file *file,
 		ioctls = list_entry(lh, struct ioctl_handler, entry);
 	
 			if (ioctls->ioctl_type == _IOC_TYPE(request)) {
-				rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 				read_unlock_bh(&ioctl_handlers_lock);
 				atomic_inc(&ioctls->ref_count);
 				ret = ioctls->handler(host, request, arg);
@@ -100,7 +98,6 @@ static int ieee1394_ioctl(struct inode *inode, struct file *file,
 	
 	if(host)
 		atomic_dec(&host->refcount);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return -ENOTTY;
 }
 

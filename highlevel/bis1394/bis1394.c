@@ -194,7 +194,6 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 	struct bis_cmd	cmd;
 	int ret;
 	
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	ret = copy_from_user(&cmd, (void *)arg, sizeof(cmd));
 	if(ret != 0)
 		return -EFAULT;
@@ -202,7 +201,6 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 	
 	switch(request) {
 		case IOC_RTFW_PING:
-			rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 			ret = rtpc_dispatch_call(ping_handler, cmd.args.ping.timeout, &cmd,
 							sizeof(cmd), ping_complete_handler, NULL);
 			if(ret >= 0) {
@@ -229,7 +227,6 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 static int bis_read(struct hpsb_host *host, int nodeid, quadlet_t *buf,
                      u64 addr, size_t length, u16 flags)
 {
-	rtos_print("BIS:read request\n");
 	return RCODE_COMPLETE;
 }
 
@@ -322,13 +319,9 @@ int bis1394_init(void)
   
 void bis1394_exit(void)
 {
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	hpsb_unregister_highlevel(&bis_highlevel);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	ieee1394_unregister_ioctls(&bis_ioctls);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rtos_timer_stop();
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 }
 
 module_init(bis1394_init);

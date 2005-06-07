@@ -81,11 +81,9 @@ void ping(int signal)
     
     sent++;
 
-printf("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
     ret = ioctl(f, IOC_RTFW_PING, &cmd);
     if (ret < 0) {
         if (errno == ETIME){
-		printf("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
             goto done;
 	}
         perror("ioctl");
