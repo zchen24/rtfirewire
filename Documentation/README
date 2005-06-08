@@ -33,9 +33,19 @@ mknod /dev/rt-firewire c 10 241.
 4.	First play-around
 After inmoding all the modules, you can run hostconfig now to see all your FireWire adapters, quite similiar
 to ifconfig on Ethernet. 
+for example:
+===========
+hostconfig -a 
+===========
+This gives a view of all local hosts. 
 
-If you have 2 machines, you can run rtping to test the latency between request and response. Expected 
-number should be between 110 to 130us, with not too big data payload, 0 to 500 bytes. 
+If you have 2 machines, you can run rtping to test the latency between request and response. 
+for example: 
+=======================
+rtping -h fwhost0 -d 0 -s 500. 
+=======================
+This does a test between local host "fwhost0" and remote node with id 0. 
+If the id of local host is used, then it is a loopback test. 
 
 More update will follow! And enjoy your first flame:)
 

@@ -921,7 +921,7 @@ static void dma_trm_flush(struct ti_ohci *ohci, struct dma_trm_ctx *d)
 /**
  * @ingroup ohci
  * @anchor ohci_transmit
- * Transmission of an async or iso packet 
+ * Transmission of an async packet 
  */
 static int ohci_transmit(struct hpsb_host *host, struct hpsb_packet *packet)
 {
@@ -942,6 +942,8 @@ static int ohci_transmit(struct hpsb_host *host, struct hpsb_packet *packet)
 	if (packet->type == hpsb_raw)
 		d = &ohci->at_req_context;
 	else if ((packet->tcode == TCODE_ISO_DATA) && (packet->type == hpsb_iso)) {
+		
+		d = &ohci->at_req_context; //transmit the stream data thru asynchronous dma. 
 		/* The legacy IT DMA context is initialized on first
 		 * use.  However, the alloc cannot be run from
 		 * interrupt context, so we bail out if that is the
@@ -974,7 +976,6 @@ static int ohci_transmit(struct hpsb_host *host, struct hpsb_packet *packet)
 
 	rtos_spin_lock_irqsave(&d->lock,flags);
 
-	//~ list_add_tail(&packet->driver_list, &d->pending_list);
 	if(packet->pri==0xf)
 		list_add_tail(&packet->driver_list, &d->pending_list);
 	else{
@@ -1107,111 +1108,115 @@ static int ohci_devctl(struct hpsb_host *host, enum devctl_cmd cmd, int arg)
 
 	case ISO_LISTEN_CHANNEL:
         {
-		//~ u64 mask;
-		//~ struct dma_rcv_ctx *d = &ohci->ir_legacy_context;
-		//~ int ir_legacy_active;
+#if 0
+		u64 mask;
+		struct dma_rcv_ctx *d = &ohci->ir_legacy_context;
+		int ir_legacy_active;
 
-		//~ if (arg<0 || arg>63) {
-			//~ PRINT(KERN_ERR,
-			      //~ "%s: IS0 listen channel %d is out of range",
-			      //~ __FUNCTION__, arg);
-			//~ return -EFAULT;
-		//~ }
+		if (arg<0 || arg>63) {
+			PRINT(KERN_ERR,
+			      "%s: IS0 listen channel %d is out of range",
+			      __FUNCTION__, arg);
+			return -EFAULT;
+		}
 
-		//~ mask = (u64)0x1<<arg;
+		mask = (u64)0x1<<arg;
 
-                //~ rtos_spin_lock_irqsave(&ohci->IR_channel_lock, flags);
+                rtos_spin_lock_irqsave(&ohci->IR_channel_lock, flags);
 
-		//~ if (ohci->ISO_channel_usage & mask) {
-			//~ PRINT(KERN_ERR,
-			      //~ "%s: IS0 listen channel %d is already used",
-			      //~ __FUNCTION__, arg);
-			//~ rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
-			//~ return -EFAULT;
-		//~ }
+		if (ohci->ISO_channel_usage & mask) {
+			PRINT(KERN_ERR,
+			      "%s: IS0 listen channel %d is already used",
+			      __FUNCTION__, arg);
+			rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
+			return -EFAULT;
+		}
 
-		//~ ir_legacy_active = ohci->ir_legacy_channels;
+		ir_legacy_active = ohci->ir_legacy_channels;
 
-		//~ ohci->ISO_channel_usage |= mask;
-		//~ ohci->ir_legacy_channels |= mask;
+		ohci->ISO_channel_usage |= mask;
+		ohci->ir_legacy_channels |= mask;
 
-                //~ rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
+                rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
 
-		//~ if (!ir_legacy_active) {
-			//~ if (ohci1394_register_iso_tasklet(ohci,
-					  //~ &ohci->ir_legacy_tasklet) < 0) {
-				//~ PRINT(KERN_ERR, "No IR DMA context available");
-				//~ return -EBUSY;
-			//~ }
+		if (!ir_legacy_active) {
+			if (ohci1394_register_iso_tasklet(ohci,
+					  &ohci->ir_legacy_tasklet) < 0) {
+				PRINT(KERN_ERR, "No IR DMA context available");
+				return -EBUSY;
+			}
 
-			//~ /* the IR context can be assigned to any DMA context
-			 //~ * by ohci1394_register_iso_tasklet */
-			//~ d->ctx = ohci->ir_legacy_tasklet.context;
-			//~ d->ctrlSet = OHCI1394_IsoRcvContextControlSet +
-				//~ 32*d->ctx;
-			//~ d->ctrlClear = OHCI1394_IsoRcvContextControlClear +
-				//~ 32*d->ctx;
-			//~ d->cmdPtr = OHCI1394_IsoRcvCommandPtr + 32*d->ctx;
-			//~ d->ctxtMatch = OHCI1394_IsoRcvContextMatch + 32*d->ctx;
+			/* the IR context can be assigned to any DMA context
+			 * by ohci1394_register_iso_tasklet */
+			d->ctx = ohci->ir_legacy_tasklet.context;
+			d->ctrlSet = OHCI1394_IsoRcvContextControlSet +
+				32*d->ctx;
+			d->ctrlClear = OHCI1394_IsoRcvContextControlClear +
+				32*d->ctx;
+			d->cmdPtr = OHCI1394_IsoRcvCommandPtr + 32*d->ctx;
+			d->ctxtMatch = OHCI1394_IsoRcvContextMatch + 32*d->ctx;
 
-			//~ initialize_dma_rcv_ctx(&ohci->ir_legacy_context, 1);
+			initialize_dma_rcv_ctx(&ohci->ir_legacy_context, 1);
 
-			//~ PRINT(KERN_ERR, "IR legacy activated");
-		//~ }
+			PRINT(KERN_ERR, "IR legacy activated");
+		}
 
-                //~ rtos_spin_lock_irqsave(&ohci->IR_channel_lock, flags);
+                rtos_spin_lock_irqsave(&ohci->IR_channel_lock, flags);
 
-		//~ if (arg>31)
-			//~ reg_write(ohci, OHCI1394_IRMultiChanMaskHiSet,
-				  //~ 1<<(arg-32));
-		//~ else
-			//~ reg_write(ohci, OHCI1394_IRMultiChanMaskLoSet,
-				  //~ 1<<arg);
+		if (arg>31)
+			reg_write(ohci, OHCI1394_IRMultiChanMaskHiSet,
+				  1<<(arg-32));
+		else
+			reg_write(ohci, OHCI1394_IRMultiChanMaskLoSet,
+				  1<<arg);
 
-                //~ rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
-                //~ DBGMSG("Listening enabled on channel %d", arg);
-                //~ break;
+                rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
+                DBGMSG("Listening enabled on channel %d", arg);
+#endif
+                break;
         }
 	case ISO_UNLISTEN_CHANNEL:
         {
-		//~ u64 mask;
+#if 0		
+		u64 mask;
 
-		//~ if (arg<0 || arg>63) {
-			//~ PRINT(KERN_ERR,
-			      //~ "%s: IS0 unlisten channel %d is out of range",
-			      //~ __FUNCTION__, arg);
-			//~ return -EFAULT;
-		//~ }
+		if (arg<0 || arg>63) {
+			PRINT(KERN_ERR,
+			      "%s: IS0 unlisten channel %d is out of range",
+			      __FUNCTION__, arg);
+			return -EFAULT;
+		}
 
-		//~ mask = (u64)0x1<<arg;
+		mask = (u64)0x1<<arg;
 
-                //~ rtos_spin_lock_irqsave(&ohci->IR_channel_lock, flags);
+                rtos_spin_lock_irqsave(&ohci->IR_channel_lock, flags);
 
-		//~ if (!(ohci->ISO_channel_usage & mask)) {
-			//~ PRINT(KERN_ERR,
-			      //~ "%s: ISO unlisten channel %d is not used",
-			      //~ __FUNCTION__, arg);
-			//~ rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
-			//~ return -EFAULT;
-		//~ }
+		if (!(ohci->ISO_channel_usage & mask)) {
+			PRINT(KERN_ERR,
+			      "%s: ISO unlisten channel %d is not used",
+			      __FUNCTION__, arg);
+			rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
+			return -EFAULT;
+		}
 
-		//~ ohci->ISO_channel_usage &= ~mask;
-		//~ ohci->ir_legacy_channels &= ~mask;
+		ohci->ISO_channel_usage &= ~mask;
+		ohci->ir_legacy_channels &= ~mask;
 
-		//~ if (arg>31)
-			//~ reg_write(ohci, OHCI1394_IRMultiChanMaskHiClear,
-				  //~ 1<<(arg-32));
-		//~ else
-			//~ reg_write(ohci, OHCI1394_IRMultiChanMaskLoClear,
-				  //~ 1<<arg);
+		if (arg>31)
+			reg_write(ohci, OHCI1394_IRMultiChanMaskHiClear,
+				  1<<(arg-32));
+		else
+			reg_write(ohci, OHCI1394_IRMultiChanMaskLoClear,
+				  1<<arg);
 
-                //~ rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
-                //~ DBGMSG("Listening disabled on channel %d", arg);
+                rtos_spin_unlock_irqrestore(&ohci->IR_channel_lock, flags);
+                DBGMSG("Listening disabled on channel %d", arg);
 
-		//~ if (ohci->ir_legacy_channels == 0) {
-			//~ stop_dma_rcv_ctx(&ohci->ir_legacy_context);
-			//~ DBGMSG("ISO legacy receive context stopped");
-		//~ }
+		if (ohci->ir_legacy_channels == 0) {
+			stop_dma_rcv_ctx(&ohci->ir_legacy_context);
+			DBGMSG("ISO legacy receive context stopped");
+		}
+#endif
 
                 break;
         }
@@ -1223,8 +1228,6 @@ static int ohci_devctl(struct hpsb_host *host, enum devctl_cmd cmd, int arg)
 	return retval;
 }
 
-
-#if 0
 /***********************************
  * rawiso ISO reception            *
  ***********************************/
@@ -1247,7 +1250,7 @@ static int ohci_devctl(struct hpsb_host *host, enum devctl_cmd cmd, int arg)
 struct ohci_iso_recv {
 	struct ti_ohci *ohci;
 
-	struct ohci1394_iso_tasklet task;
+	struct ohci1394_iso_ctx ctx;
 	int task_active;
 
 	enum { BUFFER_FILL_MODE = 0,
@@ -1386,12 +1389,11 @@ static int ohci_iso_recv_init(struct hpsb_iso *iso)
 
 	recv->block = (struct dma_cmd*) recv->prog.kvirt;
 
-	ohci1394_init_iso_tasklet(&recv->task,
+	ohci1394_init_iso_ctx(&recv->ctx,
 				  iso->channel == -1 ? OHCI_ISO_MULTICHANNEL_RECEIVE :
-				                       OHCI_ISO_RECEIVE,
-				  ohci_iso_recv_task, (unsigned long) iso);
+				                       OHCI_ISO_RECEIVE,iso);
 
-	if (ohci1394_register_iso_tasklet(recv->ohci, &recv->task) < 0) {
+	if (ohci1394_register_iso_ctx(recv->ohci, &recv->ctx) < 0) {
 		ret = -EBUSY;
 		goto err;
 	}
@@ -1399,7 +1401,7 @@ static int ohci_iso_recv_init(struct hpsb_iso *iso)
 	recv->task_active = 1;
 
 	/* recv context registers are spaced 32 bytes apart */
-	ctx = recv->task.context;
+	ctx = recv->ctx.context;
 	recv->ContextControlSet = OHCI1394_IsoRcvContextControlSet + 32 * ctx;
 	recv->ContextControlClear = OHCI1394_IsoRcvContextControlClear + 32 * ctx;
 	recv->CommandPtr = OHCI1394_IsoRcvCommandPtr + 32 * ctx;
@@ -1438,7 +1440,7 @@ static void ohci_iso_recv_stop(struct hpsb_iso *iso)
 	struct ohci_iso_recv *recv = iso->hostdata;
 
 	/* disable interrupts */
-	reg_write(recv->ohci, OHCI1394_IsoRecvIntMaskClear, 1 << recv->task.context);
+	reg_write(recv->ohci, OHCI1394_IsoRecvIntMaskClear, 1 << recv->ctx.context);
 
 	/* halt DMA */
 	ohci1394_stop_context(recv->ohci, recv->ContextControlClear, NULL);
@@ -1457,7 +1459,7 @@ static void ohci_iso_recv_shutdown(struct hpsb_iso *iso)
 
 	if (recv->task_active) {
 		ohci_iso_recv_stop(iso);
-		ohci1394_unregister_iso_tasklet(recv->ohci, &recv->task);
+		ohci1394_unregister_iso_ctx(recv->ohci, &recv->ctx);
 		recv->task_active = 0;
 	}
 
@@ -1652,7 +1654,7 @@ static int ohci_iso_recv_start(struct hpsb_iso *iso, int cycle, int tag_mask, in
 	reg_write(recv->ohci, recv->CommandPtr, command);
 
 	/* enable interrupts */
-	reg_write(recv->ohci, OHCI1394_IsoRecvIntMaskSet, 1 << recv->task.context);
+	reg_write(recv->ohci, OHCI1394_IsoRecvIntMaskSet, 1 << recv->ctx.context);
 
 	wmb();
 
@@ -2043,7 +2045,7 @@ static void ohci_iso_recv_task(unsigned long data)
 struct ohci_iso_xmit {
 	struct ti_ohci *ohci;
 	struct dma_prog_region prog;
-	struct ohci1394_iso_tasklet task;
+	struct ohci1394_iso_ctx ctx;
 	int task_active;
 
 	u32 ContextControlSet;
@@ -2098,10 +2100,9 @@ static int ohci_iso_xmit_init(struct hpsb_iso *iso)
 	if (dma_prog_region_alloc(&xmit->prog, prog_size, xmit->ohci->dev))
 		goto err;
 
-	ohci1394_init_iso_tasklet(&xmit->task, OHCI_ISO_TRANSMIT,
-				  ohci_iso_xmit_task, (unsigned long) iso);
+	ohci1394_init_iso_ctx(&xmit->ctx,OHCI_ISO_TRANSMIT,iso);
 
-	if (ohci1394_register_iso_tasklet(xmit->ohci, &xmit->task) < 0) {
+	if (ohci1394_register_iso_ctx(xmit->ohci,&xmit->ctx) < 0) {
 		ret = -EBUSY;
 		goto err;
 	}
@@ -2109,7 +2110,7 @@ static int ohci_iso_xmit_init(struct hpsb_iso *iso)
 	xmit->task_active = 1;
 
 	/* xmit context registers are spaced 16 bytes apart */
-	ctx = xmit->task.context;
+	ctx = xmit->ctx.context;
 	xmit->ContextControlSet = OHCI1394_IsoXmitContextControlSet + 16 * ctx;
 	xmit->ContextControlClear = OHCI1394_IsoXmitContextControlClear + 16 * ctx;
 	xmit->CommandPtr = OHCI1394_IsoXmitCommandPtr + 16 * ctx;
@@ -2133,7 +2134,7 @@ static void ohci_iso_xmit_stop(struct hpsb_iso *iso)
 	struct ti_ohci *ohci = xmit->ohci;
 
 	/* disable interrupts */
-	reg_write(xmit->ohci, OHCI1394_IsoXmitIntMaskClear, 1 << xmit->task.context);
+	reg_write(xmit->ohci, OHCI1394_IsoXmitIntMaskClear, 1 << xmit->ctx.context);
 
 	/* halt DMA */
 	if (ohci1394_stop_context(xmit->ohci, xmit->ContextControlClear, NULL)) {
@@ -2154,7 +2155,7 @@ static void ohci_iso_xmit_shutdown(struct hpsb_iso *iso)
 
 	if (xmit->task_active) {
 		ohci_iso_xmit_stop(iso);
-		ohci1394_unregister_iso_tasklet(xmit->ohci, &xmit->task);
+		ohci1394_unregister_iso_ctx(xmit->ohci, &xmit->ctx);
 		xmit->task_active = 0;
 	}
 
@@ -2350,7 +2351,7 @@ static int ohci_iso_xmit_start(struct hpsb_iso *iso, int cycle)
 	}
 
 	/* enable interrupts */
-	reg_write(xmit->ohci, OHCI1394_IsoXmitIntMaskSet, 1 << xmit->task.context);
+	reg_write(xmit->ohci, OHCI1394_IsoXmitIntMaskSet, 1 << xmit->ctx.context);
 
 	/* run */
 	reg_write(xmit->ohci, xmit->ContextControlSet, 0x8000);
@@ -2425,7 +2426,6 @@ static int ohci_isoctl(struct hpsb_iso *iso, enum isoctl_cmd cmd, unsigned long 
 	}
 	return -EINVAL;
 }
-#endif /* all the iso stuff is commented out */
 
 /***************************************
  * IEEE-1394 functionality section END *
@@ -2480,36 +2480,31 @@ static void dma_trm_reset(struct dma_trm_ctx *d)
 	}
 }
 
-#if 0
-static void ohci_schedule_iso_bh(struct ti_ohci *ohci,
+
+static void ohci_schedule_iso_serv(struct ti_ohci *ohci,
 				       quadlet_t rx_event,
 				       quadlet_t tx_event)
 {
-	struct ohci1394_iso_bh *t;
+	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	struct ohci1394_iso_ctx *t;
 	unsigned long mask,flags;
 
-	rtos_spin_lock_irqsave(&ohci->iso_bh_list_lock, flags);
+	rtos_spin_lock_irqsave(&ohci->iso_ctx_list_lock, flags);
 
-	list_for_each_entry(t, &ohci->iso_bh_list, link) {
+	list_for_each_entry(t, &ohci->iso_ctx_list, link) {
 		mask = 1 << t->context;
 
 		if (t->type == OHCI_ISO_TRANSMIT && tx_event & mask)
-			rt_bh_wake(t->bh);
-			//~ tasklet_schedule(&t->tasklet);
+			rt_event_pend(&t->event);
 		else if (rx_event & mask)
-			rt_bh_wake(t->bh);
-			//~ tasklet_schedule(&t->tasklet);
+			rt_event_pend(&t->event);
 	}
 
-	rtos_spin_unlock_irqrestore(&ohci->iso_bh_list_lock);
+	rtos_spin_unlock_irqrestore(&ohci->iso_ctx_list_lock, flags);
 
 }
-#endif 
 
 
-/**
- * in 2.6, it is irqreturn_t, insteadof void
- */
 static void ohci_irq_handler(unsigned int irq, void *dev_id)
 {
 	quadlet_t event, node_id;
@@ -2528,7 +2523,10 @@ static void ohci_irq_handler(unsigned int irq, void *dev_id)
 	rtos_spin_unlock_irqrestore(&ohci->event_lock, flags);
 
 	if (!event)
+	{	
+		rtos_irq_enable(&ohci_irq[ohci->id]);
 		return;
+	}
 
 	/* If event is ~(u32)0 cardbus card was ejected.  In this case
 	 * we just return, and clean up in the ohci1394_pci_remove
@@ -2649,8 +2647,6 @@ static void ohci_irq_handler(unsigned int irq, void *dev_id)
 		else
 			rt_event_pend(&ohci->reqtx);
 			towake = 1;
-			//dma_trm_tasklet((unsigned long)d);
-			//tasklet_schedule(&d->task);
 		event &= ~OHCI1394_reqTxComplete;
 	}
 	if (event & OHCI1394_respTxComplete) {
@@ -2664,7 +2660,6 @@ static void ohci_irq_handler(unsigned int irq, void *dev_id)
 		else
 			rt_event_pend(&ohci->resptx);
 			towake = 1;
-			//tasklet_schedule(&d->task);
 		event &= ~OHCI1394_respTxComplete;
 	}
 	if (event & OHCI1394_RQPkt) {
@@ -2676,7 +2671,6 @@ static void ohci_irq_handler(unsigned int irq, void *dev_id)
 		else
 			rt_event_pend(&ohci->reqrx);
 			towake = 1;
-		//tasklet_schedule(&d->task);
 		event &= ~OHCI1394_RQPkt;
 	}
 	if (event & OHCI1394_RSPkt) {
@@ -2688,7 +2682,6 @@ static void ohci_irq_handler(unsigned int irq, void *dev_id)
 		else
 			rt_event_pend(&ohci->resprx);
 			towake = 1;
-			//tasklet_schedule(&d->task);
 		event &= ~OHCI1394_RSPkt;
 	}
 	if (event & OHCI1394_isochRx) {
@@ -2696,8 +2689,8 @@ static void ohci_irq_handler(unsigned int irq, void *dev_id)
 
 		rx_event = reg_read(ohci, OHCI1394_IsoRecvIntEventSet);
 		reg_write(ohci, OHCI1394_IsoRecvIntEventClear, rx_event);
-		//~ ohci_schedule_iso_bh(ohci, rx_event, 0);
-		rtos_print("OHCI1394:ISO rx BottomHalf is not implemented\n");
+		ohci_schedule_iso_serv(ohci, rx_event, 0);
+		towake = 1;
 		event &= ~OHCI1394_isochRx;
 	}
 	if (event & OHCI1394_isochTx) {
@@ -2705,8 +2698,8 @@ static void ohci_irq_handler(unsigned int irq, void *dev_id)
 
 		tx_event = reg_read(ohci, OHCI1394_IsoXmitIntEventSet);
 		reg_write(ohci, OHCI1394_IsoXmitIntEventClear, tx_event);
-		//~ ohci_schedule_iso_bh(ohci, 0, tx_event);
-		rtos_print("OHCI1394:ISO tx BottomHalf is not implemented\n");
+		ohci_schedule_iso_serv(ohci, 0, tx_event);
+		towake = 1;
 		event &= ~OHCI1394_isochTx;
 	}
 	/**
@@ -3754,8 +3747,8 @@ int ohci_found1(struct pci_dev *pdev)
 	ohci->ir_ctx_usage = ~0 << ohci->nb_iso_rcv_ctx;
 	ohci->it_ctx_usage = ~0 << ohci->nb_iso_xmit_ctx;
 
-	INIT_LIST_HEAD(&ohci->iso_tasklet_list);
-	rtos_spin_lock_init(&ohci->iso_tasklet_list_lock);
+	INIT_LIST_HEAD(&ohci->iso_ctx_list);
+	rtos_spin_lock_init(&ohci->iso_ctx_list_lock);
 	ohci->ISO_channel_usage = 0;
         rtos_spin_lock_init(&ohci->IR_channel_lock);
 
@@ -3952,21 +3945,36 @@ int ohci1394_stop_context(struct ti_ohci *ohci, int reg, char *msg)
 }
 EXPORT_SYMBOL(ohci1394_stop_context);
 
-#if 0
 /**
  * @ingroup ohci
  * @anchor ohci1394_init_iso_bh
  * initialize an isochronous transaction bottomhalf task in rtai  
  */
-void ohci1394_init_iso_bh(struct ohci1394_iso_bh *iso_bh, int type,
-			       void (*func)(unsigned long), unsigned long data)
-{
-	rt_bh_init(iso_bh->bh, func, data);
-	tasklet->type = type;
-	/* We init the tasklet->link field, so we can list_del() it
-	 * without worrying whether it was added to the list or not. */
-	INIT_LIST_HEAD(&tasklet->link);
+void ohci1394_init_iso_ctx(struct ohci1394_iso_ctx *t, int type, struct hpsb_iso *iso)
+{	
+	unsigned char name[20];
+	
+	switch(type){
+		case OHCI_ISO_TRANSMIT:
+			sprintf(name, "iso_trm%d", iso->channel);
+			t->srv = rt_serv_init(name, ohci_iso_xmit_task, (unsigned long)iso, 
+									iso->pri);
+			t->event.sync = &t->srv->event;
+			
+			break;
+		case OHCI_ISO_RECEIVE:
+			OHCI_ISO_MULTICHANNEL_RECEIVE:
+		
+			sprintf(name, "iso_rcv%d", iso->channel);
+			t->srv = rt_serv_init(name, ohci_iso_recv_task, (unsigned long)iso, 
+									iso->pri);
+			t->event.sync = &t->srv->event;
+			break;
+		default:
+			break;
+	}
 }
+EXPORT_SYMBOL(ohci1394_init_iso_ctx);
 
 /**
  * @ingroup ohci
@@ -3977,13 +3985,13 @@ void ohci1394_init_iso_bh(struct ohci1394_iso_bh *iso_bh, int type,
  * requested multichannel before. 
  * @return 0 on success, or -EBUSY.
  */
-int ohci1394_register_iso_bh(struct ti_ohci *ohci,
-				  struct ohci1394_iso_bh *iso_bh)
+int ohci1394_register_iso_ctx(struct ti_ohci *ohci,
+				  struct ohci1394_iso_ctx *t)
 {
 	unsigned long flags, *usage;
 	int n, i, r = -EBUSY;
 
-	if (iso_bh->type == OHCI_ISO_TRANSMIT) {
+	if (t->type == OHCI_ISO_TRANSMIT) {
 		n = ohci->nb_iso_xmit_ctx;
 		usage = &ohci->it_ctx_usage;
 	}
@@ -3992,24 +4000,24 @@ int ohci1394_register_iso_bh(struct ti_ohci *ohci,
 		usage = &ohci->ir_ctx_usage;
 
 		/* only one receive context can be multichannel (OHCI sec 10.4.1) */
-		if (iso_bh->type == OHCI_ISO_MULTICHANNEL_RECEIVE) {
+		if (t->type == OHCI_ISO_MULTICHANNEL_RECEIVE) {
 			if (test_and_set_bit(0, &ohci->ir_multichannel_used)) {
 				return r;
 			}
 		}
 	}
 
-	rtos_spin_lock_irqsave(&ohci->iso_bh_list_lock, flags);
+	rtos_spin_lock_irqsave(&ohci->iso_ctx_list_lock, flags);
 
 	for (i = 0; i < n; i++)
 		if (!test_and_set_bit(i, usage)) {
-			iso_bh->context = i;
-			list_add_tail(&iso_bh->link, &ohci->iso_bh_list);
+			t->context = i;
+			list_add_tail(&t->link, &ohci->iso_ctx_list);
 			r = 0;
 			break;
 		}
 
-	rtos_spin_unlock_irqrestore(&ohci->iso_bh_list_lock, flags);
+	rtos_spin_unlock_irqrestore(&ohci->iso_ctx_list_lock, flags);
 
 	return r;
 }
@@ -4020,35 +4028,30 @@ int ohci1394_register_iso_bh(struct ti_ohci *ohci,
  * to unregister a iso bottomhalf. If recv multichannel, 
  * clear the ir_multichannel_used bit
 */
-void ohci1394_unregister_iso_tasklet(struct ti_ohci *ohci,
-				     struct ohci1394_iso_bh *iso_bh)
+void ohci1394_unregister_iso_ctx(struct ti_ohci *ohci,
+				     struct ohci1394_iso_ctx *t)
 {
 	unsigned long flags;
 
-	rt_bh_delete(&iso_bh->bh);
+	rtos_spin_lock_irqsave(&ohci->iso_ctx_list_lock, flags);
 
-	rtos_spin_lock_irqsave(&ohci->iso_bh_list_lock, flags);
-
-	if (iso_bh->type == OHCI_ISO_TRANSMIT)
-		clear_bit(iso_bh->context, &ohci->it_ctx_usage);
+	if (t->type == OHCI_ISO_TRANSMIT)
+		clear_bit(t->context, &ohci->it_ctx_usage);
 	else {
-		clear_bit(iso_bh->context, &ohci->ir_ctx_usage);
+		clear_bit(t->context, &ohci->ir_ctx_usage);
 
-		if (iso_bh->type == OHCI_ISO_MULTICHANNEL_RECEIVE) {
+		if (t->type == OHCI_ISO_MULTICHANNEL_RECEIVE) {
 			clear_bit(0, &ohci->ir_multichannel_used);
 		}
 	}
 
-	list_del(&iso_bh->link);
+	list_del(&t->link);
 
-	rtos_spin_unlock_irqrestore(&ohci->iso_bh_list_lock, flags);
+	rtos_spin_unlock_irqrestore(&ohci->iso_ctx_list_lock, flags);
 }
 
-
-EXPORT_SYMBOL(ohci1394_init_iso_tasklet);
-EXPORT_SYMBOL(ohci1394_register_iso_tasklet);
-EXPORT_SYMBOL(ohci1394_unregister_iso_tasklet);
-#endif 
+EXPORT_SYMBOL(ohci1394_register_iso_ctx);
+EXPORT_SYMBOL(ohci1394_unregister_iso_ctx);
 
 
 /***********************************

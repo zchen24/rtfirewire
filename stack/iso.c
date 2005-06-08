@@ -66,6 +66,7 @@ void hpsb_iso_shutdown(struct hpsb_iso *iso)
  *  - irq interval
  *  - xmit or recv channel
  *  - allocate the data buffer
+ *  - assign the priority of bottomhalf server
  */
 static struct hpsb_iso* hpsb_iso_common_init(struct hpsb_host *host, enum hpsb_iso_type type,
 					     unsigned int data_buf_size,
@@ -73,7 +74,8 @@ static struct hpsb_iso* hpsb_iso_common_init(struct hpsb_host *host, enum hpsb_i
 					     int channel,
 					     int dma_mode,
 					     int irq_interval,
-					     void (*callback)(struct hpsb_iso*))
+					     void (*callback)(struct hpsb_iso*),
+					      int pri)
 {
 	struct hpsb_iso *iso;
 	int dma_direction;
@@ -127,6 +129,7 @@ static struct hpsb_iso* hpsb_iso_common_init(struct hpsb_host *host, enum hpsb_i
 	iso->pkt_dma = 0;
 	iso->first_packet = 0;
 	spin_lock_init(&iso->lock);
+	iso->pri = pri;
 
 	if (iso->type == HPSB_ISO_XMIT) {
 		iso->n_ready_packets = iso->buf_packets;
@@ -160,9 +163,9 @@ int hpsb_iso_n_ready(struct hpsb_iso* iso)
 	unsigned long flags;
 	int val;
 
-	spin_lock_irqsave(&iso->lock, flags);
+	rtos_spin_lock_irqsave(&iso->lock, flags);
 	val = iso->n_ready_packets;
-	spin_unlock_irqrestore(&iso->lock, flags);
+	rtos_spin_unlock_irqrestore(&iso->lock, flags);
 
 	return val;
 }
@@ -179,11 +182,12 @@ struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 				    int channel,
 				    int speed,
 				    int irq_interval,
-				    void (*callback)(struct hpsb_iso*))
+				    void (*callback)(struct hpsb_iso*),
+					int pri)
 {
 	struct hpsb_iso *iso = hpsb_iso_common_init(host, HPSB_ISO_XMIT,
 						    data_buf_size, buf_packets,
-						    channel, HPSB_ISO_DMA_DEFAULT, irq_interval, callback);
+						    channel, HPSB_ISO_DMA_DEFAULT, irq_interval, callback,pri);
 	if (!iso)
 		return NULL;
 
@@ -213,11 +217,12 @@ struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
 				    int channel,
 				    int dma_mode,
 				    int irq_interval,
-				    void (*callback)(struct hpsb_iso*))
+				    void (*callback)(struct hpsb_iso*), 
+					    int pri)
 {
 	struct hpsb_iso *iso = hpsb_iso_common_init(host, HPSB_ISO_RECV,
 						    data_buf_size, buf_packets,
-						    channel, dma_mode, irq_interval, callback);
+						    channel, dma_mode, irq_interval, callback, pri);
 	if (!iso)
 		return NULL;
 
@@ -423,7 +428,7 @@ int hpsb_iso_xmit_queue_packet(struct hpsb_iso *iso, u32 offset, u16 len, u8 tag
 	info->tag = tag;
 	info->sy = sy;
 
-	spin_lock_irqsave(&iso->lock, flags);
+	rtos_spin_lock_irqsave(&iso->lock, flags);
 
 	rv = iso->host->driver->isoctl(iso, XMIT_QUEUE, (unsigned long) info);
 	if (rv)
@@ -443,7 +448,7 @@ int hpsb_iso_xmit_queue_packet(struct hpsb_iso *iso, u32 offset, u16 len, u8 tag
 	}
 
 out:
-	spin_unlock_irqrestore(&iso->lock, flags);
+	rtos_spin_unlock_irqrestore(&iso->lock, flags);
 	return rv;
 }
 
@@ -466,7 +471,7 @@ int hpsb_iso_xmit_sync(struct hpsb_iso *iso)
 void hpsb_iso_packet_sent(struct hpsb_iso *iso, int cycle, int error)
 {
 	unsigned long flags;
-	spin_lock_irqsave(&iso->lock, flags);
+	rtos_spin_lock_irqsave(&iso->lock, flags);
 
 	/* predict the cycle of the next packet to be queued */
 
@@ -483,7 +488,7 @@ void hpsb_iso_packet_sent(struct hpsb_iso *iso, int cycle, int error)
 		atomic_inc(&iso->overflows);
 	}
 
-	spin_unlock_irqrestore(&iso->lock, flags);
+	rtos_spin_unlock_irqrestore(&iso->lock, flags);
 }
 
 /**
@@ -494,7 +499,7 @@ void hpsb_iso_packet_received(struct hpsb_iso *iso, u32 offset, u16 len,
 			      u16 cycle, u8 channel, u8 tag, u8 sy)
 {
 	unsigned long flags;
-	spin_lock_irqsave(&iso->lock, flags);
+	rtos_spin_lock_irqsave(&iso->lock, flags);
 
 	if (iso->n_ready_packets == iso->buf_packets) {
 		/* overflow! */
@@ -512,7 +517,7 @@ void hpsb_iso_packet_received(struct hpsb_iso *iso, u32 offset, u16 len,
 		iso->n_ready_packets++;
 	}
 
-	spin_unlock_irqrestore(&iso->lock, flags);
+	rtos_spin_unlock_irqrestore(&iso->lock, flags);
 }
 
 /**
@@ -528,7 +533,7 @@ int hpsb_iso_recv_release_packets(struct hpsb_iso *iso, unsigned int n_packets)
 	if (iso->type != HPSB_ISO_RECV)
 		return -1;
 
-	spin_lock_irqsave(&iso->lock, flags);
+	rtos_spin_lock_irqsave(&iso->lock, flags);
 	for (i = 0; i < n_packets; i++) {
 		rv = iso->host->driver->isoctl(iso, RECV_RELEASE,
 					       (unsigned long) &iso->infos[iso->first_packet]);
@@ -538,7 +543,7 @@ int hpsb_iso_recv_release_packets(struct hpsb_iso *iso, unsigned int n_packets)
 		iso->first_packet = (iso->first_packet+1) % iso->buf_packets;
 		iso->n_ready_packets--;
 	}
-	spin_unlock_irqrestore(&iso->lock, flags);
+	rtos_spin_unlock_irqrestore(&iso->lock, flags);
 	return rv;
 }
 

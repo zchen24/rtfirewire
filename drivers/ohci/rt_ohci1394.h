@@ -167,19 +167,18 @@ struct dma_trm_ctx {
 	int cmdPtr;
 };
 
-#if 0
 /**
  * @ingroup ohci
  * @struct ohci1394_iso_tasklet
  */
-struct ohci1394_iso_tasklet {
-	struct tasklet_struct tasklet;
+struct ohci1394_iso_ctx {
+	struct rt_event_struct event;
+	struct rt_serv_struct *srv;	
 	struct list_head link;
 	int context;
 	enum { OHCI_ISO_TRANSMIT, OHCI_ISO_RECEIVE,
 	       OHCI_ISO_MULTICHANNEL_RECEIVE } type;
 };
-#endif
 
 /**
  * @ingroup ohci
@@ -259,8 +258,8 @@ struct ti_ohci {
 	/* Tasklets for iso receive and transmit, used by video1394,
 	 * amdtp and dv1394 */
 
-	struct list_head iso_tasklet_list;
-	spinlock_t iso_tasklet_list_lock;
+	struct list_head iso_ctx_list;
+	spinlock_t iso_ctx_list_lock;
 
 	/* Swap the selfid buffer? */
 	unsigned int selfid_swap:1;
@@ -483,16 +482,12 @@ static inline u32 reg_read(const struct ti_ohci *ohci, int offset)
 
 #define OHCI1394_TCODE_PHY               0xE
 
-#if 0
-void ohci1394_init_iso_tasklet(struct ohci1394_iso_tasklet *tasklet,
-			       int type,
-			       void (*func)(unsigned long),
-			       unsigned long data);
-int ohci1394_register_iso_tasklet(struct ti_ohci *ohci,
-				  struct ohci1394_iso_tasklet *tasklet);
-void ohci1394_unregister_iso_tasklet(struct ti_ohci *ohci,
-				     struct ohci1394_iso_tasklet *tasklet);
-#endif
+void ohci1394_init_iso_ctx(struct ohci1394_iso_ctx *t,
+			       int type,struct hpsb_iso *iso);
+int ohci1394_register_iso_ctx(struct ti_ohci *ohci,
+				  struct ohci1394_iso_ctx *t);
+void ohci1394_unregister_iso_ctx(struct ti_ohci *ohci,
+				     struct ohci1394_iso_ctx *t);
 
 /* returns zero if successful, one if DMA context is locked up */
 int ohci1394_stop_context      (struct ti_ohci *ohci, int reg, char *msg);

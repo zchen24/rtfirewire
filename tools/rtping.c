@@ -29,7 +29,7 @@ float           wc_rtt   = 0;
 void help(void)
 {
     fprintf(stderr, "Usage:\n"
-        "\trtping [-h host] [-d destid] [-i interval] [-s packetsize] <addr>\n"
+        "\trtping [-h host] [-d destid] [-i interval] [-s packetsize]\n"
         );
 
     exit(1);

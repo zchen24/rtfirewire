@@ -145,6 +145,8 @@ struct hpsb_iso {
 	 * XXX Keep this last, since we use over-allocated memory from
 	 * this entry to fill this field. */
 	struct hpsb_iso_packet_info *infos;
+		
+	int pri;
 };
 
 /* functions available to high-level drivers (e.g. raw1394) */
@@ -157,7 +159,7 @@ struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 				    int channel,
 				    int speed,
 				    int irq_interval,
-				    void (*callback)(struct hpsb_iso*));
+				    void (*callback)(struct hpsb_iso*), int pri);
 
 /* note: if channel = -1, multi-channel receive is enabled */
 struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
@@ -166,7 +168,7 @@ struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
 				    int channel,
 				    int dma_mode,
 				    int irq_interval,
-				    void (*callback)(struct hpsb_iso*));
+				    void (*callback)(struct hpsb_iso*), int pri);
 
 /* multi-channel only */
 int hpsb_iso_recv_listen_channel(struct hpsb_iso *iso, unsigned char channel);
