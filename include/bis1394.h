@@ -42,11 +42,20 @@ struct bis_cmd {
 		struct {
 			
 		} sync;
+		
+		struct {
+		   int channel;
+		   unsigned int data_buf_size;
+		} iso;
 	} args;
 };
 		
 
 #define IOC_RTFW_PING	_IOWR(RTFW_IOC_TYPE_BIS, 0,	\
+						struct bis_cmd)
+#define IOC_RTFW_ISO_START	_IOWR(RTFW_IOC_TYPE_BIS, 1,	\
+						struct bis_cmd)
+#define IOC_RTFW_ISO_SHUTDOWN	_IOWR(RTFW_IOC_TYPE_BIS, 2,	\
 						struct bis_cmd)
 
 #endif /* _IEEE1394_BIS_H */

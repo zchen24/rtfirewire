@@ -22,8 +22,19 @@
 
 #include <linux/slab.h>
 #include <linux/sched.h>
-#include "iso.h"
+#include <iso.h>
+#include <ieee1394_types.h>
+#include <ieee1394.h>
+#include <hosts.h>
+#include <ieee1394_core.h>
+#include <highlevel.h>
+#include <ieee1394_transactions.h>
+#include <csr.h>
 
+
+
+int hpsb_iso_xmit_release(struct hpsb_iso *iso);
+	
 /**
  * @ingroup iso
  * @anchor hpsb_iso_stop
@@ -54,6 +65,10 @@ void hpsb_iso_shutdown(struct hpsb_iso *iso)
 	}
 
 	dma_region_free(&iso->data_buf);
+	
+	if(iso->type == HPSB_ISO_XMIT && hpsb_iso_xmit_release(iso))
+		rtos_print("%s:failed to release iso!!!\n", __FUNCTION__);
+	
 	kfree(iso);
 }
 
@@ -128,8 +143,10 @@ static struct hpsb_iso* hpsb_iso_common_init(struct hpsb_host *host, enum hpsb_i
 	iso->buf_packets = buf_packets;
 	iso->pkt_dma = 0;
 	iso->first_packet = 0;
-	spin_lock_init(&iso->lock);
+	rtos_spin_lock_init(&iso->lock);
 	iso->pri = pri;
+	iso->bandwidth = -1;
+	iso->channel = -1;
 
 	if (iso->type == HPSB_ISO_XMIT) {
 		iso->n_ready_packets = iso->buf_packets;
@@ -170,6 +187,143 @@ int hpsb_iso_n_ready(struct hpsb_iso* iso)
 	return val;
 }
 
+int hpsb_iso_xmit_release(struct hpsb_iso *iso)
+{
+	struct hpsb_host *host = iso->host;
+	int channel = iso->channel;	
+	unsigned int bandwidth = iso->bandwidth;
+	nodeid_t irm_id = iso->host->irm_id;
+	
+	quadlet_t new, old;
+	u64 ch_addr;
+	
+	int gen = iso->host->csr.generation;
+	
+	/**deallocate the channel **/
+	if(channel>=0 && channel<=31)
+		ch_addr = CSR_CHANNELS_AVAILABLE_LO;
+	else 
+		if(channel>=32 && channel<=63){
+			channel = channel - 32;
+			ch_addr = CSR_CHANNELS_AVAILABLE_HI;
+		}
+		else{
+			rtos_print("%s: out of range channel number\n", __FUNCTION__);
+			return -EINVAL;
+		}
+		
+	if (hpsb_read(host, irm_id, gen,  ch_addr+CSR_REGISTER_BASE, 
+						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
+	{
+		rtos_print("%s:failed to read available bandwidth\n",__FUNCTION__);
+		return -EAGAIN;
+	}
+	
+	new = old | (swab32(1UL<<channel)); //not sure if this is correct
+	
+	if(hpsb_lock(host, irm_id, gen, ch_addr+CSR_REGISTER_BASE, 
+					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
+	{
+		rtos_print("%s:failed to deallocate required bandwidth\n",__FUNCTION__);
+		return -EAGAIN;
+	}
+	
+	iso->channel = -1;
+	rtos_print("%s: channel %d deallocated\n",__FUNCTION__, channel);
+	
+	if(bandwidth!=-1){
+		/** deallocate the bandwidth **/
+		if (hpsb_read(host, irm_id, gen,  CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
+						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
+		{
+			rtos_print("%s:failed to read available bandwidth\n",__FUNCTION__);
+			return -EAGAIN;
+		}
+	
+		new = old + bandwidth;
+	
+		if(hpsb_lock(host, irm_id, gen, CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
+					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
+		{
+			rtos_print("%s:failed to allocate required bandwidth\n",__FUNCTION__);
+			return -EAGAIN;
+		}
+		iso->bandwidth = -1;
+	
+		rtos_print("%s: bandwidth %d units allocated\n",__FUNCTION__, iso->bandwidth);
+	}
+	
+	return 0;
+}
+
+#define BASE_UNITS_PERBYTE 5 //the nubmer of bw units needed to transmit a byte at speed 100Mb/s
+int hpsb_iso_xmit_alloc(struct hpsb_iso *iso)
+{
+	struct hpsb_host *host = iso->host;
+	int channel = iso->channel;	
+	unsigned int bandwidth = iso->bandwidth;
+	nodeid_t irm_id = iso->host->irm_id;
+	
+	quadlet_t new, old;
+	u64 ch_addr;
+	
+	int gen = iso->host->csr.generation;
+	
+	if(channel>=0 && channel<=31)
+		ch_addr = CSR_CHANNELS_AVAILABLE_LO;
+	else 
+		if(channel>=32 && channel<=63)
+		{
+			channel = channel - 32;
+			ch_addr = CSR_CHANNELS_AVAILABLE_HI;
+		}
+		else{
+			rtos_print("%s: out of range channel number\n", __FUNCTION__);
+			return -EINVAL;
+		}
+	
+	/*** allocate bandwidth ***/
+	if (hpsb_read(host, irm_id, gen,  CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
+						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
+	{
+		rtos_print("%s:failed to read available bandwidth\n",__FUNCTION__);
+		return -EAGAIN;
+	}
+	
+	new = old - bandwidth; //also include the header size
+	
+	if(hpsb_lock(host, irm_id, gen, CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
+					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
+	{
+		rtos_print("%s:failed to allocate required bandwidth\n",__FUNCTION__);
+		return -EAGAIN;
+	}
+	
+	rtos_print("%s: bandwidth %d units allocated\n",__FUNCTION__, iso->bandwidth);
+	
+	/*** allocate channel ***/
+	
+	if (hpsb_read(host, irm_id, gen,  ch_addr+CSR_REGISTER_BASE, 
+						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
+	{
+		rtos_print("%s:failed to read available bandwidth\n",__FUNCTION__);
+		return -EAGAIN;
+	}
+	
+	new = old & (swab32(~1UL<<channel)); //not sure if this is correct
+	
+	if(hpsb_lock(host, irm_id, gen, ch_addr+CSR_REGISTER_BASE, 
+					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
+	{
+		rtos_print("%s:failed to allocate required bandwidth\n",__FUNCTION__);
+		return -EAGAIN;
+	}
+	
+	rtos_print("%s: channel %d allocated\n",__FUNCTION__, channel);
+	
+	return 0;
+}
+
 /**
  * @ingroup iso
  * @anchor hpsb_iso_xmit_init
@@ -185,6 +339,8 @@ struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 				    void (*callback)(struct hpsb_iso*),
 					int pri)
 {
+	int speed_val;
+	
 	struct hpsb_iso *iso = hpsb_iso_common_init(host, HPSB_ISO_XMIT,
 						    data_buf_size, buf_packets,
 						    channel, HPSB_ISO_DMA_DEFAULT, irq_interval, callback,pri);
@@ -192,6 +348,17 @@ struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 		return NULL;
 
 	iso->speed = speed;
+	
+	if(speed>=0 && speed<=5)
+		speed_val = hpsb_speedto_val[iso->speed]/hpsb_speedto_val[0];
+	else
+		return NULL;
+	
+	iso->bandwidth = ((iso->buf_size + 8)*BASE_UNITS_PERBYTE)/speed_val+1;
+	
+	/**before start the operation in hardware, we need to allocate the bw and channel **/
+	if(hpsb_iso_xmit_alloc(iso))
+		goto err;//failed to allocate the needed bw and/or channel
 
 	/* tell the driver to start working */
 	if (host->driver->isoctl(iso, XMIT_INIT, 0))

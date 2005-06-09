@@ -3185,8 +3185,13 @@ alloc_dma_rcv_ctx(struct ti_ohci *ohci, struct dma_rcv_ctx *d,
 		  enum context_type type, int ctx, int num_desc,
 		  int buf_size,int split_buf_size, int context_base)
 {
-	int i, len;
+	int i;
 	static char pool_name[20];
+	
+	if (type == DMA_CTX_ISO) {
+		DBGMSG("Legacy iso xmit context should not be used anymore!!!\n");
+		return -EINVAL;
+	}
 
 	d->ohci = ohci;
 	d->type = type;
@@ -3231,15 +3236,10 @@ alloc_dma_rcv_ctx(struct ti_ohci *ohci, struct dma_rcv_ctx *d,
 	}
 	
 	if(type==DMA_CTX_ASYNC_REQ)
-		len = sprintf(pool_name, "areq_rcv");
+		sprintf(pool_name, "areq_rcv%d", cards_found);
 	else
 		if(type==DMA_CTX_ASYNC_RESP)
-			len = sprintf(pool_name, "aresp_rcv");
-		else
-			if(type==DMA_CTX_ISO)
-				len = sprintf(pool_name, "iso_rcv");
-	
-	sprintf(pool_name+len, "%d", cards_found);
+			sprintf(pool_name, "aresp_rcv%d", cards_found);
 
 	d->prg_pool = pci_pool_create(pool_name, ohci->dev,
 				sizeof(struct dma_cmd), 4, 0, SLAB_KERNEL);
@@ -3287,16 +3287,10 @@ alloc_dma_rcv_ctx(struct ti_ohci *ohci, struct dma_rcv_ctx *d,
 	/**we allocate the memory for one skb in dma rcv ctx**/
 	rtskb_pool_init(&d->pool,10);
 	
-	if (type == DMA_CTX_ISO) {
-		//~ ohci1394_init_iso_tasklet(&ohci->ir_legacy_tasklet,
-					  //~ OHCI_ISO_MULTICHANNEL_RECEIVE,
-					  //~ dma_rcv_tasklet, (unsigned long) d);
-	} else {
+
 		d->ctrlSet = context_base + OHCI1394_ContextControlSet;
 		d->ctrlClear = context_base + OHCI1394_ContextControlClear;
 		d->cmdPtr = context_base + OHCI1394_ContextCommandPtr;
-
-		//~ tasklet_init (&d->task, dma_rcv_tasklet, (unsigned long) d);
 		/**
 		 * we use the same name as of pci pool*/
 		d->srv = rt_serv_init( pool_name, dma_rcv_routine, (unsigned long)d, 
@@ -3305,7 +3299,6 @@ alloc_dma_rcv_ctx(struct ti_ohci *ohci, struct dma_rcv_ctx *d,
 			free_dma_rcv_ctx(d);
 			return -ENOMEM;
 		}
-	}
 
 	return 0;
 }
@@ -3348,8 +3341,13 @@ alloc_dma_trm_ctx(struct ti_ohci *ohci, struct dma_trm_ctx *d,
 		  enum context_type type, int ctx, int num_desc,
 		  int context_base)
 {
-	int i, len;
+	int i;
 	static char pool_name[20];
+	
+	if (type == DMA_CTX_ISO) {
+		DBGMSG("Legacy iso xmit context should not be used anymore!!!\n");
+		return -EINVAL;
+	}
 
 	d->ohci = ohci;
 	d->type = type;
@@ -3372,14 +3370,10 @@ alloc_dma_trm_ctx(struct ti_ohci *ohci, struct dma_trm_ctx *d,
 	memset(d->prg_bus, 0, d->num_desc * sizeof(dma_addr_t));
 
 	if(type==DMA_CTX_ASYNC_REQ)
-		len = sprintf(pool_name, "areq_trm");
+		sprintf(pool_name, "areq_trm%d", cards_found);
 	else
 		if(type==DMA_CTX_ASYNC_RESP)
-			len = sprintf(pool_name, "aresp_trm");
-		else
-			if(type==DMA_CTX_ISO)
-				len = sprintf(pool_name, "iso_trm");
-	sprintf(pool_name+len, "%d", cards_found);
+			sprintf(pool_name, "aresp_trm%d", cards_found);
 
 	d->prg_pool = pci_pool_create(pool_name, ohci->dev,
 				sizeof(struct dma_cmd), 4, 0, SLAB_KERNEL);
@@ -3409,22 +3403,7 @@ alloc_dma_trm_ctx(struct ti_ohci *ohci, struct dma_trm_ctx *d,
         rtos_spin_lock_init(&d->lock);
 
 	/* initialize bottomhalf */
-	if (type == DMA_CTX_ISO) {
-		//~ ohci1394_init_iso_tasklet(&ohci->it_legacy_tasklet, OHCI_ISO_TRANSMIT,
-					  //~ dma_trm_tasklet, (unsigned long) d);
-		//~ if (ohci1394_register_iso_tasklet(ohci,
-						  //~ &ohci->it_legacy_tasklet) < 0) {
-			//~ PRINT(KERN_ERR, "No IT DMA context available");
-			//~ free_dma_trm_ctx(d);
-			//~ return -EBUSY;
-		//~ }
-
-		//~ /* IT can be assigned to any context by register_iso_tasklet */
-		//~ d->ctx = ohci->it_legacy_tasklet.context;
-		//~ d->ctrlSet = OHCI1394_IsoXmitContextControlSet + 16 * d->ctx;
-		//~ d->ctrlClear = OHCI1394_IsoXmitContextControlClear + 16 * d->ctx;
-		//~ d->cmdPtr = OHCI1394_IsoXmitCommandPtr + 16 * d->ctx;
-	} else {
+	
 		d->ctrlSet = context_base + OHCI1394_ContextControlSet;
 		d->ctrlClear = context_base + OHCI1394_ContextControlClear;
 		d->cmdPtr = context_base + OHCI1394_ContextCommandPtr;
@@ -3435,7 +3414,7 @@ alloc_dma_trm_ctx(struct ti_ohci *ohci, struct dma_trm_ctx *d,
 			free_dma_trm_ctx(d);
 			return -ENOMEM;
 		}
-	}
+
 
 	return 0;
 }
@@ -3486,7 +3465,7 @@ static struct hpsb_host_driver ohci1394_driver = {
 	.set_hw_config_rom =	ohci_set_hw_config_rom,
 	.transmit_packet =	ohci_transmit,
 	.devctl =		ohci_devctl,
-	//~ .isoctl =               ohci_isoctl,
+	.isoctl =               ohci_isoctl,
 	.hw_csr_reg =		ohci_hw_csr_reg,
 };
 
@@ -3788,10 +3767,6 @@ int ohci_found1(struct pci_dev *pdev)
 	ohci->init_state = OHCI_INIT_DONE;
 	return ret;
 	
-err_out:
-	rtos_print("ohci_found1 failed with ret=%d\n",ret);
-	return ret;	
-	
 #undef FAIL
 }	
 
@@ -3822,14 +3797,14 @@ static int __devinit ohci1394_pci_probe(struct pci_dev *pdev,
 	 * clearly says it's 2kb, so this shouldn't be a problem. */ 
 	
 	if (pci_resource_len(pdev, 0) != OHCI1394_REGISTER_SIZE)
-		rtos_print(KERN_WARNING,"ohci1394: unexpected PCI resource length of %lx!",
+		rtos_print("ohci1394: unexpected PCI resource length of %lx!",
 		      pci_resource_len(pdev, 0));
 	
 	if (version_printed++ == 0)
-		rtos_print(KERN_INFO, "%s", version);
+		rtos_print("%s", version);
 
         if (pci_enable_device(pdev)){
-		rtos_print(KERN_ERR, "Failed to enable OHCI hardware %d",
+		rtos_print("Failed to enable OHCI hardware %d",
 		        cards_found++);
 		goto err_out_free_mmio_region;
 	}

@@ -10,7 +10,7 @@
 
 #include "ieee1394_core.h"
 
-
+#define TRANSACTION_HIGHEST_PRI 0
 /*
  * Get and free transaction labels.
  */

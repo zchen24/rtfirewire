@@ -91,7 +91,8 @@ struct hpsb_packet {
 
 	unsigned pri :4;
 	int 	ack;
-        quadlet_t embedded_header[5];
+	
+	quadlet_t embedded_header[5];
 };
 
 
@@ -188,8 +189,15 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
  * packet type.
  */
 void hpsb_packet_received(struct hpsb_packet *p);
+	
+int ieee1394_core_init(void);
+void ieee1394_core_cleanup(void);
 
 extern struct proc_dir_entry *rtfw_procfs_entry;
+	
+extern const char *hpsb_speedto_str[];
+extern const int hpsb_speedto_val[];
+
 /*@}*/
 
 #endif /* _IEEE1394_CORE_H */

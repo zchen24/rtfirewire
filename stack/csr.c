@@ -285,7 +285,7 @@ static void add_host(struct hpsb_host *host)
         host->csr.bandwidth_available   = 4915;
 	host->csr.channels_available_hi = 0xfffffffe;	/* pre-alloc ch 31 per 1394a-2000 */
         host->csr.channels_available_lo = ~0;
-	host->csr.broadcast_channel = 0x80000000 | 31;
+	host->csr.broadcast_channel = 0x80000000 | 31; /*this channel is for async multicast */
 
 	if (host->is_irm) {
 		if (host->driver->hw_csr_reg) {
@@ -717,18 +717,20 @@ static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
 		data &= ~0x1;	/* keep broadcast channel allocated */
 	}
 
-        if (host->driver->hw_csr_reg) {
-                quadlet_t old;
+	/**I suggeset we do all the CSR lock operation in software.<Zhang Yuchen 2005/6/9> **/
+	
+        //~ if (host->driver->hw_csr_reg) {
+                //~ quadlet_t old;
 
-                old = host->driver->
-                        hw_csr_reg(host, (csraddr - CSR_BUS_MANAGER_ID) >> 2,
-                                   data, arg);
+                //~ old = host->driver->
+                        //~ hw_csr_reg(host, (csraddr - CSR_BUS_MANAGER_ID) >> 2,
+                                   //~ data, arg);
 
-                *store = cpu_to_be32(old);
-                return RCODE_COMPLETE;
-        }
+                //~ *store = cpu_to_be32(old);
+                //~ return RCODE_COMPLETE;
+        //~ }
 
-        spin_lock_irqsave(&host->csr.lock, flags);
+        rtos_spin_lock_irqsave(&host->csr.lock, flags);
 
         switch (csraddr) {
         case CSR_BUS_MANAGER_ID:
@@ -757,16 +759,18 @@ static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
                         /* allocate bandwidth */
                         bandwidth = arg - data;
                         if (old >= bandwidth) {
+				/* we have enough bandwidth*/
                                 new = old - bandwidth;
                                 *store = cpu_to_be32(arg);
                                 *regptr = new;
                         } else {
+				/* we dont have enough */
                                 *store = cpu_to_be32(old);
                         }
                 } else {
                         /* deallocate bandwidth */
                         bandwidth = data - arg;
-                        if (old + bandwidth < 0x2000) {
+                        if (old + bandwidth < 0x2000) { //the max is 0x1fff
                                 new = old + bandwidth;
                                 *store = cpu_to_be32(arg);
                                 *regptr = new;
@@ -774,6 +778,7 @@ static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
                                 *store = cpu_to_be32(old);
                         }
                 }
+		
                 break;
         }
 
@@ -811,7 +816,7 @@ static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
         }
         }
 
-        spin_unlock_irqrestore(&host->csr.lock, flags);
+        rtos_spin_unlock_irqrestore(&host->csr.lock, flags);
 
         return RCODE_COMPLETE;
 

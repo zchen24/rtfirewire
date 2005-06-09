@@ -185,6 +185,8 @@ static int ieee1394_core_ioctl(struct hpsb_host *host, unsigned int request,
 	    cmd.args.info.node_id		= host->node_id & 0x3F;
 	    cmd.args.info.irm_id	= host->irm_id & 0x3F;
 	    cmd.args.info.busmgr_id	= host->busmgr_id & 0x3F;
+	    cmd.args.info.bw_remaining = host->csr.bandwidth_available;
+	    cmd.args.info.channels = ((u64)host->csr.channels_available_hi<<32) |(host->csr.channels_available_lo);
 	    
 	    cmd.args.info.nb_iso_xmit_ctx = host->nb_iso_xmit_ctx;
 	    cmd.args.info.it_ctx_usage = host->it_ctx_usage;

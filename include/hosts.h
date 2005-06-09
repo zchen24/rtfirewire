@@ -353,6 +353,8 @@ extern unsigned int host_xmit_proxy(struct hpsb_host *host, unsigned int priorit
 extern int host_open(struct hpsb_host *host);
 extern int host_close(struct hpsb_host *host);
 	
+int hpsb_update_config_rom_image(struct hpsb_host *host);
+	
 #endif /*__KERNEL__*/
 
 #endif  /* _HOST_H_ */

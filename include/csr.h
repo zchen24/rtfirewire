@@ -69,7 +69,7 @@
  * attached to host
  */
 struct csr_control {
-        spinlock_t lock;
+        rtos_spinlock_t lock;
 
         quadlet_t state;
         quadlet_t node_ids;

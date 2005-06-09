@@ -61,6 +61,7 @@
 #include <highlevel.h>
 #include <ieee1394_transactions.h>
 #include <csr.h>
+#include <config_roms.h>
 #include <dma.h>
 #include <iso.h>
 #include <rtskbuff.h>
@@ -107,25 +108,26 @@ MODULE_LICENSE("GPL");
 
 /* Some globals used */
 const char *hpsb_speedto_str[] = { "S100", "S200", "S400", "S800", "S1600", "S3200" };
+const int hpsb_speedto_val[] = { 100, 200, 400, 800, 1600, 3200};
 
-//~ #define CONFIG_IEEE1394_VERBOSEDEBUG
-//~ #ifdef CONFIG_IEEE1394_VERBOSEDEBUG
-//~ static void dump_packet(const char *text, quadlet_t *data, int size)
-//~ {
-	//~ rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
-	//~ int i;
+#define ENABLE_RTFW_VERBOSEDEBUG
+#ifdef ENABLE_RTFW_VERBOSEDEBUG
+static void dump_packet(const char *text, quadlet_t *data, int size)
+{
+	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	int i;
 
-	//~ size /= 4;
-	//~ size = (size > 4 ? 4 : size);
+	size /= 4;
+	size = (size > 4 ? 4 : size);
 
-	//~ rtos_print(KERN_DEBUG "ieee1394: %s", text);
-	//~ for (i = 0; i < size; i++)
-		//~ rtos_print(" %08x", data[i]);
-	//~ rtos_print("\n");
-//~ }
-//~ #else
+	rtos_print(KERN_DEBUG "ieee1394: %s", text);
+	for (i = 0; i < size; i++)
+		rtos_print(" %08x", data[i]);
+	rtos_print("\n");
+}
+#else
 #define dump_packet(x,y,z)
-//~ #endif
+#endif
 
 static void abort_requests(struct hpsb_host *host);
 static void queue_packet_complete(struct hpsb_packet *packet);
@@ -770,7 +772,7 @@ static void send_packet_nocare(struct hpsb_packet *packet)
  */
 void handle_packet_response(struct hpsb_packet *pkt)
 {
-	struct hpsb_packet *packet;
+	struct hpsb_packet *packet = NULL;
 	struct hpsb_host  *host = pkt->host;
 	quadlet_t *data = pkt->data;
 	size_t size = pkt->data_size;
@@ -791,7 +793,7 @@ void handle_packet_response(struct hpsb_packet *pkt)
 				break;
 		}
 		
-		packet == NULL;
+		packet = NULL;
 	}
 	
 	if (packet == NULL) {
@@ -1146,7 +1148,6 @@ void req_worker(unsigned long arg)
 void hpsb_packet_received(struct hpsb_packet *pkt)
 {
         char tcode;
-	struct hpsb_packet *nwpkt;
 	struct rtskb_head *req_list;
 	struct hpsb_host *host;
 	
@@ -1358,7 +1359,7 @@ void comp_worker(unsigned long data)
 			rtos_get_time(&time);
 			//calculate and log the time elapsecd between request and response
 			packet->xmit_time = rtos_time_to_nanosecs(&time) - packet->xmit_time;
-			rtos_print("%s:req2resp latency is %d ns\n", __FUNCTION__, packet->xmit_time);
+			rtos_print("%s:req2resp latency is %d ns\n", __FUNCTION__, (int)packet->xmit_time);
 				
 			complete_routine = packet->complete_routine;
 			complete_data = packet->complete_data;
@@ -1384,7 +1385,7 @@ struct proc_dir_entry *rtfw_procfs_entry;
  */
 int ieee1394_core_init(void)
 {
-	int i, ret=0;
+	int ret=0;
 	unsigned char *name;
 	
 	/**
@@ -1474,7 +1475,6 @@ error_exit_bis_req_server:
 	rtskb_pool_release(&bis_req_pool);
 	rt_serv_delete(comp_server);
 error_exit_comp_server:
-exit_cleanup_config_roms:
 	hpsb_cleanup_config_roms();
 	remove_proc_entry("rt-firewire",0);
 	return ret;

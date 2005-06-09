@@ -705,7 +705,7 @@ static void init_hpsb_highlevel(struct hpsb_host *host)
  */
 void highlevel_add_host(struct hpsb_host *host)
 {
-        struct hpsb_highlevel *hl;
+        struct hpsb_highlevel *hl = NULL;
 	struct list_head *lh;
 		
 	init_hpsb_highlevel(host);

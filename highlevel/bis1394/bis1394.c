@@ -31,6 +31,7 @@
 #include <ieee1394.h>
 #include <ieee1394_transactions.h>
 #include <asm/uaccess.h>
+#include <iso.h>
 
 static void add_host(struct hpsb_host *host);
 static void remove_host(struct hpsb_host *host);
@@ -41,7 +42,8 @@ static struct hpsb_highlevel bis_highlevel = {
 	.remove_host =	remove_host,
 };
 
-
+struct hpsb_iso *bis1394_iso;
+	
 void bis_queue_echo_request(struct rt_proc_call *call)
 {
 	unsigned long 	flags;
@@ -79,9 +81,8 @@ static void bis_echo_reply(void *data)
 	
 	struct hpsb_packet *packet = (struct hpsb_packet *)data;
 	unsigned long	flags;
-	struct rt_proc_call	*call;
+	struct rt_proc_call	*call = NULL;
 	struct bis_cmd	*cmd;
-	rtos_time_t		time;
 	
 	struct bis_host_info	*hi = (struct bis_host_info *)hpsb_get_hostinfo(&bis_highlevel,packet->host);
 	
@@ -104,7 +105,7 @@ static void bis_echo_reply(void *data)
 		goto echo_fail;
 	}	
 		
-	int	ret;
+	int	ret = 0;
 	ret = hpsb_packet_success(packet);
 	if(ret<0){
 		
@@ -211,7 +212,19 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 			break;
 			
 		//~ case IOC_RTFW_SYNC:
-			//~ break;	
+			//~ break;
+		case IOC_RTFW_ISO_START:
+			bis1394_iso = hpsb_iso_xmit_init(host, cmd.args.iso.data_buf_size, 1, 
+									cmd.args.iso.channel, 2, 1, NULL, 10);
+			if(!bis1394_iso)
+				ret = -ENOMEM;
+			break;
+		
+		case IOC_RTFW_ISO_SHUTDOWN:
+			if(bis1394_iso)
+				hpsb_iso_shutdown(bis1394_iso);
+			ret = 0;
+			break;
 		
 		default:
 			ret = -ENOTTY;

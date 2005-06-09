@@ -64,8 +64,14 @@ void print_dev(void)
 	
 	printf("          Iso xmit DMA ctx:%d   Usage:%x\n",
 			cmd.args.info.nb_iso_xmit_ctx, cmd.args.info.it_ctx_usage);
-	printf("          Iso rcv DMA ctx:%d   Usage:%x\n\n",
+	printf("          Iso rcv DMA ctx:%d   Usage:%x\n",
 			cmd.args.info.nb_iso_rcv_ctx, cmd.args.info.ir_ctx_usage);		
+	
+	if(cmd.args.info.node_id == cmd.args.info.irm_id)
+	printf("          Isochronous BW:%d	 Channels:%llx\n\n",
+			cmd.args.info.bw_remaining, cmd.args.info.channels);
+	else
+	printf("\n");
 	
 }
 

@@ -21,6 +21,7 @@
 
 #include "hosts.h"
 #include "dma.h"
+#include <rtos_primitives.h>
 
 /*! high-level ISO interface */
 
@@ -91,6 +92,7 @@ struct hpsb_iso {
 
 	int speed; /*! IEEE1394_SPEED_100, 200, or 400 */
 	int channel; /*! -1 if multichannel */
+	unsigned int bandwidth;
 	int dma_mode; /*! dma receive mode */
 
 
@@ -108,7 +110,7 @@ struct hpsb_iso {
 	unsigned int buf_packets;
 
 	/*! protects packet cursors */
-	spinlock_t lock;
+	rtos_spinlock_t lock;
 
 	/*! the index of the next packet that will be produced
 	   or consumed by the user */

@@ -40,7 +40,6 @@
 static rtos_spinlock_t   pending_calls_lock = RTOS_SPIN_LOCK_UNLOCKED;
 static rtos_spinlock_t   processed_calls_lock = RTOS_SPIN_LOCK_UNLOCKED;
 static rtos_event_sem_t  *dispatch_event;
-static rtos_task_t       dispatch_task;
 static rtos_nrt_signal_t rtpc_nrt_signal;
 
 LIST_HEAD(pending_calls);

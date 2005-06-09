@@ -84,6 +84,8 @@ struct ieee1394_core_cmd {
 	    nodeid_t node_id;
 	    nodeid_t irm_id;
 	    nodeid_t busmgr_id;
+	    unsigned int bw_remaining;
+	    unsigned long long channels;
 	    unsigned long nb_iso_xmit_ctx;
 	    unsigned long it_ctx_usage;
 	    unsigned long nb_iso_rcv_ctx;

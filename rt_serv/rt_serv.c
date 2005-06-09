@@ -151,14 +151,6 @@ void rt_serv_delete(struct rt_serv_struct *srv)
 		kfree(srv);
 	}
 }
-
-struct rt_event_struct *rt_event_init(void)
-{
-	struct rt_event_struct *evt;
-	evt = kmalloc(sizeof(*evt), GFP_KERNEL);
-	if(!evt)
-		return NULL;
-}
 	
 void rt_event_pend(struct rt_event_struct *evt)
 {
@@ -238,7 +230,6 @@ done_proc:
 int serv_module_init(void)
 {
 	struct proc_dir_entry *proc_entry;
-	const unsigned char *name="IRQ Broker";
 	
 	rtos_event_init(&irq_brk_sync);
 	
@@ -292,7 +283,6 @@ MODULE_LICENSE("GPL");
 
 EXPORT_SYMBOL(rt_serv_init);
 EXPORT_SYMBOL(rt_serv_delete);
-EXPORT_SYMBOL(rt_event_init);
 EXPORT_SYMBOL(rt_event_pend);
 EXPORT_SYMBOL(rt_event_delete);
 EXPORT_SYMBOL(rt_irq_broker_wake);

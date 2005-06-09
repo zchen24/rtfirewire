@@ -62,19 +62,16 @@ static void delayed_reset_bus(void * __reset_info)
 	if (generation > 0xf || generation < 2)
 		generation = 2;
 	
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	CSR_SET_BUS_INFO_GENERATION(host->csr.rom, generation);
 	if (csr1212_generate_csr_image(host->csr.rom) != CSR1212_SUCCESS) {
 		/* CSR image creation failed, reset generation field and do not
 		 * issue a bus reset. */
 		CSR_SET_BUS_INFO_GENERATION(host->csr.rom, host->csr.generation);
-		rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		return;
 	}
 	
 	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	host->csr.generation = generation;
-
 	host->update_config_rom = 0;
 	if (host->driver->set_hw_config_rom)
 		host->driver->set_hw_config_rom(host, host->csr.rom->bus_info_data);
@@ -82,7 +79,6 @@ static void delayed_reset_bus(void * __reset_info)
 	host->csr.gen_timestamp[host->csr.generation] = jiffies;
 	//~ hpsb_reset_bus(host, SHORT_RESET);
 	hpsb_reset_bus(host, LONG_RESET);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 }
 
 static int dummy_transmit_packet(struct hpsb_host *h, struct hpsb_packet *p)

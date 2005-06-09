@@ -112,27 +112,15 @@ struct rtskb *alloc_rtskb(unsigned int size,struct rtskb_pool *pool)
 {
 	struct rtskb *skb;
 	
-	rtos_time_t probe_a, probe_b;
-	rtos_get_time(&probe_a);
-	
 	if(size!=0)
 		RTOS_ASSERT(size <= SKB_DATA_ALIGN(RTSKB_SIZE), return NULL;);
 	
 	skb = rtskb_dequeue(&pool->queue);
 	
-	//~ rtos_get_time(&probe_b);
-	//~ rtos_time_diff(&probe_b, &probe_b, &probe_a);
-	//~ rtos_print("%s: time diff is %d\n", __FUNCTION__, rtos_time_to_nanosecs(&probe_b));
-
-	
 	if (!skb)
 		return NULL;
 
 	rtskb_clean(skb);
-	
-	//~ rtos_get_time(&probe_b);
-	//~ rtos_time_diff(&probe_b, &probe_b, &probe_a);
-	//~ rtos_print("%s: time diff is %d\n", __FUNCTION__, rtos_time_to_nanosecs(&probe_b));
 
 	return skb;
 }
