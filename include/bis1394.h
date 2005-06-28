@@ -16,6 +16,9 @@
 #define 	BIS1394_REGION_ADDR_LEN	4096
 #define 	BIS1394_REGION_ADDR_BASE	0xfffff0000000ULL + 0x4000
 
+#define CSR_RAW_READ 0
+#define CSR_RAW_WRITE 1
+
 #ifdef  __KERNEL__
 struct bis_host_info {
 	struct hpsb_host *host;
@@ -47,6 +50,13 @@ struct bis_cmd {
 		   int channel;
 		   unsigned int data_buf_size;
 		} iso;
+		
+		struct {
+		   int 	destid;
+		   int 	offset;
+		   int		data;
+		   int 	type;			
+		} csr_raw;
 	} args;
 };
 		
@@ -56,6 +66,8 @@ struct bis_cmd {
 #define IOC_RTFW_ISO_START	_IOWR(RTFW_IOC_TYPE_BIS, 1,	\
 						struct bis_cmd)
 #define IOC_RTFW_ISO_SHUTDOWN	_IOWR(RTFW_IOC_TYPE_BIS, 2,	\
+						struct bis_cmd)
+#define IOC_RTFW_CSR_RAW		_IOWR(RTFW_IOC_TYPE_BIS, 3,	\
 						struct bis_cmd)
 
 #endif /* _IEEE1394_BIS_H */

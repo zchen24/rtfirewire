@@ -92,6 +92,9 @@ struct hpsb_packet {
 	unsigned pri :4;
 	int 	ack;
 	
+	wait_queue_head_t waitq;
+	volatile int        processed;
+	
 	quadlet_t embedded_header[5];
 };
 

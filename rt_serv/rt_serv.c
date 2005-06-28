@@ -122,6 +122,7 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, void (*routine)(unsigne
 	srv = kmalloc(sizeof(struct rt_serv_struct), GFP_KERNEL);
 	if(!srv)
 		return NULL;
+	memset(srv, sizeof(*srv), 0);
 	
 	srv->routine = routine;
 	srv->data = data;

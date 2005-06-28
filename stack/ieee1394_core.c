@@ -114,7 +114,6 @@ const int hpsb_speedto_val[] = { 100, 200, 400, 800, 1600, 3200};
 #ifdef ENABLE_RTFW_VERBOSEDEBUG
 static void dump_packet(const char *text, quadlet_t *data, int size)
 {
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	int i;
 
 	size /= 4;
@@ -652,7 +651,6 @@ int hpsb_send_packet(struct hpsb_packet *packet)
 		packet->sendtime = jiffies;
 		rtskb_queue_tail(&host->pending_packet_queue, packet->skb);
 	}
-	
 	if (packet->node_id == host->node_id) {
 		rtos_print("sending to local....\n");
 		
@@ -723,7 +721,9 @@ int hpsb_send_packet(struct hpsb_packet *packet)
  */
 static void complete_packet (void *data)
 {
-	rtos_event_signal((rtos_event_t *) data);
+	struct hpsb_packet *p = (struct hpsb_packet *)data;
+	p->processed = 1;	
+	wake_up(&p->waitq);
 }
 	
 /**
@@ -733,14 +733,13 @@ static void complete_packet (void *data)
  */
 int hpsb_send_packet_and_wait(struct hpsb_packet *packet)
 {
-	rtos_event_t done;
 	int retval;
 	
-	rtos_event_init(&done);
-	hpsb_set_packet_complete_task(packet, complete_packet, &done);
+	init_waitqueue_head(&packet->waitq);
+	hpsb_set_packet_complete_task(packet, complete_packet, (void *)packet);
 	retval = hpsb_send_packet(packet);
 	if (retval == 0)
-		rtos_event_wait(&done);
+		retval = wait_event_interruptible(packet->waitq, packet->processed);
 	
 	return retval;
 }

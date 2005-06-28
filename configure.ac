@@ -860,7 +860,7 @@ dnl ======================================================================
 dnl		generate output
 dnl ======================================================================
 
-AC_CONFIG_FILES([GNUmakefile include/GNUmakefile	highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile rtskbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile])
+AC_CONFIG_FILES([GNUmakefile include/GNUmakefile	highlevel/GNUmakefile highlevel/bis1394/GNUmakefile highlevel/eth1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile rtskbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile])
    
 AC_OUTPUT
 

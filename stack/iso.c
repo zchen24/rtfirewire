@@ -4,7 +4,13 @@
  * 
  * Implementation of iso module
  */
+
+/***
+ * ISO application interface of RT-FireWire stack (RTAI). 
+ * Copyright 2005 Zhang Yuchen
+ */
  
+/***** legacy from LInux1394 *****/
 /*
  * IEEE 1394 for Linux
  *
@@ -14,11 +20,8 @@
  *
  * This code is licensed under the GPL.  See the file COPYING in the root
  * directory of the kernel sources for details.
- */
- 
- /**
-  * @defgroup iso isochronous transaction module
-  */
+ */ 
+/********************************/ 
 
 #include <linux/slab.h>
 #include <linux/sched.h>
@@ -31,9 +34,23 @@
 #include <ieee1394_transactions.h>
 #include <csr.h>
 
+#define ENABLE_ISO_DEBUG
 
+#ifdef ENABLE_ISO_DEBUG
+#define DBGMSG_ISO(fmt, args...) \
+rtos_print("%s:" fmt "\n", __FUNCTION__, ##args) 
+#else 
+#define DBGMSG_ISO(fmt, args....)
+#endif
 
-int hpsb_iso_xmit_release(struct hpsb_iso *iso);
+#define PRINT_ISO(fmt, args...) \
+rtos_print("%s:" fmt "\n", __FUNCTION__, ##args) 
+
+#define 	QUADLET_SIZE 	32
+#define 	QUADLET_MASK 	(~(QUADLET_SIZE-1))
+#define	QUADLET_ALIGN(val)	(((val)+QUADLET_SIZE-1) & QUADLET_MASK)
+
+int hpsb_iso_res_release(struct hpsb_iso *iso);
 	
 /**
  * @ingroup iso
@@ -42,12 +59,12 @@ int hpsb_iso_xmit_release(struct hpsb_iso *iso);
  */
 void hpsb_iso_stop(struct hpsb_iso *iso)
 {
-	if (!(iso->flags & HPSB_ISO_DRIVER_STARTED))
+	if (!(iso->flags & HPSB_ISO_STARTED))
 		return;
 
 	iso->host->driver->isoctl(iso, iso->type == HPSB_ISO_XMIT ?
 				  XMIT_STOP : RECV_STOP, 0);
-	iso->flags &= ~HPSB_ISO_DRIVER_STARTED;
+	iso->flags &= ~HPSB_ISO_STARTED;
 }
 
 /**
@@ -57,17 +74,20 @@ void hpsb_iso_stop(struct hpsb_iso *iso)
  */
 void hpsb_iso_shutdown(struct hpsb_iso *iso)
 {
-	if (iso->flags & HPSB_ISO_DRIVER_INIT) {
+	if (iso->flags & HPSB_ISO_RES_INIT) {
 		hpsb_iso_stop(iso);
 		iso->host->driver->isoctl(iso, iso->type == HPSB_ISO_XMIT ?
 					  XMIT_SHUTDOWN : RECV_SHUTDOWN, 0);
-		iso->flags &= ~HPSB_ISO_DRIVER_INIT;
+		iso->flags &= ~HPSB_ISO_RES_INIT;
 	}
 
 	dma_region_free(&iso->data_buf);
 	
-	if(iso->type == HPSB_ISO_XMIT && hpsb_iso_xmit_release(iso))
-		rtos_print("%s:failed to release iso!!!\n", __FUNCTION__);
+	if(iso->type == HPSB_ISO_XMIT){
+		//we are still owning some bandwidth and channel number, so need to release them here
+		if(hpsb_iso_res_release(iso))
+			rtos_print("%s:failed to release iso %s!!!\n", __FUNCTION__, iso->name);
+	}
 	
 	kfree(iso);
 }
@@ -81,7 +101,7 @@ void hpsb_iso_shutdown(struct hpsb_iso *iso)
  *  - irq interval
  *  - xmit or recv channel
  *  - allocate the data buffer
- *  - assign the priority of bottomhalf server
+ *  - assign the priority, which will be used for the bottomhalf server
  */
 static struct hpsb_iso* hpsb_iso_common_init(struct hpsb_host *host, enum hpsb_iso_type type,
 					     unsigned int data_buf_size,
@@ -139,7 +159,8 @@ static struct hpsb_iso* hpsb_iso_common_init(struct hpsb_host *host, enum hpsb_i
 	iso->irq_interval = irq_interval;
 	iso->dma_mode = dma_mode;
 	dma_region_init(&iso->data_buf);
-	iso->buf_size = PAGE_ALIGN(data_buf_size);
+	//~ iso->buf_size = PAGE_ALIGN(data_buf_size);
+	iso->buf_size = QUADLET_ALIGN(data_buf_size);
 	iso->buf_packets = buf_packets;
 	iso->pkt_dma = 0;
 	iso->first_packet = 0;
@@ -174,6 +195,7 @@ err:
 /**
  * @ingroup iso
  * @anchor hpsb_iso_n_ready
+ * return the number of ready packets. 
  */
 int hpsb_iso_n_ready(struct hpsb_iso* iso)
 {
@@ -187,87 +209,127 @@ int hpsb_iso_n_ready(struct hpsb_iso* iso)
 	return val;
 }
 
-int hpsb_iso_xmit_release(struct hpsb_iso *iso)
+/**
+ * @ingroup iso
+ * @anchor hpsb_iso_res_release
+ * release the isochronous resource 
+ */
+int hpsb_iso_res_release(struct hpsb_iso *iso)
 {
-	struct hpsb_host *host = iso->host;
-	int channel = iso->channel;	
-	unsigned int bandwidth = iso->bandwidth;
-	nodeid_t irm_id = iso->host->irm_id;
-	
+	struct hpsb_host *host;
+	int channel, gen;
+	unsigned int bandwidth;
+	nodeid_t irm_id;
 	quadlet_t new, old;
 	u64 ch_addr;
 	
-	int gen = iso->host->csr.generation;
+	host = iso->host;
+	channel = iso->channel;
+	bandwidth = iso->bandwidth;
+	irm_id = host->irm_id;
 	
-	/**deallocate the channel **/
+	gen = get_hpsb_generation(iso->host);
+	
+	if(!(iso->flags & HPSB_ISO_RES_ALLOC)) {
+		PRINT_ISO("iso %s is not allocated\n", iso->name);
+		return 0;
+	}
+	
+	/**release the channel **/
 	if(channel>=0 && channel<=31)
 		ch_addr = CSR_CHANNELS_AVAILABLE_LO;
-	else 
+	else{
 		if(channel>=32 && channel<=63){
 			channel = channel - 32;
 			ch_addr = CSR_CHANNELS_AVAILABLE_HI;
 		}
 		else{
-			rtos_print("%s: out of range channel number\n", __FUNCTION__);
+			PRINT_ISO("out of range channel number %d\n", channel);
 			return -EINVAL;
 		}
-		
+	}
+	
 	if (hpsb_read(host, irm_id, gen,  ch_addr+CSR_REGISTER_BASE, 
 						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
 	{
-		rtos_print("%s:failed to read available bandwidth\n",__FUNCTION__);
+		PRINT_ISO("failed to read available channel number\n");
 		return -EAGAIN;
 	}
+	DBGMSG_ISO("%s:%x",ch_addr==CSR_CHANNELS_AVAILABLE_HI \
+											? "channle hi":"channel lo", old); 
 	
 	new = old | (swab32(1UL<<channel)); //not sure if this is correct
 	
 	if(hpsb_lock(host, irm_id, gen, ch_addr+CSR_REGISTER_BASE, 
 					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
 	{
-		rtos_print("%s:failed to deallocate required bandwidth\n",__FUNCTION__);
+		PRINT_ISO("failed to deallocate required channel\n");
 		return -EAGAIN;
 	}
 	
 	iso->channel = -1;
-	rtos_print("%s: channel %d deallocated\n",__FUNCTION__, channel);
+	PRINT_ISO("channel %d deallocated\n",channel);
 	
 	if(bandwidth!=-1){
 		/** deallocate the bandwidth **/
 		if (hpsb_read(host, irm_id, gen,  CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
 						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
 		{
-			rtos_print("%s:failed to read available bandwidth\n",__FUNCTION__);
+			PRINT_ISO("failed to read available bandwidth\n");
 			return -EAGAIN;
 		}
 	
-		new = old + bandwidth;
+		new = be32_to_cpu(old) + bandwidth; //also include the header size
+		DBGMSG_ISO("new bandwidth: %d\n", new); 
+		new = cpu_to_be32(new);
 	
 		if(hpsb_lock(host, irm_id, gen, CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
 					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
 		{
-			rtos_print("%s:failed to allocate required bandwidth\n",__FUNCTION__);
+			PRINT_ISO("failed to allocate required bandwidth\n");
 			return -EAGAIN;
 		}
 		iso->bandwidth = -1;
+		
+		iso->flags &= ~HPSB_ISO_RES_ALLOC;
 	
-		rtos_print("%s: bandwidth %d units allocated\n",__FUNCTION__, iso->bandwidth);
+		PRINT_ISO("bandwidth %d units released\n",bandwidth);
 	}
 	
 	return 0;
 }
 
+/**
+ * @ingroup iso
+ * @anchor hpsb_iso_rec_alloc
+ * this function allocates the resource for a certain iso context
+ */
 #define BASE_UNITS_PERBYTE 5 //the nubmer of bw units needed to transmit a byte at speed 100Mb/s
-int hpsb_iso_xmit_alloc(struct hpsb_iso *iso)
+int hpsb_iso_res_alloc(struct hpsb_iso *iso)
 {
-	struct hpsb_host *host = iso->host;
-	int channel = iso->channel;	
-	unsigned int bandwidth = iso->bandwidth;
-	nodeid_t irm_id = iso->host->irm_id;
-	
+	struct hpsb_host *host;
+	int channel, gen;
+	unsigned int bandwidth;
+	nodeid_t irm_id;
 	quadlet_t new, old;
 	u64 ch_addr;
 	
-	int gen = iso->host->csr.generation;
+	if(!(iso->flags & HPSB_ISO_RES_INIT)){
+		PRINT_ISO("iso %s is not initialized\n", iso->name);
+		return -EINVAL;
+	}
+	
+	if(iso->flags & HPSB_ISO_RES_ALLOC) {
+		PRINT_ISO("iso %s is already allocated\n", iso->name);
+		return 0;
+	}
+	
+	host = iso->host;
+	channel = iso->channel;
+	bandwidth = iso->bandwidth;
+	irm_id = host->irm_id;
+	
+	gen = get_hpsb_generation(iso->host);
 	
 	if(channel>=0 && channel<=31)
 		ch_addr = CSR_CHANNELS_AVAILABLE_LO;
@@ -278,48 +340,61 @@ int hpsb_iso_xmit_alloc(struct hpsb_iso *iso)
 			ch_addr = CSR_CHANNELS_AVAILABLE_HI;
 		}
 		else{
-			rtos_print("%s: out of range channel number\n", __FUNCTION__);
+			PRINT_ISO("out of range channel number %d\n", channel);
 			return -EINVAL;
 		}
+	
+		rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+		
+	/*** allocate channel ***/
+	if (hpsb_read(host, irm_id, gen,  ch_addr+CSR_REGISTER_BASE, 
+						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
+	{
+		PRINT_ISO("failed to read available channel\n");
+		return -EAGAIN;
+	}
+	
+	DBGMSG_ISO("old channels: %x\n", be32_to_cpu(old));
+	new = be32_to_cpu(old) & (~(1<<channel)); //not sure if this is correct
+	DBGMSG_ISO("new channels: %x\n", new);
+	new = cpu_to_be32(new);
+	if(new == old) {
+		PRINT_ISO("channle %d already in use\n",channel);
+		return -EBUSY;
+	}
+	
+	if(hpsb_lock(host, irm_id, gen, ch_addr+CSR_REGISTER_BASE, 
+					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
+	{
+		PRINT_ISO("failed to allocate required channel\n");
+		return -EAGAIN;
+	}
+	
+	PRINT_ISO("channel %d allocated\n",channel);
+	
 	
 	/*** allocate bandwidth ***/
 	if (hpsb_read(host, irm_id, gen,  CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
 						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
 	{
-		rtos_print("%s:failed to read available bandwidth\n",__FUNCTION__);
+		PRINT_ISO("failed to read available bandwidth\n");
 		return -EAGAIN;
 	}
-	
-	new = old - bandwidth; //also include the header size
+
+	new = be32_to_cpu(old) - bandwidth; //also include the header size
+	DBGMSG_ISO("new bandwidth: %d\n", new); 
+	new = cpu_to_be32(new);
 	
 	if(hpsb_lock(host, irm_id, gen, CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
 					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
 	{
-		rtos_print("%s:failed to allocate required bandwidth\n",__FUNCTION__);
+		PRINT_ISO("failed to allocate required bandwidth\n");
 		return -EAGAIN;
 	}
 	
-	rtos_print("%s: bandwidth %d units allocated\n",__FUNCTION__, iso->bandwidth);
-	
-	/*** allocate channel ***/
-	
-	if (hpsb_read(host, irm_id, gen,  ch_addr+CSR_REGISTER_BASE, 
-						&old, sizeof(old), TRANSACTION_HIGHEST_PRI))
-	{
-		rtos_print("%s:failed to read available bandwidth\n",__FUNCTION__);
-		return -EAGAIN;
-	}
-	
-	new = old & (swab32(~1UL<<channel)); //not sure if this is correct
-	
-	if(hpsb_lock(host, irm_id, gen, ch_addr+CSR_REGISTER_BASE, 
-					EXTCODE_COMPARE_SWAP, &new, old,TRANSACTION_HIGHEST_PRI))
-	{
-		rtos_print("%s:failed to allocate required bandwidth\n",__FUNCTION__);
-		return -EAGAIN;
-	}
-	
-	rtos_print("%s: channel %d allocated\n",__FUNCTION__, channel);
+	iso->flags |= HPSB_ISO_RES_ALLOC;
+
+	PRINT_ISO("bandwidth %d units allocated\n",iso->bandwidth);
 	
 	return 0;
 }
@@ -328,7 +403,7 @@ int hpsb_iso_xmit_alloc(struct hpsb_iso *iso)
  * @ingroup iso
  * @anchor hpsb_iso_xmit_init
  * initialize xmit in driver
- * change the iso flags to HPSB_ISO_DRIVER_INIT
+ * change the iso flags to HPSB_ISO_RES_INIT
  */
 struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 				    unsigned int data_buf_size,
@@ -354,17 +429,25 @@ struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 	else
 		return NULL;
 	
+	/** we calculate the bandwidth here **/
 	iso->bandwidth = ((iso->buf_size + 8)*BASE_UNITS_PERBYTE)/speed_val+1;
 	
-	/**before start the operation in hardware, we need to allocate the bw and channel **/
-	if(hpsb_iso_xmit_alloc(iso))
-		goto err;//failed to allocate the needed bw and/or channel
+	/** also assign the channel number **/
+	iso->channel = channel;
 
 	/* tell the driver to start working */
 	if (host->driver->isoctl(iso, XMIT_INIT, 0))
 		goto err;
 
-	iso->flags |= HPSB_ISO_DRIVER_INIT;
+	iso->flags |= HPSB_ISO_RES_INIT;
+	
+	DBGMSG_ISO("bandwidth:%d, channel:%d\n", iso->bandwidth, iso->channel);
+	
+	if(hpsb_iso_res_alloc(iso)){
+		rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+		goto err;
+	}
+	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return iso;
 
 err:
@@ -376,7 +459,7 @@ err:
  * @ingroup iso
  * @anchor hpsb_iso_recv_init
  * initialize the recv in driver
- * change the iso->flags to HPSB_ISO_DRIVER_INIT
+ * change the iso->flags to HPSB_ISO_RES_INIT
  */
 struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
 				    unsigned int data_buf_size,
@@ -397,7 +480,7 @@ struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
 	if (host->driver->isoctl(iso, RECV_INIT, 0))
 		goto err;
 
-	iso->flags |= HPSB_ISO_DRIVER_INIT;
+	iso->flags |= HPSB_ISO_RES_INIT;
 	return iso;
 
 err:
@@ -455,11 +538,13 @@ int hpsb_iso_recv_flush(struct hpsb_iso *iso)
  */
 static int do_iso_xmit_start(struct hpsb_iso *iso, int cycle)
 {
-	int retval = iso->host->driver->isoctl(iso, XMIT_START, cycle);
+	int retval;
+
+	retval = iso->host->driver->isoctl(iso, XMIT_START, cycle);
 	if (retval)
 		return retval;
 
-	iso->flags |= HPSB_ISO_DRIVER_STARTED;
+	iso->flags |= HPSB_ISO_STARTED;
 	return retval;
 }
 
@@ -472,7 +557,7 @@ int hpsb_iso_xmit_start(struct hpsb_iso *iso, int cycle, int prebuffer)
 	if (iso->type != HPSB_ISO_XMIT)
 		return -1;
 
-	if (iso->flags & HPSB_ISO_DRIVER_STARTED)
+	if (iso->flags & HPSB_ISO_STARTED)
 		return 0;
 
 	if (cycle < -1)
@@ -511,7 +596,7 @@ int hpsb_iso_recv_start(struct hpsb_iso *iso, int cycle, int tag_mask, int sync)
 	if (iso->type != HPSB_ISO_RECV)
 		return -1;
 
-	if (iso->flags & HPSB_ISO_DRIVER_STARTED)
+	if (iso->flags & HPSB_ISO_STARTED)
 		return 0;
 
 	if (cycle < -1)
@@ -532,7 +617,7 @@ int hpsb_iso_recv_start(struct hpsb_iso *iso, int cycle, int tag_mask, int sync)
 	if (retval)
 		return retval;
 
-	iso->flags |= HPSB_ISO_DRIVER_STARTED;
+	iso->flags |= HPSB_ISO_STARTED;
 	return retval;
 }
 

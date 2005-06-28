@@ -3922,7 +3922,7 @@ EXPORT_SYMBOL(ohci1394_stop_context);
 
 /**
  * @ingroup ohci
- * @anchor ohci1394_init_iso_bh
+ * @anchor ohci1394_init_iso_ctx
  * initialize an isochronous transaction bottomhalf task in rtai  
  */
 void ohci1394_init_iso_ctx(struct ohci1394_iso_ctx *t, int type, struct hpsb_iso *iso)
@@ -3949,7 +3949,15 @@ void ohci1394_init_iso_ctx(struct ohci1394_iso_ctx *t, int type, struct hpsb_iso
 			break;
 	}
 }
+
+void ohci1394_free_iso_ctx(struct ohci1394_iso_ctx *t)
+{
+	rt_serv_delete(t->srv);
+	kfree(t);
+}
+
 EXPORT_SYMBOL(ohci1394_init_iso_ctx);
+EXPORT_SYMBOL(ohci1394_free_iso_ctx);
 
 /**
  * @ingroup ohci
@@ -4021,6 +4029,8 @@ void ohci1394_unregister_iso_ctx(struct ti_ohci *ohci,
 	}
 
 	list_del(&t->link);
+	
+	ohci1394_free_iso_ctx(t);
 
 	rtos_spin_unlock_irqrestore(&ohci->iso_ctx_list_lock, flags);
 }

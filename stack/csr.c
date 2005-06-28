@@ -532,9 +532,11 @@ static int read_regs(struct hpsb_host *host, int nodeid, quadlet_t *buf,
                 *(buf++) = cpu_to_be32(ret);
                 out;
         case CSR_BANDWIDTH_AVAILABLE:
-                if (host->driver->hw_csr_reg)
+                if (host->driver->hw_csr_reg) {
+			rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
                         ret = host->driver->hw_csr_reg(host, 1, 0, 0);
-                else
+		}
+                else 
                         ret = host->csr.bandwidth_available;
 
                 *(buf++) = cpu_to_be32(ret);
@@ -552,6 +554,7 @@ static int read_regs(struct hpsb_host *host, int nodeid, quadlet_t *buf,
                         ret = host->driver->hw_csr_reg(host, 3, 0, 0);
                 else
                         ret = host->csr.channels_available_lo;
+		rtos_print("%s: %x\n", __FUNCTION__, ret);
 
                 *(buf++) = cpu_to_be32(ret);
                 out;
@@ -717,18 +720,31 @@ static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
 		data &= ~0x1;	/* keep broadcast channel allocated */
 	}
 
-	/**I suggeset we do all the CSR lock operation in software.<Zhang Yuchen 2005/6/9> **/
-	
-        //~ if (host->driver->hw_csr_reg) {
-                //~ quadlet_t old;
+        if (host->driver->hw_csr_reg) {
+                quadlet_t old;
 
-                //~ old = host->driver->
-                        //~ hw_csr_reg(host, (csraddr - CSR_BUS_MANAGER_ID) >> 2,
-                                   //~ data, arg);
+                old = host->driver->
+                        hw_csr_reg(host, (csraddr - CSR_BUS_MANAGER_ID) >> 2,
+                                   data, arg);
+		
+		switch(csraddr) {
+			case CSR_BUS_MANAGER_ID:
+				host->csr.bus_manager_id = data;
+				break;
+			case CSR_BANDWIDTH_AVAILABLE:
+				host->csr.bandwidth_available = data;
+				break;
+			case CSR_CHANNELS_AVAILABLE_HI:
+				host->csr.channels_available_hi = data;
+				break;
+			case CSR_CHANNELS_AVAILABLE_LO:
+				host->csr.channels_available_lo = data;
+				break;
+		}
 
-                //~ *store = cpu_to_be32(old);
-                //~ return RCODE_COMPLETE;
-        //~ }
+                *store = cpu_to_be32(old);
+                return RCODE_COMPLETE;
+        }
 
         rtos_spin_lock_irqsave(&host->csr.lock, flags);
 

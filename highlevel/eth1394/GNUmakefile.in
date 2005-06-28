@@ -20,7 +20,7 @@ VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkglibdir = $(libdir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
-top_builddir = ..
+top_builddir = ../..
 
 am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
 INSTALL = @INSTALL@
@@ -151,38 +151,42 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-OPTPROGS = 
-OPTSCRIPTS = 
+moduledir = $(DESTDIR)@RTFW_MODULE_DIR@
+modext = @RTFW_MODULE_EXT@
 
-sbin_PROGRAMS = hostconfig rtping $(OPTPROGS)
+EXTRA_LIBRARIES = libkernel_eth1394.a
 
-AM_CPPFLAGS = \
+libkernel_eth1394_a_CPPFLAGS = \
 	-I$(top_srcdir)/include \
-	-I$(top_builddir)/include
+	-I$(top_builddir)/include \
+	@RTAI_KMOD_CFLAGS@
 
-subdir = tools
+
+libkernel_eth1394_a_SOURCES = \
+    eth1394.c          
+
+
+OBJS = \
+	  eth1394$(modext) 
+
+
+EXTRA_DIST = Makefile.kbuild
+
+DISTCLEANFILES = Makefile
+subdir = highlevel/eth1394
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/autoconf/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config/rt-firewire_config_pre.h
 CONFIG_CLEAN_FILES =
-sbin_PROGRAMS = hostconfig$(EXEEXT) rtping$(EXEEXT)
-PROGRAMS = $(sbin_PROGRAMS)
-
-hostconfig_SOURCES = hostconfig.c
-hostconfig_OBJECTS = hostconfig.$(OBJEXT)
-hostconfig_LDADD = $(LDADD)
-hostconfig_DEPENDENCIES =
-hostconfig_LDFLAGS =
-rtping_SOURCES = rtping.c
-rtping_OBJECTS = rtping.$(OBJEXT)
-rtping_LDADD = $(LDADD)
-rtping_DEPENDENCIES =
-rtping_LDFLAGS =
+libkernel_eth1394_a_AR = $(AR) cru
+libkernel_eth1394_a_LIBADD =
+am_libkernel_eth1394_a_OBJECTS = libkernel_eth1394_a-eth1394.$(OBJEXT)
+libkernel_eth1394_a_OBJECTS = $(am_libkernel_eth1394_a_OBJECTS)
 
 DEFAULT_INCLUDES =  -I. -I$(srcdir) -I$(top_builddir)/config
 depcomp = $(SHELL) $(top_srcdir)/config/autoconf/depcomp
 am__depfiles_maybe = depfiles
-@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/hostconfig.Po ./$(DEPDIR)/rtping.Po
+@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/libkernel_eth1394_a-eth1394.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) \
@@ -190,9 +194,9 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-DIST_SOURCES = hostconfig.c rtping.c
+DIST_SOURCES = $(libkernel_eth1394_a_SOURCES)
 DIST_COMMON = $(srcdir)/GNUmakefile.in GNUmakefile.am
-SOURCES = hostconfig.c rtping.c
+SOURCES = $(libkernel_eth1394_a_SOURCES)
 
 all: all-am
 
@@ -200,44 +204,13 @@ all: all-am
 .SUFFIXES: .c .lo .o .obj
 $(srcdir)/GNUmakefile.in: @MAINTAINER_MODE_TRUE@ GNUmakefile.am  $(top_srcdir)/configure.ac $(ACLOCAL_M4)
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign  tools/GNUmakefile
+	  $(AUTOMAKE) --foreign  highlevel/eth1394/GNUmakefile
 GNUmakefile: @MAINTAINER_MODE_TRUE@ $(srcdir)/GNUmakefile.in  $(top_builddir)/config.status
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)
-sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
-install-sbinPROGRAMS: $(sbin_PROGRAMS)
-	@$(NORMAL_INSTALL)
-	$(mkinstalldirs) $(DESTDIR)$(sbindir)
-	@list='$(sbin_PROGRAMS)'; for p in $$list; do \
-	  p1=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
-	  if test -f $$p \
-	     || test -f $$p1 \
-	  ; then \
-	    f=`echo "$$p1" | sed 's,^.*/,,;$(transform);s/$$/$(EXEEXT)/'`; \
-	   echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) --mode=install $(sbinPROGRAMS_INSTALL) $$p $(DESTDIR)$(sbindir)/$$f"; \
-	   $(INSTALL_PROGRAM_ENV) $(LIBTOOL) --mode=install $(sbinPROGRAMS_INSTALL) $$p $(DESTDIR)$(sbindir)/$$f || exit 1; \
-	  else :; fi; \
-	done
-
-uninstall-sbinPROGRAMS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(sbin_PROGRAMS)'; for p in $$list; do \
-	  f=`echo "$$p" | sed 's,^.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/'`; \
-	  echo " rm -f $(DESTDIR)$(sbindir)/$$f"; \
-	  rm -f $(DESTDIR)$(sbindir)/$$f; \
-	done
-
-clean-sbinPROGRAMS:
-	@list='$(sbin_PROGRAMS)'; for p in $$list; do \
-	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
-	  echo " rm -f $$p $$f"; \
-	  rm -f $$p $$f ; \
-	done
-hostconfig$(EXEEXT): $(hostconfig_OBJECTS) $(hostconfig_DEPENDENCIES) 
-	@rm -f hostconfig$(EXEEXT)
-	$(LINK) $(hostconfig_LDFLAGS) $(hostconfig_OBJECTS) $(hostconfig_LDADD) $(LIBS)
-rtping$(EXEEXT): $(rtping_OBJECTS) $(rtping_DEPENDENCIES) 
-	@rm -f rtping$(EXEEXT)
-	$(LINK) $(rtping_LDFLAGS) $(rtping_OBJECTS) $(rtping_LDADD) $(LIBS)
+libkernel_eth1394.a: $(libkernel_eth1394_a_OBJECTS) $(libkernel_eth1394_a_DEPENDENCIES) 
+	-rm -f libkernel_eth1394.a
+	$(libkernel_eth1394_a_AR) libkernel_eth1394.a $(libkernel_eth1394_a_OBJECTS) $(libkernel_eth1394_a_LIBADD)
+	$(RANLIB) libkernel_eth1394.a
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT) core *.core
@@ -245,8 +218,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostconfig.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rtping.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libkernel_eth1394_a-eth1394.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" \
@@ -280,6 +252,39 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/$*.Plo' tmpdepfile='$(DEPDIR)/$*.TPlo' @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ `test -f '$<' || echo '$(srcdir)/'`$<
+
+libkernel_eth1394_a-eth1394.o: eth1394.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libkernel_eth1394_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libkernel_eth1394_a-eth1394.o -MD -MP -MF "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo" \
+@am__fastdepCC_TRUE@	  -c -o libkernel_eth1394_a-eth1394.o `test -f 'eth1394.c' || echo '$(srcdir)/'`eth1394.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo" "$(DEPDIR)/libkernel_eth1394_a-eth1394.Po"; \
+@am__fastdepCC_TRUE@	else rm -f "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo"; exit 1; \
+@am__fastdepCC_TRUE@	fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='eth1394.c' object='libkernel_eth1394_a-eth1394.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libkernel_eth1394_a-eth1394.Po' tmpdepfile='$(DEPDIR)/libkernel_eth1394_a-eth1394.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libkernel_eth1394_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libkernel_eth1394_a-eth1394.o `test -f 'eth1394.c' || echo '$(srcdir)/'`eth1394.c
+
+libkernel_eth1394_a-eth1394.obj: eth1394.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libkernel_eth1394_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libkernel_eth1394_a-eth1394.obj -MD -MP -MF "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo" \
+@am__fastdepCC_TRUE@	  -c -o libkernel_eth1394_a-eth1394.obj `if test -f 'eth1394.c'; then $(CYGPATH_W) 'eth1394.c'; else $(CYGPATH_W) '$(srcdir)/eth1394.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo" "$(DEPDIR)/libkernel_eth1394_a-eth1394.Po"; \
+@am__fastdepCC_TRUE@	else rm -f "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo"; exit 1; \
+@am__fastdepCC_TRUE@	fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='eth1394.c' object='libkernel_eth1394_a-eth1394.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libkernel_eth1394_a-eth1394.Po' tmpdepfile='$(DEPDIR)/libkernel_eth1394_a-eth1394.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libkernel_eth1394_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libkernel_eth1394_a-eth1394.obj `if test -f 'eth1394.c'; then $(CYGPATH_W) 'eth1394.c'; else $(CYGPATH_W) '$(srcdir)/eth1394.c'; fi`
+
+libkernel_eth1394_a-eth1394.lo: eth1394.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libkernel_eth1394_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libkernel_eth1394_a-eth1394.lo -MD -MP -MF "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo" \
+@am__fastdepCC_TRUE@	  -c -o libkernel_eth1394_a-eth1394.lo `test -f 'eth1394.c' || echo '$(srcdir)/'`eth1394.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo" "$(DEPDIR)/libkernel_eth1394_a-eth1394.Plo"; \
+@am__fastdepCC_TRUE@	else rm -f "$(DEPDIR)/libkernel_eth1394_a-eth1394.Tpo"; exit 1; \
+@am__fastdepCC_TRUE@	fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='eth1394.c' object='libkernel_eth1394_a-eth1394.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libkernel_eth1394_a-eth1394.Plo' tmpdepfile='$(DEPDIR)/libkernel_eth1394_a-eth1394.TPlo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libkernel_eth1394_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libkernel_eth1394_a-eth1394.lo `test -f 'eth1394.c' || echo '$(srcdir)/'`eth1394.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -346,7 +351,7 @@ distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 
-top_distdir = ..
+top_distdir = ../..
 distdir = $(top_distdir)/$(PACKAGE)-$(VERSION)
 
 distdir: $(DISTFILES)
@@ -378,10 +383,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: GNUmakefile $(PROGRAMS) all-local
+all-am: GNUmakefile all-local
 
 installdirs:
-	$(mkinstalldirs) $(DESTDIR)$(sbindir)
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -402,13 +406,14 @@ clean-generic:
 
 distclean-generic:
 	-rm -f $(CONFIG_CLEAN_FILES)
+	-test -z "$(DISTCLEANFILES)" || rm -f $(DISTCLEANFILES)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-sbinPROGRAMS mostlyclean-am
+clean-am: clean-generic clean-libtool clean-local mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -426,7 +431,7 @@ info-am:
 
 install-data-am:
 
-install-exec-am: install-exec-local install-sbinPROGRAMS
+install-exec-am: install-exec-local
 
 install-info: install-info-am
 
@@ -452,29 +457,38 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-sbinPROGRAMS
+uninstall-am: uninstall-info-am
 
 .PHONY: CTAGS GTAGS all all-am all-local check check-am clean \
-	clean-generic clean-libtool clean-sbinPROGRAMS ctags distclean \
+	clean-generic clean-libtool clean-local ctags distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am info info-am install \
 	install-am install-data install-data-am install-exec \
 	install-exec-am install-exec-local install-info install-info-am \
-	install-man install-sbinPROGRAMS install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-info-am \
-	uninstall-sbinPROGRAMS
+	install-man install-strip installcheck installcheck-am \
+	installdirs maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
+	uninstall-am uninstall-info-am
 
 
-all-local: hostconfig rtping $(OPTPROGS)
+eth1394.o: libkernel_eth1394.a
+	$(LD) --whole-archive $< -r -o $@
 
-install-exec-local: $(OPTSCRIPTS)
-	$(mkinstalldirs) $(DESTDIR)$(sbindir)
-	for FILE in $^; do					\
- 		$(INSTALL_SCRIPT) $$FILE $(DESTDIR)$(sbindir);	\
-	done
+eth1394.ko: @RTFW_KBUILD_ENV@
+eth1394.ko: $(libkernel_eth1394_a_SOURCES) FORCE
+	@RTFW_KBUILD_CMD@
+
+all-local: $(OBJS)
+
+install-exec-local: $(OBJS)
+	$(mkinstalldirs) $(moduledir)
+	$(INSTALL_DATA) $^ $(moduledir)
+
+clean-local: $(libkernel_eth1394_a_SOURCES)
+	@RTFW_KBUILD_CLEAN@
+
+.PHONY: FORCE
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

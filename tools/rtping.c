@@ -119,8 +119,9 @@ int main(int argc, char *argv[])
     cmd.args.ping.timeout  = 500;
 
     for (i = 1; i < argc-1; i++) {
-	if(strcmp(argv[i], "-h") == 0)
+	if(strcmp(argv[i], "-h") == 0){
 	    strncpy(cmd.head.if_name, argv[++i], IFNAMSIZ);
+	}
         else if (strcmp(argv[i], "-d") == 0)
             cmd.args.ping.destid = getintopt(argc, ++i, argv, 0);
         else if (strcmp(argv[i], "-i") == 0)

@@ -4,7 +4,7 @@
  *
  * data structure and interfaces of iso module
  */
-
+/*** legacy ****/
 /*
  * IEEE 1394 for Linux
  *
@@ -15,6 +15,7 @@
  * This code is licensed under the GPL.  See the file COPYING in the root
  * directory of the kernel sources for details.
  */
+/**** legacy ******/
 
 #ifndef IEEE1394_ISO_H
 #define IEEE1394_ISO_H
@@ -23,21 +24,24 @@
 #include "dma.h"
 #include <rtos_primitives.h>
 
-/*! high-level ISO interface */
+/*****************************************
+* @defgroup iso
+*
+* high-level ISO interface
 
-/*! This API sends and receives isochronous packets on a large,
-   virtually-contiguous kernel memory buffer. The buffer may be mapped
-   into a user-space process for zero-copy transmission and reception.
+This API sends and receives isochronous packets on a large,
+virtually-contiguous kernel memory buffer. The buffer may be mapped
+into a user-space process for zero-copy transmission and reception.
 
-   There are no explicit boundaries between packets in the buffer. A
-   packet may be transmitted or received at any location. However,
-   low-level drivers may impose certain restrictions on alignment or
-   size of packets. (e.g. in OHCI no packet may cross a page boundary,
-   and packets should be quadlet-aligned)
+There are no explicit boundaries between packets in the buffer. A
+packet may be transmitted or received at any location. However,
+low-level drivers may impose certain restrictions on alignment or
+size of packets. (e.g. in OHCI no packet may cross a page boundary,
+and packets should be quadlet-aligned)
+
+Packet descriptor - the API maintains a ring buffer of these packet
+descriptors in kernel memory (hpsb_iso.infos[]).  
 */
-
-/*! Packet descriptor - the API maintains a ring buffer of these packet
-   descriptors in kernel memory (hpsb_iso.infos[]).  */
 
 /**
  * @ingroup iso
@@ -63,7 +67,7 @@ struct hpsb_iso_packet_info {
 
 enum hpsb_iso_type { HPSB_ISO_RECV = 0, HPSB_ISO_XMIT = 1 };
 
-/* The mode of the dma when receiving iso data. Must be supported by chip */
+/*! The mode of the dma when receiving iso data. Must be supported by chip */
 enum raw1394_iso_dma_recv_mode {
 	HPSB_ISO_DMA_DEFAULT = -1,
 	HPSB_ISO_DMA_OLD_ABI = 0,
@@ -74,6 +78,10 @@ enum raw1394_iso_dma_recv_mode {
 /**
  * @ingroup iso
  * @struct hpsb_iso
+ * Structure for the kernel data buffer. 
+ * 
+ * including attributes setting for the iso
+ * transaction&operaton on this buffer. 
  */
 struct hpsb_iso {
 	enum hpsb_iso_type type;
@@ -121,7 +129,7 @@ struct hpsb_iso {
 	int pkt_dma;
 
 	/*! how many packets, starting at first_packet:
-	   (transmit) are ready to be filled with data
+	   (transmit) are ready to be filled with data or
 	   (receive)  contain received data */
 	int n_ready_packets;
 
@@ -129,8 +137,9 @@ struct hpsb_iso {
 	atomic_t overflows;
 
 	/*! private flags to track initialization progress */
-#define HPSB_ISO_DRIVER_INIT     (1<<0)
-#define HPSB_ISO_DRIVER_STARTED  (1<<1)
+#define HPSB_ISO_RES_INIT	(1<<0)   //resource initialized (channel number and bandwidth)
+#define HPSB_ISO_RES_ALLOC	(1<<1) //resource allocated
+#define HPSB_ISO_STARTED  (1<<2)     //everything has been running. 
 	unsigned int flags;
 
 	/*! # of packets left to prebuffer (xmit only) */
@@ -149,6 +158,8 @@ struct hpsb_iso {
 	struct hpsb_iso_packet_info *infos;
 		
 	int pri;
+	
+	unsigned char name[16];
 };
 
 /* functions available to high-level drivers (e.g. raw1394) */

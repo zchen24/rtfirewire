@@ -21441,7 +21441,7 @@ RTAI_USER_CFLAGS="-D__IN_RTFW__ $RTAI_USER_CFLAGS"
 
 
 
-                                                                                                              ac_config_files="$ac_config_files GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile rtskbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile"
+                                                                                                                        ac_config_files="$ac_config_files GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile highlevel/eth1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile rtskbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile"
 
 
 cat >confcache <<\_ACEOF
@@ -22032,6 +22032,7 @@ do
   "include/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES include/GNUmakefile" ;;
   "highlevel/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES highlevel/GNUmakefile" ;;
   "highlevel/bis1394/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES highlevel/bis1394/GNUmakefile" ;;
+  "highlevel/eth1394/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES highlevel/eth1394/GNUmakefile" ;;
   "drivers/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES drivers/GNUmakefile" ;;
   "drivers/ohci/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES drivers/ohci/GNUmakefile" ;;
   "rtskbuff/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rtskbuff/GNUmakefile" ;;

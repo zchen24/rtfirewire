@@ -49,7 +49,8 @@
  */
 static void fill_async_readquad(struct hpsb_packet *packet, u64 addr)
 {
-        PREP_ASYNC_HEAD_ADDRESS(TCODE_READQ);
+       rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	PREP_ASYNC_HEAD_ADDRESS(TCODE_READQ);
         packet->header_size = 12;
         packet->data_size = 0;
         packet->expect_response = 1;
@@ -584,8 +585,9 @@ int hpsb_read(struct hpsb_host *host, nodeid_t node, unsigned int generation,
 
 	packet->generation = generation;
         retval = hpsb_send_packet_and_wait(packet);
-	if (retval < 0)
+	if (retval < 0){
 		goto hpsb_read_fail;
+	}
 
         retval = hpsb_packet_success(packet);
 

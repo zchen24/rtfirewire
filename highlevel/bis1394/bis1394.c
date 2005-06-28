@@ -194,6 +194,7 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 {
 	struct bis_cmd	cmd;
 	int ret;
+	quadlet_t *buffer = &cmd.args.csr_raw.data;
 	
 	ret = copy_from_user(&cmd, (void *)arg, sizeof(cmd));
 	if(ret != 0)
@@ -214,6 +215,10 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 		//~ case IOC_RTFW_SYNC:
 			//~ break;
 		case IOC_RTFW_ISO_START:
+			if(bis1394_iso){
+				ret = -EBUSY;
+				break;
+			}
 			bis1394_iso = hpsb_iso_xmit_init(host, cmd.args.iso.data_buf_size, 1, 
 									cmd.args.iso.channel, 2, 1, NULL, 10);
 			if(!bis1394_iso)
@@ -221,11 +226,37 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 			break;
 		
 		case IOC_RTFW_ISO_SHUTDOWN:
-			if(bis1394_iso)
+			if(bis1394_iso){
+				rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 				hpsb_iso_shutdown(bis1394_iso);
+				bis1394_iso = NULL;
+			}
 			ret = 0;
 			break;
 		
+		case IOC_RTFW_CSR_RAW:
+			switch(cmd.args.csr_raw.type){
+				case CSR_RAW_READ:
+					ret = hpsb_read(host,LOCAL_BUS | cmd.args.csr_raw.destid, get_hpsb_generation(host), \
+								cmd.args.csr_raw.offset+CSR_REGISTER_BASE,buffer, sizeof(*buffer),\
+									TRANSACTION_HIGHEST_PRI);
+					if(ret>=0) {
+						if(copy_to_user((void *)arg, &cmd, sizeof(cmd)) != 0)
+							return -EFAULT;
+					}
+					
+					break;
+					
+				case CSR_RAW_WRITE:
+					ret = 0;
+					break;
+				
+				default:
+					ret = 0;
+					break;
+			}
+			break;
+			
 		default:
 			ret = -ENOTTY;
 	}

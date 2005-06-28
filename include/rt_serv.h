@@ -10,7 +10,7 @@
 #include <linux/list.h>
 #include <rtos_primitives.h>
 
-#define SERVER_MODULE_CHECKED
+//~ #define SERVER_MODULE_CHECKED
 
 struct rt_serv_struct {
 	struct list_head entry;
