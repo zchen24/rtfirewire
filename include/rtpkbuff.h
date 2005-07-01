@@ -11,7 +11,7 @@
 #ifdef __KERNEL__
 
 #include <linux/skbuff.h>
-#include <rtos_primitives.h>
+#include <rt1394_sys.h>
 
 /**
  * @addtogroup rtskb
