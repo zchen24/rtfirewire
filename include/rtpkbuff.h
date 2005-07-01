@@ -10,7 +10,7 @@
 
 #ifdef __KERNEL__
 
-#include <linux/pkbuff.h>
+#include <linux/skbuff.h>
 #include <rt1394_sys.h>
 
 /**
@@ -73,7 +73,7 @@ struct rtpkb {
 #define DEFAULT_DEVICE_RTPKBS       16      /* default additional rtpkbs per network adapter */
 #define DEFAULT_SOCKET_RTPKBS       16      /* default number of rtpkb's in socket pools */
 
-#define ALIGN_RTPKB_STRUCT_LEN      PKB_DATA_ALIGN(sizeof(struct rtpkb))
+#define ALIGN_RTPKB_STRUCT_LEN      SKB_DATA_ALIGN(sizeof(struct rtpkb))
 #define RTPKB_SIZE                  1544 /*maximum buffer load */
 
 extern unsigned int socket_rtpkbs;      /* default number of rtpkb's in socket pools */
