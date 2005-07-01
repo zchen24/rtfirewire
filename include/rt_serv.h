@@ -8,7 +8,7 @@
 #define RT_IRQBH_H
 
 #include <linux/list.h>
-#include <rtos_primitives.h>
+#include <rt1394_sys.h>
 
 //~ #define SERVER_MODULE_CHECKED
 
