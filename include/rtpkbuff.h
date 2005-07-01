@@ -620,7 +620,7 @@ static inline void rtpkb_clean(struct rtpkb *pkb)
 	pkb->head = pkb->buf_start;
 	pkb->data = pkb->buf_start;
 	pkb->tail = pkb->buf_start;
-	pkb->end  = pkb->buf_start + PKB_DATA_ALIGN(RTPKB_SIZE);
+	pkb->end  = pkb->buf_start + SKB_DATA_ALIGN(RTPKB_SIZE);
 	/*! and the data length */
 	pkb->len = 0;
 }
