@@ -1,10 +1,11 @@
 /***
  *
- *  rtnet_rtpc.c
+ *  rtpc.c
  *
- *  RTnet - real-time networking subsystem
+ *  adapted from RTnet <http://www.rts.uni-hannover.de/rtnet/>
  *
  *  Copyright (C) 2003 Jan Kiszka <jan.kiszka@web.de>
+ * 			2005 Zhang Yuchen
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,7 +34,7 @@
 #include <linux/wait.h>
 
 #include <rtpc.h>
-#include <rtos_primitives.h>
+#include <rt1394_sys.h>
 #include <rt_serv.h>
 
 
