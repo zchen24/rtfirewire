@@ -91,7 +91,7 @@ struct hpsb_host {
     
     atomic_t refcount;
     
-    struct rtpkb_queue pending_packet_queue;
+    struct rtpkb_head pending_packet_queue;
     
     struct timer_list	timeout;
     unsigned long	timeout_interval;

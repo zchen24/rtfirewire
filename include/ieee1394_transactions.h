@@ -8,7 +8,7 @@
 #ifndef _IEEE1394_TRANSACTIONS_H
 #define _IEEE1394_TRANSACTIONS_H
 
-#include "ieee1394_core.h"
+#include <ieee1394_core.h>
 
 #define TRANSACTION_HIGHEST_PRI 0
 /*

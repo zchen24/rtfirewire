@@ -55,8 +55,6 @@
 #include "csr.h"
 #include "config_roms.h"
 
-#include "cross_linux.h"
-
 DECLARE_MUTEX(hpsb_hosts_lock);
 
 /*! module parameter,Number of additional global realtime packet buffers per network adapter*/

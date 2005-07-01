@@ -14,7 +14,7 @@
 #include <asm/semaphore.h>
 
 #include <hosts.h>
-#include <rtos_primitives.h>
+#include <rt1394_sys.h>
 
 /**
  * The core data structure of stack, 

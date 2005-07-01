@@ -64,23 +64,21 @@
 #include <iso.h>
 #include <rtpkbuff.h>
 
-#include <rt-firewire_config.h>
-#include <rtos_primitives.h>
 #include <rt_serv.h>
 
 /** response list for response broker */
-struct rtpkb_queue comp_list = {
+struct rtpkb_head comp_list = {
 	.name = "comp",
 };
 
 /** request lists for request brokers */
-struct rtpkb_queue bis_req_list = {
+struct rtpkb_head bis_req_list = {
 	.name = "bis",
 };
-struct rtpkb_queue rt_req_list = {
+struct rtpkb_head rt_req_list = {
 	.name = "rt",
 };
-struct rtpkb_queue nrt_req_list = {
+struct rtpkb_head nrt_req_list = {
 	.name = "nrt",
 };
 
@@ -982,7 +980,7 @@ static void fill_async_lock_resp(struct hpsb_packet *packet, int rcode, int extc
 void req_worker(unsigned long arg)
 {
 	
-	struct rtpkb_queue *list = (struct rtpkb_queue *)arg;
+	struct rtpkb_head *list = (struct rtpkb_head *)arg;
 	struct rtpkb *pkb;
 	struct hpsb_packet *pkt;
 	struct hpsb_host *host;
@@ -1145,7 +1143,7 @@ void req_worker(unsigned long arg)
 void hpsb_packet_received(struct hpsb_packet *pkt)
 {
         char tcode;
-	struct rtpkb_queue *req_list;
+	struct rtpkb_head *req_list;
 	struct hpsb_host *host;
 	
 	host = pkt->host;
@@ -1342,7 +1340,7 @@ static void queue_packet_complete(struct hpsb_packet *packet)
 void comp_worker(unsigned long data)
 {
 	
-	struct rtpkb_queue *list = (struct rtpkb_queue *)data;
+	struct rtpkb_head *list = (struct rtpkb_head *)data;
 	struct rtpkb *pkb;
 	struct hpsb_packet *packet;
 	void (*complete_routine)(void*);

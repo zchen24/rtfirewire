@@ -22,7 +22,7 @@
 
 #include "hosts.h"
 #include "dma.h"
-#include <rtos_primitives.h>
+#include <rt1394_sys.h>
 
 /*****************************************
 * @defgroup iso

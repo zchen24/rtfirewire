@@ -11,8 +11,7 @@
 #include <asm/semaphore.h>
 #include <asm/byteorder.h>
 
-#include <rt1394_config.h>
-#include <rtos_primitives.h>
+#include <rt1394_sys.h>
 
 
 /* Transaction Label handling */
@@ -30,7 +29,7 @@ struct hpsb_tlabel_pool {
  * @anchor HPSB_TPOOL_INIT
  * @todo cross linux version compiling here. 
  */
-#ifdef	LINUX_2_6
+#ifdef	CONFIG_KERNEL_26
 #define HPSB_TPOOL_INIT(_tp)			\
 do {	\
 	bitmap_zero((_tp)->pool, 64);		\
