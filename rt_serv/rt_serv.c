@@ -55,7 +55,6 @@
  #include <linux/proc_fs.h>
  #include <linux/spinlock.h>
  
- #include <rtos_primitives.h> 
  #include <rt_serv.h>
  
  #define IRQ_BROKER_PRI 10
