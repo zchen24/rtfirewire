@@ -1,37 +1,37 @@
 /**
- * @ingroup rtskb
+ * @ingroup rtpkb
  * @file
  *
- * data structure and interfaces of rtskb module
+ * data structure and interfaces of rtpkb module
  */
  
-#ifndef __RTSKBUFF_H_
-#define __RTSKBUFF_H_
+#ifndef __RTPKBUFF_H_
+#define __RTPKBUFF_H_
 
 #ifdef __KERNEL__
 
-#include <linux/skbuff.h>
+#include <linux/pkbuff.h>
 #include <rt1394_sys.h>
 
 /**
- * @addtogroup rtskb
+ * @addtogroup rtpkb
  *@{*/
-struct rtskb_head {
+struct rtpkb_head {
 	/* These two members must be first. */
-	struct rtskb	* next;
-	struct rtskb	* prev;
+	struct rtpkb	* next;
+	struct rtpkb	* prev;
 
 	__u32		qlen;
 	spinlock_t	lock;
 	
 	rtos_event_t 	*event; //this is needed when request is queued for server. 
-	struct rtskb_pool	 *pool;
+	struct rtpkb_pool	 *pool;
 	
 	unsigned char name[32];
 };
 
-struct rtskb_pool {
-	struct rtskb_head queue;
+struct rtpkb_pool {
+	struct rtpkb_head queue;
 			
 	struct list_head entry;
 	/**
@@ -44,13 +44,13 @@ struct rtskb_pool {
 	unsigned char name[32];
 };
 
-struct rtskb {
+struct rtpkb {
 	/* These two members must be first. */
-	struct rtskb	* next;			/* Next buffer in list 				*/
-	struct rtskb	* prev;			/* Previous buffer in list 			*/
+	struct rtpkb	* next;			/* Next buffer in list 				*/
+	struct rtpkb	* prev;			/* Previous buffer in list 			*/
 
-	struct rtskb_head * list;		/* List we are on now				*/
-	struct rtskb_pool * pool;		/* where we are from and should come back when things are done */
+	struct rtpkb_head * list;		/* List we are on now				*/
+	struct rtpkb_pool * pool;		/* where we are from and should come back when things are done */
 
 	unsigned char	*head;			/* Head of buffer 				*/
 	unsigned char	*data;			/* Data head pointer				*/
@@ -58,7 +58,7 @@ struct rtskb {
 	unsigned char 	*end;			/* End pointer					*/
 	unsigned int	len;
 
-	void 		(*destructor)(struct rtskb *);	/* Destruct function		*/
+	void 		(*destructor)(struct rtpkb *);	/* Destruct function		*/
 	
 	unsigned char *buf_start;
 	
@@ -68,47 +68,47 @@ struct rtskb {
 };
 
 /* default values for the module parameter */
-#define DEFAULT_RTSKB_CACHE_SIZE    16      /* default number of cached rtskbs for new pools */
-#define DEFAULT_GLOBAL_RTSKBS       16       /* default number of rtskb's in global pool */
-#define DEFAULT_DEVICE_RTSKBS       16      /* default additional rtskbs per network adapter */
-#define DEFAULT_SOCKET_RTSKBS       16      /* default number of rtskb's in socket pools */
+#define DEFAULT_RTPKB_CACHE_SIZE    16      /* default number of cached rtpkbs for new pools */
+#define DEFAULT_GLOBAL_RTPKBS       16       /* default number of rtpkb's in global pool */
+#define DEFAULT_DEVICE_RTPKBS       16      /* default additional rtpkbs per network adapter */
+#define DEFAULT_SOCKET_RTPKBS       16      /* default number of rtpkb's in socket pools */
 
-#define ALIGN_RTSKB_STRUCT_LEN      SKB_DATA_ALIGN(sizeof(struct rtskb))
-#define RTSKB_SIZE                  1544 /*maximum buffer load */
+#define ALIGN_RTPKB_STRUCT_LEN      PKB_DATA_ALIGN(sizeof(struct rtpkb))
+#define RTPKB_SIZE                  1544 /*maximum buffer load */
 
-extern unsigned int socket_rtskbs;      /* default number of rtskb's in socket pools */
+extern unsigned int socket_rtpkbs;      /* default number of rtpkb's in socket pools */
 
-extern unsigned int rtskb_pools;        /* current number of rtskb pools      */
-extern unsigned int rtskb_pools_max;    /* maximum number of rtskb pools      */
-extern unsigned int rtskb_amount;       /* current number of allocated rtskbs */
-extern unsigned int rtskb_amount_max;   /* maximum number of allocated rtskbs */
+extern unsigned int rtpkb_pools;        /* current number of rtpkb pools      */
+extern unsigned int rtpkb_pools_max;    /* maximum number of rtpkb pools      */
+extern unsigned int rtpkb_amount;       /* current number of allocated rtpkbs */
+extern unsigned int rtpkb_amount_max;   /* maximum number of allocated rtpkbs */
 
-extern void rtskb_over_panic(struct rtskb *skb, int len, void *here);
-extern void rtskb_under_panic(struct rtskb *skb, int len, void *here);
+extern void rtpkb_over_panic(struct rtpkb *pkb, int len, void *here);
+extern void rtpkb_under_panic(struct rtpkb *pkb, int len, void *here);
 
-extern struct rtskb *alloc_rtskb(unsigned int size, struct rtskb_pool *pool);
-#define dev_alloc_rtskb(len, pool)  alloc_rtskb(len, pool)
+extern struct rtpkb *alloc_rtpkb(unsigned int size, struct rtpkb_pool *pool);
+#define dev_alloc_rtpkb(len, pool)  alloc_rtpkb(len, pool)
 
-extern void kfree_rtskb(struct rtskb *skb);
-#define dev_kfree_rtskb(a)  kfree_rtskb(a)
+extern void kfree_rtpkb(struct rtpkb *pkb);
+#define dev_kfree_rtpkb(a)  kfree_rtpkb(a)
 
 /**
- *	rtskb_queue_empty - check if a queue is empty
+ *	rtpkb_queue_empty - check if a queue is empty
  *	@list: queue head
  *
  *	Returns true if the queue is empty, false otherwise.
  */
  
-static inline int rtskb_queue_empty(struct rtskb_head *list)
+static inline int rtpkb_queue_empty(struct rtpkb_head *list)
 {
-	return (list->next == (struct rtskb *) list);
+	return (list->next == (struct rtpkb *) list);
 }
 
 /**
- *	skb_peek
+ *	pkb_peek
  *	@list_: list to peek at
  *
- *	Peek an &rtskb. Unlike most other operations you _MUST_
+ *	Peek an &rtpkb. Unlike most other operations you _MUST_
  *	be careful with this one. A peek leaves the buffer on the
  *	list and someone else may run off with it. You must hold
  *	the appropriate locks or have a private queue to do this.
@@ -118,19 +118,19 @@ static inline int rtskb_queue_empty(struct rtskb_head *list)
  *	volatile. Use with caution.
  */
  
-static inline struct rtskb *rtskb_peek(struct rtskb_head *list_)
+static inline struct rtpkb *rtpkb_peek(struct rtpkb_head *list_)
 {
-	struct rtskb *list = ((struct rtskb *)list_)->next;
-	if (list == (struct rtskb *)list_)
+	struct rtpkb *list = ((struct rtpkb *)list_)->next;
+	if (list == (struct rtpkb *)list_)
 		list = NULL;
 	return list;
 }
 
 /**
- *	rtskb_peek_tail
+ *	rtpkb_peek_tail
  *	@list_: list to peek at
  *
- *	Peek an &rtskb. Unlike most other operations you _MUST_
+ *	Peek an &rtpkb. Unlike most other operations you _MUST_
  *	be careful with this one. A peek leaves the buffer on the
  *	list and someone else may run off with it. You must hold
  *	the appropriate locks or have a private queue to do this.
@@ -140,43 +140,43 @@ static inline struct rtskb *rtskb_peek(struct rtskb_head *list_)
  *	volatile. Use with caution.
  */
 
-static inline struct rtskb *rtskb_peek_tail(struct rtskb_head *list_)
+static inline struct rtpkb *rtpkb_peek_tail(struct rtpkb_head *list_)
 {
-	struct rtskb *list = ((struct rtskb *)list_)->prev;
-	if (list == (struct rtskb *)list_)
+	struct rtpkb *list = ((struct rtpkb *)list_)->prev;
+	if (list == (struct rtpkb *)list_)
 		list = NULL;
 	return list;
 }
 
 /**
- *	rtskb_queue_len	- get queue length
+ *	rtpkb_queue_len	- get queue length
  *	@list_: list to measure
  *
- *	Return the length of an &rtskb queue. 
+ *	Return the length of an &rtpkb queue. 
  */
  
-static inline __u32 rtskb_queue_len(struct rtskb_head *list_)
+static inline __u32 rtpkb_queue_len(struct rtpkb_head *list_)
 {
 	return(list_->qlen);
 }
 
-static inline void rtskb_queue_head_init(struct rtskb_head *list)
+static inline void rtpkb_queue_head_init(struct rtpkb_head *list)
 {
 	rtos_spin_lock_init(&list->lock);
-	list->prev = (struct rtskb *)list;
-	list->next = (struct rtskb *)list;
+	list->prev = (struct rtpkb *)list;
+	list->next = (struct rtpkb *)list;
 	list->qlen = 0;
 }
 
 /*
- *	Insert an rtskb at the start of a list.
+ *	Insert an rtpkb at the start of a list.
  *
- *	The "__skb_xxxx()" functions are the non-atomic ones that
+ *	The "__pkb_xxxx()" functions are the non-atomic ones that
  *	can only be called with interrupts disabled.
  */
 
 /**
- *	__rtskb_queue_head - queue a buffer at the list head
+ *	__rtpkb_queue_head - queue a buffer at the list head
  *	@list: list to use
  *	@newsk: buffer to queue
  *
@@ -186,13 +186,13 @@ static inline void rtskb_queue_head_init(struct rtskb_head *list)
  *	A buffer cannot be placed on two lists at the same time.
  */	
  
-static inline void __rtskb_queue_head(struct rtskb_head *list, struct rtskb *newsk)
+static inline void __rtpkb_queue_head(struct rtpkb_head *list, struct rtpkb *newsk)
 {
-	struct rtskb *prev, *next;
+	struct rtpkb *prev, *next;
 
 	newsk->list = list;
 	list->qlen++;
-	prev = (struct rtskb *)list;
+	prev = (struct rtpkb *)list;
 	next = prev->next;
 	newsk->next = next;
 	newsk->prev = prev;
@@ -202,30 +202,30 @@ static inline void __rtskb_queue_head(struct rtskb_head *list, struct rtskb *new
 
 
 /**
- *	rtskb_queue_head - queue a buffer at the list head
+ *	rtpkb_queue_head - queue a buffer at the list head
  *	@list: list to use
  *	@newsk: buffer to queue
  *
  *	Queue a buffer at the start of the list. This function takes the
- *	list lock and can be used safely with other locking &rtskb functions
+ *	list lock and can be used safely with other locking &rtpkb functions
  *	safely.
  *
  *	A buffer cannot be placed on two lists at the same time.
  */	
 
-static inline void rtskb_queue_head(struct rtskb_head *list, struct rtskb *newsk)
+static inline void rtpkb_queue_head(struct rtpkb_head *list, struct rtpkb *newsk)
 {
 	unsigned long flags;
 
 	rtos_spin_lock_irqsave(&list->lock, flags);
-	__rtskb_queue_head(list, newsk);
+	__rtpkb_queue_head(list, newsk);
 	rtos_spin_unlock_irqrestore(&list->lock, flags);
 	
 	if(list->event) rtos_event_signal(list->event);
 }
 
 /**
- *	__rtskb_queue_tail - queue a buffer at the list tail
+ *	__rtpkb_queue_tail - queue a buffer at the list tail
  *	@list: list to use
  *	@newsk: buffer to queue
  *
@@ -236,13 +236,13 @@ static inline void rtskb_queue_head(struct rtskb_head *list, struct rtskb *newsk
  */	
  
 
-static inline void __rtskb_queue_tail(struct rtskb_head *list, struct rtskb *newsk)
+static inline void __rtpkb_queue_tail(struct rtpkb_head *list, struct rtpkb *newsk)
 {
-	struct rtskb *prev, *next;
+	struct rtpkb *prev, *next;
 		
 	newsk->list = list;
 	list->qlen++;
-	next = (struct rtskb *)list;
+	next = (struct rtpkb *)list;
 	prev = next->prev;
 	newsk->next = next;
 	newsk->prev = prev;
@@ -251,37 +251,37 @@ static inline void __rtskb_queue_tail(struct rtskb_head *list, struct rtskb *new
 }
 
 /**
- *	rtskb_queue_tail - queue a buffer at the list tail
+ *	rtpkb_queue_tail - queue a buffer at the list tail
  *	@list: list to use
  *	@newsk: buffer to queue
  *
  *	Queue a buffer at the tail of the list. This function takes the
- *	list lock and can be used safely with other locking &rtskb functions
+ *	list lock and can be used safely with other locking &rtpkb functions
  *	safely.
  *
  *	A buffer cannot be placed on two lists at the same time.
  */	
 
-static inline void rtskb_queue_tail(struct rtskb_head *list, struct rtskb *newsk)
+static inline void rtpkb_queue_tail(struct rtpkb_head *list, struct rtpkb *newsk)
 {
 	unsigned long flags;
 	
 	rtos_spin_lock_irqsave(&list->lock, flags);
-	__rtskb_queue_tail(list, newsk);
+	__rtpkb_queue_tail(list, newsk);
 	rtos_spin_unlock_irqrestore(&list->lock, flags);
 	
 	if(list->event) rtos_event_signal(list->event);
 		
 }
 
-static inline void __rtskb_queue_pri(struct rtskb_head *list, struct rtskb *newsk)
+static inline void __rtpkb_queue_pri(struct rtpkb_head *list, struct rtpkb *newsk)
 {
-	struct rtskb *prev, *next;
+	struct rtpkb *prev, *next;
 
 	newsk->list = list;
 	list->qlen++;
 	
-	for(next=list->next, prev=(struct rtskb*)list; next!=(struct rtskb*)list; prev=next, next=next->next) {
+	for(next=list->next, prev=(struct rtpkb*)list; next!=(struct rtpkb*)list; prev=next, next=next->next) {
 		if(next->pri > newsk->pri){
 			newsk->next = next;
 			newsk->prev = prev;
@@ -290,7 +290,7 @@ static inline void __rtskb_queue_pri(struct rtskb_head *list, struct rtskb *news
 			break;
 		}
 	}
-	if(next==(struct rtskb *)list) {
+	if(next==(struct rtpkb *)list) {
 		newsk->next = next;
 		newsk->prev = prev;
 		next->prev = newsk;
@@ -298,12 +298,12 @@ static inline void __rtskb_queue_pri(struct rtskb_head *list, struct rtskb *news
 	}
 }
 
-static inline void rtskb_queue_pri(struct rtskb_head *list, struct rtskb *newsk)
+static inline void rtpkb_queue_pri(struct rtpkb_head *list, struct rtpkb *newsk)
 {
 	unsigned long flags;
 	
 	rtos_spin_lock_irqsave(&list->lock, flags);
-	__rtskb_queue_pri(list, newsk);
+	__rtpkb_queue_pri(list, newsk);
 	rtos_spin_unlock_irqrestore(&list->lock, flags);
 	
 	if(list->event) rtos_event_signal(list->event);
@@ -311,7 +311,7 @@ static inline void rtskb_queue_pri(struct rtskb_head *list, struct rtskb *newsk)
 	
 
 /**
- *	__skb_dequeue - remove from the head of the queue
+ *	__pkb_dequeue - remove from the head of the queue
  *	@list: list to dequeue from
  *
  *	Remove the head of the list. This function does not take any locks
@@ -319,11 +319,11 @@ static inline void rtskb_queue_pri(struct rtskb_head *list, struct rtskb *newsk)
  *	returned or %NULL if the list is empty.
  */
 
-static inline struct rtskb *__rtskb_dequeue(struct rtskb_head *list)
+static inline struct rtpkb *__rtpkb_dequeue(struct rtpkb_head *list)
 {
-	struct rtskb *next, *prev, *result;
+	struct rtpkb *next, *prev, *result;
 
-	prev = (struct rtskb *) list;
+	prev = (struct rtpkb *) list;
 	next = prev->next;
 	result = NULL;
 	if (next != prev) {
@@ -340,7 +340,7 @@ static inline struct rtskb *__rtskb_dequeue(struct rtskb_head *list)
 }
 
 /**
- *	skb_dequeue - remove from the head of the queue
+ *	pkb_dequeue - remove from the head of the queue
  *	@list: list to dequeue from
  *
  *	Remove the head of the list. The list lock is taken so the function
@@ -348,12 +348,12 @@ static inline struct rtskb *__rtskb_dequeue(struct rtskb_head *list)
  *	returned or %NULL if the list is empty.
  */
 
-static inline struct rtskb *rtskb_dequeue(struct rtskb_head *list)
+static inline struct rtpkb *rtpkb_dequeue(struct rtpkb_head *list)
 {
 	unsigned long flags;
-	struct rtskb *result;
+	struct rtpkb *result;
 	rtos_spin_lock_irqsave(&list->lock, flags);
-	result = __rtskb_dequeue(list);
+	result = __rtpkb_dequeue(list);
 	rtos_spin_unlock_irqrestore(&list->lock, flags);
 	return result;
 }
@@ -362,9 +362,9 @@ static inline struct rtskb *rtskb_dequeue(struct rtskb_head *list)
  *	Insert a packet on a list.
  */
 
-static inline void __rtskb_insert(struct rtskb *newsk,
-	struct rtskb * prev, struct rtskb *next,
-	struct rtskb_head * list)
+static inline void __rtpkb_insert(struct rtpkb *newsk,
+	struct rtpkb * prev, struct rtpkb *next,
+	struct rtpkb_head * list)
 {
 	newsk->next = next;
 	newsk->prev = prev;
@@ -375,7 +375,7 @@ static inline void __rtskb_insert(struct rtskb *newsk,
 }
 
 /**
- *	skb_insert	-	insert a buffer
+ *	pkb_insert	-	insert a buffer
  *	@old: buffer to insert before
  *	@newsk: buffer to insert
  *
@@ -384,12 +384,12 @@ static inline void __rtskb_insert(struct rtskb *newsk,
  *	A buffer cannot be placed on two lists at the same time.
  */
 
-static inline void rtskb_insert(struct rtskb *old, struct rtskb *newsk)
+static inline void rtpkb_insert(struct rtpkb *old, struct rtpkb *newsk)
 {
 	unsigned long flags;
 
 	rtos_spin_lock_irqsave(&old->list->lock, flags);
-	__rtskb_insert(newsk, old->prev, old, old->list);
+	__rtpkb_insert(newsk, old->prev, old, old->list);
 	rtos_spin_unlock_irqrestore(&old->list->lock, flags);
 }
 
@@ -397,13 +397,13 @@ static inline void rtskb_insert(struct rtskb *old, struct rtskb *newsk)
  *	Place a packet after a given packet in a list.
  */
 
-static inline void __rtskb_append(struct rtskb *old, struct rtskb *newsk)
+static inline void __rtpkb_append(struct rtpkb *old, struct rtpkb *newsk)
 {
-	__rtskb_insert(newsk, old, old->next, old->list);
+	__rtpkb_insert(newsk, old, old->next, old->list);
 }
 
 /**
- *	skb_append	-	append a buffer
+ *	pkb_append	-	append a buffer
  *	@old: buffer to insert after
  *	@newsk: buffer to insert
  *
@@ -413,37 +413,37 @@ static inline void __rtskb_append(struct rtskb *old, struct rtskb *newsk)
  */
 
 
-static inline void rtskb_append(struct rtskb *old, struct rtskb *newsk)
+static inline void rtpkb_append(struct rtpkb *old, struct rtpkb *newsk)
 {
 	unsigned long flags;
 
 	rtos_spin_lock_irqsave(&old->list->lock, flags);
-	__rtskb_append(old, newsk);
+	__rtpkb_append(old, newsk);
 	rtos_spin_unlock_irqrestore(&old->list->lock, flags);
 }
 
 /*
- * remove rtskb from list. _Must_ be called atomically, and with
+ * remove rtpkb from list. _Must_ be called atomically, and with
  * the list known..
  */
  
-static inline void __rtskb_unlink(struct rtskb *skb, struct rtskb_head *list)
+static inline void __rtpkb_unlink(struct rtpkb *pkb, struct rtpkb_head *list)
 {
-	struct rtskb * next, * prev;
+	struct rtpkb * next, * prev;
 
 	list->qlen--;
-	next = skb->next;
-	prev = skb->prev;
-	skb->next = NULL;
-	skb->prev = NULL;
-	skb->list = NULL;
+	next = pkb->next;
+	prev = pkb->prev;
+	pkb->next = NULL;
+	pkb->prev = NULL;
+	pkb->list = NULL;
 	next->prev = prev;
 	prev->next = next;
 }
 
 /**
- *	rtskb_unlink	-	remove a buffer from a list
- *	@skb: buffer to remove
+ *	rtpkb_unlink	-	remove a buffer from a list
+ *	@pkb: buffer to remove
  *
  *	Place a packet after a given packet in a list. The list locks are taken
  *	and this function is atomic with respect to other list locked calls
@@ -454,16 +454,16 @@ static inline void __rtskb_unlink(struct rtskb *skb, struct rtskb_head *list)
  *	destroyed.
  */
 
-static inline void rtskb_unlink(struct rtskb *skb)
+static inline void rtpkb_unlink(struct rtpkb *pkb)
 {
-	struct rtskb_head *list = skb->list;
+	struct rtpkb_head *list = pkb->list;
 
 	if(list) {
 		unsigned long flags;
 
 		rtos_spin_lock_irqsave(&list->lock, flags);
-		if(skb->list == list)
-			__rtskb_unlink(skb, skb->list);
+		if(pkb->list == list)
+			__rtpkb_unlink(pkb, pkb->list);
 		rtos_spin_unlock_irqrestore(&list->lock, flags);
 	}
 }
@@ -471,7 +471,7 @@ static inline void rtskb_unlink(struct rtskb *skb)
 /* XXX: more streamlined implementation */
 
 /**
- *	__rtskb_dequeue_tail - remove from the tail of the queue
+ *	__rtpkb_dequeue_tail - remove from the tail of the queue
  *	@list: list to dequeue from
  *
  *	Remove the tail of the list. This function does not take any locks
@@ -479,16 +479,16 @@ static inline void rtskb_unlink(struct rtskb *skb)
  *	returned or %NULL if the list is empty.
  */
 
-static inline struct rtskb *__rtskb_dequeue_tail(struct rtskb_head *list)
+static inline struct rtpkb *__rtpkb_dequeue_tail(struct rtpkb_head *list)
 {
-	struct rtskb *skb = rtskb_peek_tail(list); 
-	if (skb)
-		__rtskb_unlink(skb, list);
-	return skb;
+	struct rtpkb *pkb = rtpkb_peek_tail(list); 
+	if (pkb)
+		__rtpkb_unlink(pkb, list);
+	return pkb;
 }
 
 /**
- *	rtskb_dequeue - remove from the head of the queue
+ *	rtpkb_dequeue - remove from the head of the queue
  *	@list: list to dequeue from
  *
  *	Remove the head of the list. The list lock is taken so the function
@@ -496,195 +496,195 @@ static inline struct rtskb *__rtskb_dequeue_tail(struct rtskb_head *list)
  *	returned or %NULL if the list is empty.
  */
 
-static inline struct rtskb *rtskb_dequeue_tail(struct rtskb_head *list)
+static inline struct rtpkb *rtpkb_dequeue_tail(struct rtpkb_head *list)
 {
 	unsigned long flags;
-	struct rtskb *result;
+	struct rtpkb *result;
 
 	rtos_spin_lock_irqsave(&list->lock, flags);
-	result = __rtskb_dequeue_tail(list);
+	result = __rtpkb_dequeue_tail(list);
 	rtos_spin_unlock_irqrestore(&list->lock, flags);
 	return result;
 }
 
-#define rtskb_queue_walk(queue,skb) \
-		for (skb = (queue)->next; \
-			prefetch(skb->next), (skb != (struct rtskb *)(queue)); \
-			skb = skb->next)
+#define rtpkb_queue_walk(queue,pkb) \
+		for (pkb = (queue)->next; \
+			prefetch(pkb->next), (pkb != (struct rtpkb *)(queue)); \
+			pkb = pkb->next)
 
 /***
- *  rtskb_head_purge - clean the queue
+ *  rtpkb_head_purge - clean the queue
  *  @queue
  */
-static inline void rtskb_head_purge(struct rtskb_head *queue)
+static inline void rtpkb_head_purge(struct rtpkb_head *queue)
 {
-    struct rtskb *skb;
-    while ( (skb=rtskb_dequeue(queue))!=NULL )
-        kfree_rtskb(skb);
+    struct rtpkb *pkb;
+    while ( (pkb=rtpkb_dequeue(queue))!=NULL )
+        kfree_rtpkb(pkb);
 }
 
-static inline void rtskb_reserve(struct rtskb *skb, unsigned int len)
+static inline void rtpkb_reserve(struct rtpkb *pkb, unsigned int len)
 {
-    skb->data+=len;
-    skb->tail+=len;
+    pkb->data+=len;
+    pkb->tail+=len;
 }
 
-static inline unsigned char *__rtskb_put(struct rtskb *skb, unsigned int len)
+static inline unsigned char *__rtpkb_put(struct rtpkb *pkb, unsigned int len)
 {
-    unsigned char *tmp=skb->tail;
+    unsigned char *tmp=pkb->tail;
 
-    skb->tail+=len;
-    skb->len+=len;
+    pkb->tail+=len;
+    pkb->len+=len;
     return tmp;
 }
 
-static inline unsigned char *rtskb_put(struct rtskb *skb, unsigned int len)
+static inline unsigned char *rtpkb_put(struct rtpkb *pkb, unsigned int len)
 {
-    unsigned char *tmp=skb->tail;
+    unsigned char *tmp=pkb->tail;
 
-    skb->tail+=len;
-    skb->len+=len;
+    pkb->tail+=len;
+    pkb->len+=len;
 
-    RTOS_ASSERT(skb->tail <= skb->end,
-        rtskb_over_panic(skb, len, current_text_addr()););
+    RTOS_ASSERT(pkb->tail <= pkb->end,
+        rtpkb_over_panic(pkb, len, current_text_addr()););
 
     return tmp;
 }
 
-static inline unsigned char *__rtskb_push(struct rtskb *skb, unsigned int len)
+static inline unsigned char *__rtpkb_push(struct rtpkb *pkb, unsigned int len)
 {
-    skb->data-=len;
-    skb->len+=len;
-    return skb->data;
+    pkb->data-=len;
+    pkb->len+=len;
+    return pkb->data;
 }
 
-static inline unsigned char *rtskb_push(struct rtskb *skb, unsigned int len)
+static inline unsigned char *rtpkb_push(struct rtpkb *pkb, unsigned int len)
 {
-    skb->data-=len;
-    skb->len+=len;
+    pkb->data-=len;
+    pkb->len+=len;
 
-    RTOS_ASSERT(skb->data >= skb->buf_start,
-        rtskb_under_panic(skb, len, current_text_addr()););
+    RTOS_ASSERT(pkb->data >= pkb->buf_start,
+        rtpkb_under_panic(pkb, len, current_text_addr()););
 
-    return skb->data;
+    return pkb->data;
 }
 
-static inline char *__rtskb_pull(struct rtskb *skb, unsigned int len)
+static inline char *__rtpkb_pull(struct rtpkb *pkb, unsigned int len)
 {
-    skb->len-=len;
-    if (skb->len < 0)
+    pkb->len-=len;
+    if (pkb->len < 0)
         BUG();
-    return skb->data+=len;
+    return pkb->data+=len;
 }
 
-static inline unsigned char *rtskb_pull(struct rtskb *skb, unsigned int len)
+static inline unsigned char *rtpkb_pull(struct rtpkb *pkb, unsigned int len)
 {
-    if (len > skb->len)
+    if (len > pkb->len)
         return NULL;
 
-    return __rtskb_pull(skb,len);
+    return __rtpkb_pull(pkb,len);
 }
 
-static inline void rtskb_trim(struct rtskb *skb, unsigned int len)
+static inline void rtpkb_trim(struct rtpkb *pkb, unsigned int len)
 {
-    if (skb->len>len) {
-        skb->len = len;
-        skb->tail = skb->data+len;
+    if (pkb->len>len) {
+        pkb->len = len;
+        pkb->tail = pkb->data+len;
     }
 }
 
 /**
- * @ingroup rtskbuff
- * @anchor rtskb_fillin
+ * @ingroup rtpkbuff
+ * @anchor rtpkb_fillin
  * this should be used in place of memcpy
  * @note the len must be in bytes.!!!!
  */
-static inline unsigned char *rtskb_fillin(struct rtskb *skb, void *src, unsigned int len)
+static inline unsigned char *rtpkb_fillin(struct rtpkb *pkb, void *src, unsigned int len)
 {
 	unsigned char *dest;
-	dest = rtskb_put(skb, len);
+	dest = rtpkb_put(pkb, len);
 	memcpy(dest, src, len);
 	return dest;
 }
 
 /**
- * @ingroup rtskbuff
- * @anchor rtskb_clean
- * to reset all the members of rtskb structure
+ * @ingroup rtpkbuff
+ * @anchor rtpkb_clean
+ * to reset all the members of rtpkb structure
  */
-static inline void rtskb_clean(struct rtskb *skb)
+static inline void rtpkb_clean(struct rtpkb *pkb)
 {
 	/*! reset the data buffer */
-	//~ memset(skb->buf_start, 0, SKB_DATA_ALIGN(RTSKB_SIZE));
+	//~ memset(pkb->buf_start, 0, PKB_DATA_ALIGN(RTPKB_SIZE));
 	/*! reset the data pointers. */
-	skb->head = skb->buf_start;
-	skb->data = skb->buf_start;
-	skb->tail = skb->buf_start;
-	skb->end  = skb->buf_start + SKB_DATA_ALIGN(RTSKB_SIZE);
+	pkb->head = pkb->buf_start;
+	pkb->data = pkb->buf_start;
+	pkb->tail = pkb->buf_start;
+	pkb->end  = pkb->buf_start + PKB_DATA_ALIGN(RTPKB_SIZE);
 	/*! and the data length */
-	skb->len = 0;
+	pkb->len = 0;
 }
 	
-static inline struct rtskb *rtskb_padto(struct rtskb *rtskb, unsigned int len)
+static inline struct rtpkb *rtpkb_padto(struct rtpkb *rtpkb, unsigned int len)
 {
-    RTOS_ASSERT(len <= (unsigned int)(rtskb->end + 1 - rtskb->data),
+    RTOS_ASSERT(len <= (unsigned int)(rtpkb->end + 1 - rtpkb->data),
                  return NULL;);
 
-    memset(rtskb->data + rtskb->len, 0, len - rtskb->len);
+    memset(rtpkb->data + rtpkb->len, 0, len - rtpkb->len);
 
-    return rtskb;
+    return rtpkb;
 }
 
-extern struct rtskb_pool global_pool;
+extern struct rtpkb_pool global_pool;
 
-extern unsigned int rtskb_pool_init(struct rtskb_pool *pool,
+extern unsigned int rtpkb_pool_init(struct rtpkb_pool *pool,
                                     unsigned int initial_size);
-extern unsigned int rtskb_pool_init_rt(struct rtskb_pool *pool,
+extern unsigned int rtpkb_pool_init_rt(struct rtpkb_pool *pool,
                                        unsigned int initial_size);
-extern void __rtskb_pool_release(struct rtskb_pool *pool);
-extern void __rtskb_pool_release_rt(struct rtskb_pool *pool);
+extern void __rtpkb_pool_release(struct rtpkb_pool *pool);
+extern void __rtpkb_pool_release_rt(struct rtpkb_pool *pool);
 	
 #if 0
-static inline int rtskb_is_nonlinear(const struct rtskb *skb)
+static inline int rtpkb_is_nonlinear(const struct rtpkb *pkb)
 {
-	return skb->data_len;
+	return pkb->data_len;
 }
 
-static inline unsigned int rtskb_headlen(const struct rtskb *skb)
+static inline unsigned int rtpkb_headlen(const struct rtpkb *pkb)
 {
-	return skb->len - skb->data_len;
+	return pkb->len - pkb->data_len;
 }
 #endif
 
-#define rtskb_pool_release(pool)                            \
+#define rtpkb_pool_release(pool)                            \
     do {                                                    \
         RTOS_ASSERT((&(pool)->queue)->qlen == (pool)->capc,             \
                      printk("pool: %p\n", (pool)););    \
-        __rtskb_pool_release((pool));                       \
+        __rtpkb_pool_release((pool));                       \
     } while (0)
-#define rtskb_pool_release_rt(pool)                         \
+#define rtpkb_pool_release_rt(pool)                         \
     do {                                                    \
         RTOS_ASSERT((&(pool)->queue)->qlen == (pool)->capc,             \
                      printk("pool: %p\n", (pool)););    \
-        __rtskb_pool_release_rt((pool));                    \
+        __rtpkb_pool_release_rt((pool));                    \
     } while (0)
 
-extern unsigned int rtskb_pool_extend(struct rtskb_pool *pool,
-                                      unsigned int add_rtskbs);
-extern unsigned int rtskb_pool_extend_rt(struct rtskb_pool *pool,
-                                         unsigned int add_rtskbs);
-extern unsigned int rtskb_pool_shrink(struct rtskb_pool *pool,
-                                      unsigned int rem_rtskbs);
-extern unsigned int rtskb_pool_shrink_rt(struct rtskb_pool *pool,
-                                         unsigned int rem_rtskbs);
-extern int rtskb_acquire(struct rtskb *rtskb, struct rtskb_pool *comp_pool);
+extern unsigned int rtpkb_pool_extend(struct rtpkb_pool *pool,
+                                      unsigned int add_rtpkbs);
+extern unsigned int rtpkb_pool_extend_rt(struct rtpkb_pool *pool,
+                                         unsigned int add_rtpkbs);
+extern unsigned int rtpkb_pool_shrink(struct rtpkb_pool *pool,
+                                      unsigned int rem_rtpkbs);
+extern unsigned int rtpkb_pool_shrink_rt(struct rtpkb_pool *pool,
+                                         unsigned int rem_rtpkbs);
+extern int rtpkb_acquire(struct rtpkb *rtpkb, struct rtpkb_pool *comp_pool);
 
-extern int rtskb_pools_init(void);
-extern void rtskb_pools_release(void);
+extern int rtpkb_pools_init(void);
+extern void rtpkb_pools_release(void);
 
 
 /*@}*/
 
 #endif /*__KERNEL__ */
 
-#endif /* _RTSKBUFF_H_ */
+#endif /* _RTPKBUFF_H_ */
