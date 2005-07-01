@@ -173,7 +173,7 @@ OBJS = \
 EXTRA_DIST = Makefile.kbuild
 
 DISTCLEANFILES = Makefile
-subdir = rtskbuff
+subdir = rtpkbuff
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/autoconf/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config/rt-firewire_config_pre.h
@@ -205,7 +205,7 @@ all: all-am
 .SUFFIXES: .c .lo .o .obj
 $(srcdir)/GNUmakefile.in: @MAINTAINER_MODE_TRUE@ GNUmakefile.am  $(top_srcdir)/configure.ac $(ACLOCAL_M4)
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign  rtskbuff/GNUmakefile
+	  $(AUTOMAKE) --foreign  rtpkbuff/GNUmakefile
 GNUmakefile: @MAINTAINER_MODE_TRUE@ $(srcdir)/GNUmakefile.in  $(top_builddir)/config.status
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)
 libkernel_rtpkbuff.a: $(libkernel_rtpkbuff_a_OBJECTS) $(libkernel_rtpkbuff_a_DEPENDENCIES) 
