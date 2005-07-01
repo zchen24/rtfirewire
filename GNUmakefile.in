@@ -153,7 +153,7 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 OPTDIRS = 
 
-SUBDIRS = include rtskbuff rtpc rt_serv stack drivers $(OPTDIRS) highlevel tools
+SUBDIRS = include rtpkbuff rtpc rt_serv stack drivers $(OPTDIRS) highlevel tools
 
 EXTRA_DIST = autogen.sh
 subdir = .

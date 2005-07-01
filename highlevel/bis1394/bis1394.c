@@ -194,7 +194,6 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 {
 	struct bis_cmd	cmd;
 	int ret;
-	quadlet_t *buffer = &cmd.args.csr_raw.data;
 	
 	ret = copy_from_user(&cmd, (void *)arg, sizeof(cmd));
 	if(ret != 0)
@@ -234,29 +233,6 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 			ret = 0;
 			break;
 		
-		case IOC_RTFW_CSR_RAW:
-			switch(cmd.args.csr_raw.type){
-				case CSR_RAW_READ:
-					ret = hpsb_read(host,LOCAL_BUS | cmd.args.csr_raw.destid, get_hpsb_generation(host), \
-								cmd.args.csr_raw.offset+CSR_REGISTER_BASE,buffer, sizeof(*buffer),\
-									TRANSACTION_HIGHEST_PRI);
-					if(ret>=0) {
-						if(copy_to_user((void *)arg, &cmd, sizeof(cmd)) != 0)
-							return -EFAULT;
-					}
-					
-					break;
-					
-				case CSR_RAW_WRITE:
-					ret = 0;
-					break;
-				
-				default:
-					ret = 0;
-					break;
-			}
-			break;
-			
 		default:
 			ret = -ENOTTY;
 	}

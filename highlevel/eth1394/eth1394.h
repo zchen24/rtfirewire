@@ -24,15 +24,15 @@
 #ifndef __ETH1394_H
 #define __ETH1394_H
 
+#include <linux/netdevice.h>
+
 #include "ieee1394.h"
-#include <rtos_primitives.h>
-#include <rtnet_misc.h>
 
 /* Register for incoming packets. This is 4096 bytes, which supports up to
  * S3200 (per Table 16-3 of IEEE 1394b-2002). */
 #define ETHER1394_REGION_ADDR_LEN	4096
-#define ETHER1394_REGION_ADDR		0xfffff0200000ULL
-#define ETHER1394_REGION_ADDR_END	(ETHER1394_REGION_ADDR + ETHER1394_REGION_ADDR_LEN)
+
+#define ETHER1394_INVALID_ADDR		~0ULL
 
 /* GASP identifier numbers for IPv4 over IEEE 1394 */
 #define ETHER1394_GASP_SPECIFIER_ID	0x00005E
@@ -42,50 +42,30 @@
 
 #define ETHER1394_GASP_OVERHEAD (2 * sizeof(quadlet_t))  /* GASP header overhead */
 
+#define ETHER1394_GASP_BUFFERS 16
+
 /* Node set == 64 */
 #define NODE_SET			(ALL_NODES + 1)
 
-#define TX_RING_SIZE	32
-#define RX_RING_SIZE	8 /* RX_RING_SIZE*2 rtskbs will be preallocated */
+enum eth1394_bc_states { ETHER1394_BC_ERROR,
+			 ETHER1394_BC_RUNNING,
+			 ETHER1394_BC_STOPPED };
 
-enum eth1394_bc_states { ETHER1394_BC_CLOSED, ETHER1394_BC_OPENED,
-			 ETHER1394_BC_CHECK };
-
-struct pdg_list {
-	struct list_head list;		/* partial datagram list per node */
-	unsigned int sz;		/* partial datagram list size per node	*/
-	spinlock_t lock;		/* partial datagram lock		*/
-};
 
 /* Private structure for our ethernet driver */
 struct eth1394_priv {
 	struct net_device_stats stats;	/* Device stats			 */
 	struct hpsb_host *host;		/* The card for this dev	 */
-	u16 maxpayload[NODE_SET];	/* Max payload per node		 */
-	unsigned char sspd[NODE_SET];	/* Max speed per node		 */
-	u64 fifo[ALL_NODES];		/* FIFO offset per node		 */
-	u64 eui[ALL_NODES];		/* EUI-64 per node		 */
+	u16 bc_maxpayload;		/* Max broadcast payload	 */
+	u8 bc_sspd;			/* Max broadcast speed		 */
+	u64 local_fifo;			/* Local FIFO Address		 */
 	spinlock_t lock;		/* Private lock			 */
 	int broadcast_channel;		/* Async stream Broadcast Channel */
 	enum eth1394_bc_states bc_state; /* broadcast channel state	 */
 	struct hpsb_iso *iso;		/* Async stream recv handle	 */
-	struct pdg_list pdg[ALL_NODES]; /* partial RX datagram lists     */
-	int dgl[NODE_SET];              /* Outgoing datagram label per node */
-	
-	// *** RTnet ***
-	/* The addresses of a Tx/Rx-in-place packets/buffers. */
-	struct rtskb *tx_skbuff[TX_RING_SIZE];
-	struct rtskb *rx_skbuff[RX_RING_SIZE];
-	struct rtskb_queue skb_pool;
-	// *** RTnet ***
-};
-
-
-
-struct host_info {
-	struct hpsb_host *host;
-	//******RTnet*******
-	struct rtnet_device *dev;
+	int bc_dgl;			/* Outgoing broadcast datagram label */
+	struct list_head ip_node_list;	/* List of IP capable nodes	 */
+	struct unit_directory *ud_list[ALL_NODES]; /* Cached unit dir list */
 };
 
 
@@ -101,7 +81,14 @@ struct eth1394hdr {
 	unsigned short	h_proto;		/* packet type ID field	*/
 }  __attribute__((packed));
 
+#ifdef __KERNEL__
+#include <linux/skbuff.h>
 
+static inline struct eth1394hdr *eth1394_hdr(const struct sk_buff *skb)
+{
+	return (struct eth1394hdr *)skb->mac.raw;
+}
+#endif
 
 typedef enum {ETH1394_GASP, ETH1394_WRREQ} eth1394_tx_type;
 
@@ -235,7 +222,7 @@ struct eth1394_arp {
 
 /* This is our task struct. It's used for the packet complete callback.  */
 struct packet_task {
-	struct rtskb *skb;
+	struct sk_buff *skb;
 	int outstanding_pkts;
 	eth1394_tx_type tx_type;
 	int max_payload;

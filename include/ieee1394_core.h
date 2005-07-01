@@ -82,7 +82,7 @@ struct hpsb_packet {
 	void *complete_data;
 
 	/*! XXX This is just a hack at the moment */
-	struct rtskb *skb;
+	struct rtpkb *pkb;
 
         /*! Store jiffies for implementing bus timeouts. */
         unsigned long sendtime;
@@ -111,7 +111,7 @@ static inline struct hpsb_packet *driver_packet(struct list_head *l)
 
 void abort_timedouts(unsigned long __opaque);
 
-struct hpsb_packet *hpsb_alloc_packet(size_t data_size, struct rtskb_pool *pool);
+struct hpsb_packet *hpsb_alloc_packet(size_t data_size, struct rtpkb_pool *pool);
 void hpsb_free_packet(struct hpsb_packet *packet);
 
 

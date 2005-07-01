@@ -15,5 +15,7 @@
 
 #define CONFIG_RT1394_OUI_DB
 
+#define LINUX_2_6
+
 #endif
 

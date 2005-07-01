@@ -1,3 +1,24 @@
+/* rtfirewire/stack/ieee1394_core.c
+ *
+ * Copyright (C) 1999, 2000 Andreas E. Bombe
+ *                     2002 Manfred Weihs <weihs@ict.tuwien.ac.at>
+ *			2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
 /**
  * @ingroup core
  * @file 
@@ -18,29 +39,6 @@
   * For more details, see @ref "Overview of Real-Time Firewire Stack". 
   */
  
-/**
- * IEEE 1394 for Linux
- *
- * Core support: hpsb_packet management, packet handling and forwarding to
- *               highlevel or lowlevel code
- * Adapted to RTAI by Zhang Yuchen <y.zhang-4@student.utwente.nl>
- *
- * Copyright (C) 1999, 2000 Andreas E. Bombe
- *                     2002 Manfred Weihs <weihs@ict.tuwien.ac.at>
- *
- * This code is licensed under the GPL.  See the file COPYING in the root
- * directory of the kernel sources for details.
- *
- *
- * Contributions:
- *
- * Manfred Weihs <weihs@ict.tuwien.ac.at>
- *        loopback functionality in hpsb_send_packet
- *        allow highlevel drivers to disable automatic response generation
- *              and to generate responses themselves (deferred)
- *
- */
-
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -64,35 +62,35 @@
 #include <config_roms.h>
 #include <dma.h>
 #include <iso.h>
-#include <rtskbuff.h>
+#include <rtpkbuff.h>
 
-#include <rt1394_config.h>
+#include <rt-firewire_config.h>
 #include <rtos_primitives.h>
 #include <rt_serv.h>
 
 /** response list for response broker */
-struct rtskb_head comp_list = {
+struct rtpkb_queue comp_list = {
 	.name = "comp",
 };
 
 /** request lists for request brokers */
-struct rtskb_head bis_req_list = {
+struct rtpkb_queue bis_req_list = {
 	.name = "bis",
 };
-struct rtskb_head rt_req_list = {
+struct rtpkb_queue rt_req_list = {
 	.name = "rt",
 };
-struct rtskb_head nrt_req_list = {
+struct rtpkb_queue nrt_req_list = {
 	.name = "nrt",
 };
 
-struct rtskb_pool bis_req_pool = {
+struct rtpkb_pool bis_req_pool = {
 	.name = "bis",
 };
-struct rtskb_pool rt_req_pool = {
+struct rtpkb_pool rt_req_pool = {
 	.name = "rt",
 };
-struct rtskb_pool nrt_req_pool = {
+struct rtpkb_pool nrt_req_pool = {
 	.name = "nrt",
 };
 
@@ -175,28 +173,28 @@ void hpsb_set_packet_complete_task(struct hpsb_packet *packet,
  * @return A pointer to a &struct hpsb_packet or NULL on allocation
  * failure.
  */
-struct hpsb_packet *hpsb_alloc_packet(size_t data_size,struct rtskb_pool *pool)
+struct hpsb_packet *hpsb_alloc_packet(size_t data_size,struct rtpkb_pool *pool)
 {
         
 	struct hpsb_packet *packet = NULL;
-        struct rtskb *skb;
+        struct rtpkb *pkb;
 
 	
 	data_size = ((data_size + 3) & ~3);
 	
-	skb = alloc_rtskb(data_size + sizeof(*packet), pool);
-	if(skb == NULL)
+	pkb = alloc_rtpkb(data_size + sizeof(*packet), pool);
+	if(pkb == NULL)
 		return NULL;
 	
-	memset(skb->data, 0, data_size + sizeof(*packet));
+	memset(pkb->data, 0, data_size + sizeof(*packet));
 	
-	packet = (struct hpsb_packet *)skb->data;
+	packet = (struct hpsb_packet *)pkb->data;
 	if(!packet){
 		rtos_print("%s:buffer data pointer NULL! do hack now\n", __FUNCTION__);
-		rtskb_clean(skb);
-		packet = (struct hpsb_packet *)skb->data;
+		rtpkb_clean(pkb);
+		packet = (struct hpsb_packet *)pkb->data;
 	}
-	packet->skb = skb;
+	packet->pkb = pkb;
 	
 	packet->header = packet->embedded_header;
 	packet->state = hpsb_unused;
@@ -204,7 +202,7 @@ struct hpsb_packet *hpsb_alloc_packet(size_t data_size,struct rtskb_pool *pool)
 	INIT_LIST_HEAD(&packet->driver_list);
 	atomic_set(&packet->refcnt, 1);
 	
-	packet->data = (quadlet_t *)(skb->data + sizeof(*packet));//somehow, we dont want the data pointer to be NULL
+	packet->data = (quadlet_t *)(pkb->data + sizeof(*packet));//somehow, we dont want the data pointer to be NULL
 	packet->data_size = data_size;
 	
 		
@@ -216,14 +214,14 @@ struct hpsb_packet *hpsb_alloc_packet(size_t data_size,struct rtskb_pool *pool)
  * @ingroup core
  * @anchor hpsb_free_packet
  *
- * Return the associated rtskb to its origin pool. 
+ * Return the associated rtpkb to its origin pool. 
  */
 void hpsb_free_packet (struct hpsb_packet *packet)
 {
 	if(packet && atomic_dec_and_test(&packet->refcnt)) {
-		//~ rtos_print("freeing packet to %s\n", packet->skb->pool->name);
+		//~ rtos_print("freeing packet to %s\n", packet->pkb->pool->name);
 		//~ RTNET_ASSERT(!list_empty(&packet->driver_list), );
-		kfree_rtskb(packet->skb);
+		kfree_rtpkb(packet->pkb);
 	}
 }
 
@@ -547,7 +545,7 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
 
         if (ackcode != ACK_PENDING || !packet->expect_response) {
                 packet->state = hpsb_complete;
-		__rtskb_unlink(packet->skb, &host->pending_packet_queue);
+		__rtpkb_unlink(packet->pkb, &host->pending_packet_queue);
 		rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
 		queue_packet_complete(packet);
                 return;
@@ -649,7 +647,7 @@ int hpsb_send_packet(struct hpsb_packet *packet)
 	if(!packet->no_waiter || packet->expect_response) {
 		atomic_inc(&packet->refcnt);
 		packet->sendtime = jiffies;
-		rtskb_queue_tail(&host->pending_packet_queue, packet->skb);
+		rtpkb_queue_tail(&host->pending_packet_queue, packet->pkb);
 	}
 	if (packet->node_id == host->node_id) {
 		rtos_print("sending to local....\n");
@@ -775,7 +773,7 @@ void handle_packet_response(struct hpsb_packet *pkt)
 	struct hpsb_host  *host = pkt->host;
 	quadlet_t *data = pkt->data;
 	size_t size = pkt->data_size;
-        struct rtskb *skb;
+        struct rtpkb *pkb;
 	int tcode = pkt->tcode;
         int tcode_match = 0;
         int tlabel;
@@ -785,8 +783,8 @@ void handle_packet_response(struct hpsb_packet *pkt)
 
         rtos_spin_lock_irqsave(&host->pending_packet_queue.lock, flags);
 	
-	rtskb_queue_walk(&host->pending_packet_queue, skb) {
-		packet = (struct hpsb_packet *)skb->data;
+	rtpkb_queue_walk(&host->pending_packet_queue, pkb) {
+		packet = (struct hpsb_packet *)pkb->data;
 		if ((packet->tlabel == tlabel)
 			&& (packet->node_id == (data[1] >> 16))){
 				break;
@@ -821,7 +819,7 @@ void handle_packet_response(struct hpsb_packet *pkt)
                 if (tcode != TCODE_READB_RESPONSE)
 			break;
 		tcode_match = 1;
-		BUG_ON(packet->skb->len - sizeof(*packet) < size -16);
+		BUG_ON(packet->pkb->len - sizeof(*packet) < size -16);
 		memcpy(packet->header, data, 16);
 		memcpy(packet->data, data+4, size-16);
 		break;
@@ -830,7 +828,7 @@ void handle_packet_response(struct hpsb_packet *pkt)
 			break;
 		tcode_match = 1;
 		size = min((size - 16), (size_t)8);
-		BUG_ON(packet->skb->len - sizeof(*packet) < size);
+		BUG_ON(packet->pkb->len - sizeof(*packet) < size);
 		memcpy(packet->header, data, 16);
 		memcpy(packet->data, data+4, size);
 		break;
@@ -843,7 +841,7 @@ void handle_packet_response(struct hpsb_packet *pkt)
 		return;
 	}
 	
-	__rtskb_unlink(skb, skb->list);
+	__rtpkb_unlink(pkb, pkb->list);
 	
 	if (packet->state == hpsb_queued) {
 		packet->sendtime =  jiffies;
@@ -984,8 +982,8 @@ static void fill_async_lock_resp(struct hpsb_packet *packet, int rcode, int extc
 void req_worker(unsigned long arg)
 {
 	
-	struct rtskb_head *list = (struct rtskb_head *)arg;
-	struct rtskb *skb;
+	struct rtpkb_queue *list = (struct rtpkb_queue *)arg;
+	struct rtpkb *pkb;
 	struct hpsb_packet *pkt;
 	struct hpsb_host *host;
 	quadlet_t *data;
@@ -1000,9 +998,9 @@ void req_worker(unsigned long arg)
         u16 flags;
         u64 addr;
 
-	while ((skb = rtskb_dequeue(list)) != NULL) {
+	while ((pkb = rtpkb_dequeue(list)) != NULL) {
 			
-			pkt = (struct hpsb_packet *)skb->data;
+			pkt = (struct hpsb_packet *)pkb->data;
 			tcode = pkt->tcode;
 			data = pkt->data;
 			write_acked = pkt->ack;
@@ -1128,7 +1126,7 @@ void req_worker(unsigned long arg)
 				break;
 			}
 			
-		kfree_rtskb(skb);
+		kfree_rtpkb(pkb);
 	}
 }
 
@@ -1147,7 +1145,7 @@ void req_worker(unsigned long arg)
 void hpsb_packet_received(struct hpsb_packet *pkt)
 {
         char tcode;
-	struct rtskb_head *req_list;
+	struct rtpkb_queue *req_list;
 	struct hpsb_host *host;
 	
 	host = pkt->host;
@@ -1191,7 +1189,7 @@ void hpsb_packet_received(struct hpsb_packet *pkt)
 				else
 				rtos_print("request with outrange priority received!!!\n");
 				
-		if(rtskb_acquire(pkt->skb, req_list->pool)) {
+		if(rtpkb_acquire(pkt->pkb, req_list->pool)) {
 			rtos_print("req list %s run out of memory\n", req_list->name);
 			break;
 		}
@@ -1200,9 +1198,9 @@ void hpsb_packet_received(struct hpsb_packet *pkt)
 		//~ rtos_print("%s:time diff is %d ns\n", __FUNCTION__, rtos_time_to_nanosecs(&pb));
 		
 		if(pkt->pri>0 || pkt->pri<15)
-			rtskb_queue_pri(req_list, pkt->skb); //we do queue-reordering based on priority for realtime data request.
+			rtpkb_queue_pri(req_list, pkt->pkb); //we do queue-reordering based on priority for realtime data request.
 		else
-			rtskb_queue_tail(req_list, pkt->skb);
+			rtpkb_queue_tail(req_list, pkt->pkb);
 		//~ rtos_get_time(&pb);
 		//~ rtos_time_diff(&pb, &pb, &pa);
 		//~ rtos_print("%s:time diff is %d ns\n", __FUNCTION__, rtos_time_to_nanosecs(&pb));
@@ -1237,13 +1235,13 @@ void hpsb_packet_received(struct hpsb_packet *pkt)
 void abort_requests(struct hpsb_host *host)
 {
         struct hpsb_packet *packet;
-	struct rtskb *skb;
+	struct rtpkb *pkb;
 		
 	
 	host->driver->devctl(host, CANCEL_REQUESTS, 0);
 	
-	while ((skb = rtskb_dequeue(&host->pending_packet_queue)) != NULL) {
-		packet = (struct hpsb_packet *)skb->data;
+	while ((pkb = rtpkb_dequeue(&host->pending_packet_queue)) != NULL) {
+		packet = (struct hpsb_packet *)pkb->data;
 		
 		packet->state = hpsb_complete;
 		packet->ack_code = ACKX_ABORTED;
@@ -1269,7 +1267,7 @@ void abort_timedouts(unsigned long __opaque)
 	struct hpsb_host *host = (struct hpsb_host *)__opaque;
         unsigned long flags;
         struct hpsb_packet *packet;
-	struct rtskb *skb;
+	struct rtpkb *pkb;
         unsigned long expire;
 
         rtos_spin_lock_irqsave(&host->csr.lock, flags);
@@ -1280,13 +1278,13 @@ void abort_timedouts(unsigned long __opaque)
 	 * packets, just ones we need. */
         rtos_spin_lock_irqsave(&host->pending_packet_queue.lock, flags);
 	
-	while (!rtskb_queue_empty (&host->pending_packet_queue)) {
-		skb = rtskb_peek(&host->pending_packet_queue);
+	while (!rtpkb_queue_empty (&host->pending_packet_queue)) {
+		pkb = rtpkb_peek(&host->pending_packet_queue);
 		
-		packet = (struct hpsb_packet *)skb->data;
+		packet = (struct hpsb_packet *)pkb->data;
 			
 		if  (time_before(packet->sendtime + expire, jiffies)) {
-			__rtskb_unlink(skb, skb->list);
+			__rtpkb_unlink(pkb, pkb->list);
 			packet->state = hpsb_complete;
 			packet->ack_code = ACKX_TIMEOUT;
 			queue_packet_complete(packet);
@@ -1298,7 +1296,7 @@ void abort_timedouts(unsigned long __opaque)
 		}
 	}
 	
-	if(!rtskb_queue_empty(&host->pending_packet_queue))
+	if(!rtpkb_queue_empty(&host->pending_packet_queue))
 		mod_timer(&host->timeout, jiffies + host->timeout_interval);
 	
 	rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
@@ -1324,7 +1322,7 @@ static void queue_packet_complete(struct hpsb_packet *packet)
 		return;
 	}
 	if (packet->complete_routine != NULL) {
-		rtskb_queue_pri(&comp_list, packet->skb);
+		rtpkb_queue_pri(&comp_list, packet->pkb);
 	}
 	return;
 }
@@ -1344,15 +1342,15 @@ static void queue_packet_complete(struct hpsb_packet *packet)
 void comp_worker(unsigned long data)
 {
 	
-	struct rtskb_head *list = (struct rtskb_head *)data;
-	struct rtskb *skb;
+	struct rtpkb_queue *list = (struct rtpkb_queue *)data;
+	struct rtpkb *pkb;
 	struct hpsb_packet *packet;
 	void (*complete_routine)(void*);
 	void *complete_data;
 	rtos_time_t		time;
 	
-	while ((skb = rtskb_dequeue(list)) != NULL) {
-			packet = (struct hpsb_packet *)skb->data;
+	while ((pkb = rtpkb_dequeue(list)) != NULL) {
+			packet = (struct hpsb_packet *)pkb->data;
 				
 			//get the time of receiving response
 			rtos_get_time(&time);
@@ -1404,7 +1402,7 @@ int ieee1394_core_init(void)
 	
 	
 	
-	rtskb_queue_head_init(&comp_list);
+	rtpkb_queue_head_init(&comp_list);
 	name = "comp";
 	comp_server = rt_serv_init(name, comp_worker, (unsigned long)&comp_list, 10);
 	if(!comp_server){
@@ -1416,8 +1414,8 @@ int ieee1394_core_init(void)
 	comp_list.event = &comp_server->event;
 	
 	
-	rtskb_queue_head_init(&bis_req_list);
-	rtskb_pool_init(&bis_req_pool, 16);
+	rtpkb_queue_head_init(&bis_req_list);
+	rtpkb_pool_init(&bis_req_pool, 16);
 	bis_req_list.pool = &bis_req_pool;
 	name = "bis";
 	bis_req_server = rt_serv_init(name, req_worker, (unsigned long)&bis_req_list, 20);
@@ -1428,8 +1426,8 @@ int ieee1394_core_init(void)
 	}
 	bis_req_list.event = &bis_req_server->event;
 
-	rtskb_queue_head_init(&rt_req_list);
-	rtskb_pool_init(&rt_req_pool, 16);
+	rtpkb_queue_head_init(&rt_req_list);
+	rtpkb_pool_init(&rt_req_pool, 16);
 	rt_req_list.pool = &rt_req_pool;
 	name = "rt";
 	rt_req_server = rt_serv_init(name, req_worker, (unsigned long)&rt_req_list, 30);
@@ -1440,8 +1438,8 @@ int ieee1394_core_init(void)
 	}
 	rt_req_list.event = &rt_req_server->event;
 
-	rtskb_queue_head_init(&nrt_req_list);
-	rtskb_pool_init(&nrt_req_pool, 16);
+	rtpkb_queue_head_init(&nrt_req_list);
+	rtpkb_pool_init(&nrt_req_pool, 16);
 	nrt_req_list.pool = &nrt_req_pool;
 	name = "nrt";
 	nrt_req_server = rt_serv_init(name, req_worker, (unsigned long)&nrt_req_list, 40);
@@ -1465,13 +1463,13 @@ int ieee1394_core_init(void)
 error_exit_init_csr:
 	rt_serv_delete(nrt_req_server);
 error_exit_nrt_req_server:
-	rtskb_pool_release(&nrt_req_pool);
+	rtpkb_pool_release(&nrt_req_pool);
 	rt_serv_delete(rt_req_server);
 error_exit_rt_req_server:
-	rtskb_pool_release(&rt_req_pool);
+	rtpkb_pool_release(&rt_req_pool);
 	rt_serv_delete(bis_req_server);
 error_exit_bis_req_server:
-	rtskb_pool_release(&bis_req_pool);
+	rtpkb_pool_release(&bis_req_pool);
 	rt_serv_delete(comp_server);
 error_exit_comp_server:
 	hpsb_cleanup_config_roms();
@@ -1491,9 +1489,9 @@ void ieee1394_core_cleanup(void)
 	rt_serv_delete(rt_req_server);
 	rt_serv_delete(bis_req_server);
 	rt_serv_delete(comp_server);
-	rtskb_pool_release(&bis_req_pool);
-	rtskb_pool_release(&nrt_req_pool);
-	rtskb_pool_release(&rt_req_pool);
+	rtpkb_pool_release(&bis_req_pool);
+	rtpkb_pool_release(&nrt_req_pool);
+	rtpkb_pool_release(&rt_req_pool);
 	
 	hpsb_cleanup_config_roms();
 	remove_proc_entry("rt-firewire",0);

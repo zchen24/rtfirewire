@@ -1,3 +1,24 @@
+/* rtfirewire/stack/ieee1394_transactions.c
+ *
+ * Copyright (C) 1999, 2000 Andreas E. Bombe
+ *			2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+
 /**
  * @ingroup trans
  * @file 
@@ -6,22 +27,6 @@
  *
  */
  
- /**
-  * @defgroup trans stack transaction helper module
-  *
-  */
-  
-/*
- * IEEE 1394 for Linux
- *
- * Transaction support.
- *
- * Copyright (C) 1999 Andreas E. Bombe
- *
- * This code is licensed under the GPL.  See the file COPYING in the root
- * directory of the kernel sources for details.
- */
-
 #include <linux/sched.h>
 #include <linux/bitops.h>
 #include <linux/smp_lock.h>
@@ -49,8 +54,7 @@
  */
 static void fill_async_readquad(struct hpsb_packet *packet, u64 addr)
 {
-       rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
-	PREP_ASYNC_HEAD_ADDRESS(TCODE_READQ);
+        PREP_ASYNC_HEAD_ADDRESS(TCODE_READQ);
         packet->header_size = 12;
         packet->data_size = 0;
         packet->expect_response = 1;

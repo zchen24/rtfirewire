@@ -37,7 +37,7 @@
 #include <linux/list.h>
 #include <linux/timer.h>
 
-#include <rtskbuff.h>
+#include <rtpkbuff.h>
 
 #include <asm/semaphore.h>
 
@@ -91,7 +91,7 @@ struct hpsb_host {
     
     atomic_t refcount;
     
-    struct rtskb_head pending_packet_queue;
+    struct rtpkb_queue pending_packet_queue;
     
     struct timer_list	timeout;
     unsigned long	timeout_interval;
@@ -184,9 +184,9 @@ struct hpsb_host {
     struct semaphore    nrt_lock;   
 
     
-    unsigned int 		add_rtskbs;
+    unsigned int 		add_rtpkbs;
     
-    struct rtskb_pool 	pool;
+    struct rtpkb_pool 	pool;
 
 #if 0    
     /* RTmac related fields */
@@ -346,7 +346,7 @@ extern int host_ref(struct hpsb_host *host);
 extern void host_unref(struct hpsb_host *host);	
 
 #if 0
-extern int host_xmit(struct rtskb *skb);
+extern int host_xmit(struct rtpkb *skb);
 extern unsigned int host_xmit_proxy(struct hpsb_host *host, unsigned int priority);
 #endif
 

@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT([RT-Firewire],[0.1.0],[Zhang Yuchen <y.zhang-4@student.utwente.nl>])
+AC_INIT([RT-FireWire],[0.1.0],[Zhang Yuchen <y.zhang-4@student.utwente.nl>])
 AC_CONFIG_HEADERS([config/rt-firewire_config_pre.h])
 AC_CONFIG_AUX_DIR([config/autoconf])
 AC_CONFIG_MACRO_DIR([config/m4])
@@ -500,7 +500,6 @@ case "${RTAI_LINUX_VERSION}" in
 	fi
 	;;
     2.6.*)
-	AC_MSG_ERROR([*** sorry, Linux platform 2.6 is not supported yet])
 	;;
     *)
 	AC_MSG_ERROR([*** Unsupported kernel version $RTAI_LINUX_VERSION])
@@ -855,12 +854,29 @@ RTAI_USER_CFLAGS="-D__IN_RTFW__ $RTAI_USER_CFLAGS"
 AC_SUBST(RTAI_KMOD_CFLAGS)
 AC_SUBST(RTAI_USER_CFLAGS)
 
+dnl ======================================================================
+dnl		create links to Makefiles used by linux-2.6.x
+dnl ======================================================================
+AC_MSG_NOTICE([creating links to Makefiles used by linux-2.6.x])
+if test x$CONFIG_KBUILD = xy; then
+    for DIR in \
+	stack \
+	highlevel/bis1394 \
+	drivers/ohci \
+	rtpkbuff \
+	rt_serv \
+	rtpc \
+	; do
+	    AC_CONFIG_LINKS(${DIR}/Makefile:${DIR}/Makefile.kbuild)
+	done
+fi
 
 dnl ======================================================================
 dnl		generate output
 dnl ======================================================================
+AC_MSG_NOTICE([generating output])
 
-AC_CONFIG_FILES([GNUmakefile include/GNUmakefile	highlevel/GNUmakefile highlevel/bis1394/GNUmakefile highlevel/eth1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile rtskbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile])
+AC_CONFIG_FILES([GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile rtpkbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile])
    
 AC_OUTPUT
 

@@ -30,23 +30,34 @@ struct hpsb_tlabel_pool {
  * @anchor HPSB_TPOOL_INIT
  * @todo cross linux version compiling here. 
  */
+#ifdef	LINUX_2_6
 #define HPSB_TPOOL_INIT(_tp)			\
-do {						\
+do {	\
+	bitmap_zero((_tp)->pool, 64);		\
+	rtos_spin_lock_init(&(_tp)->lock);		\
+	(_tp)->next = 0;			\
+	(_tp)->allocations = 0;			\
+	atomic_set(&(_tp)->count, 63); \
+} while (0)
+#else
+#define HPSB_TPOOL_INIT(_tp)			\
+do {	\
 	CLEAR_BITMAP((_tp)->pool, 64);		\
 	rtos_spin_lock_init(&(_tp)->lock);		\
 	(_tp)->next = 0;			\
 	(_tp)->allocations = 0;			\
 	atomic_set(&(_tp)->count, 63); \
 } while (0)
+#endif
 
 
-typedef u32 quadlet_t;
-typedef u64 octlet_t;
-typedef u16 nodeid_t;
+typedef u32 			quadlet_t;
+typedef u64 			octlet_t;
+typedef u16 			nodeid_t;
 
-typedef u8  byte_t;
-typedef u64 nodeaddr_t;
-typedef u16 arm_length_t;
+typedef u8  			byte_t;
+typedef u64 			nodeaddr_t;
+typedef u16 			arm_length_t;
 
 #define BUS_MASK  0xffc0
 #define BUS_SHIFT 6

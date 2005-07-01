@@ -1,3 +1,24 @@
+/* rtfirewire/stack/hosts.c
+ *
+* Host management for RT-Firewire stack. 
+ *
+ * Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+
 /**
  * @ingroup host
  * @file
@@ -8,7 +29,6 @@
 /**
  * @defgroup host host management module
  *
- * Host management for RT-Firewire stack. 
  *
  * For more details
  * see the @ref host management section of "Overview of Real-Time Firewire Stack".
@@ -24,7 +44,7 @@
 #include <linux/pci.h>
 #include <linux/timer.h>
 
-#include <rtskbuff.h>
+#include <rtpkbuff.h>
 
 #include "csr1212.h"
 #include "ieee1394.h"
@@ -40,9 +60,9 @@
 DECLARE_MUTEX(hpsb_hosts_lock);
 
 /*! module parameter,Number of additional global realtime packet buffers per network adapter*/
-static unsigned int device_rtskbs = DEFAULT_DEVICE_RTSKBS;
-MODULE_PARM(device_rtskbs, "i");
-MODULE_PARM_DESC(device_rtskbs, "Number of additional global realtime packet "
+static unsigned int device_rtpkbs = DEFAULT_DEVICE_RTPKBS;
+MODULE_PARM(device_rtpkbs, "i");
+MODULE_PARM_DESC(device_rtpkbs, "Number of additional global realtime packet "
                  "buffers per network adapter");
 
 struct hpsb_host *hpsb_hosts[MAX_RT_HOSTS];
@@ -275,7 +295,7 @@ struct hpsb_host *host_alloc(size_t extra)
 		
 	h->hostdata = h + 1;
 	
-	rtskb_queue_head_init(&h->pending_packet_queue);
+	rtpkb_queue_head_init(&h->pending_packet_queue);
 	INIT_LIST_HEAD(&h->addr_space);
 	
 	for (i = 2; i < 16; i++)
@@ -287,7 +307,7 @@ struct hpsb_host *host_alloc(size_t extra)
 	atomic_set(&h->generation, 0);
 	atomic_set(&h->refcount, 0);
 
-#ifdef LINUX_VERSION_26
+#if 0
 	INIT_WORK(&h->delayed_reset, delayed_reset_bus, h);
 #endif
 
@@ -448,12 +468,12 @@ int host_register(struct hpsb_host *host)
 	printk("RT-firewire: register %s\n", host->name);
 	
 	/*set up the host buffer pool for static memory allocation */
-	rtskb_pool_init(&host->pool,device_rtskbs);
+	rtpkb_pool_init(&host->pool,device_rtpkbs);
 	
 	strcpy(host->pool.name, host->name);
 	
 	/* scale global rtpkb pool */
-	host->add_rtskbs = rtskb_pool_extend(&global_pool, device_rtskbs);
+	host->add_rtpkbs = rtpkb_pool_extend(&global_pool, device_rtpkbs);
 	
 	/** 
 	 * we do bus reset immediately, but better to be scheduled as a delayed task.
@@ -495,7 +515,7 @@ int host_unregister(struct hpsb_host *host)
 
 		//~ down(&hpsb_hosts_lock);
 	//~ }
-#ifdef LINUX_VERSION_26
+#if 0
 	cancel_delayed_work(&host->delayed_reset);
 	flush_scheduled_work();
 #endif
@@ -511,8 +531,8 @@ int host_unregister(struct hpsb_host *host)
 	clear_bit(__LINK_STATE_PRESENT, &host->state);
 	printk("RT-firewire:unregistered %s\n", host->name);
 	
-	rtskb_pool_release(&host->pool);
-	rtskb_pool_shrink(&global_pool, host->add_rtskbs);
+	rtpkb_pool_release(&host->pool);
+	rtpkb_pool_shrink(&global_pool, host->add_rtpkbs);
 	
 	RTOS_ASSERT(atomic_read(&host->refcount) == 0,
 			printk("RT-Firewire: host reference counter >0!\n"););

@@ -128,7 +128,7 @@
 #include "rt_ohci1394.h"
 
 #include "rt_serv.h"
-#include "rtskbuff.h"
+#include "rtpkbuff.h"
 #include "rt1394_config.h"
 
 #include "rtos_primitives.h"
@@ -3168,7 +3168,7 @@ static void free_dma_rcv_ctx(struct dma_rcv_ctx *d)
 		kfree(d->prg_bus);
 	}
 	rt_serv_delete(d->srv);
-	rtskb_pool_release(&d->pool);
+	rtpkb_pool_release(&d->pool);
 
 	/* Mark this context as freed. */
 	d->ohci = NULL;
@@ -3285,7 +3285,7 @@ alloc_dma_rcv_ctx(struct ti_ohci *ohci, struct dma_rcv_ctx *d,
         rtos_spin_lock_init(&d->lock);
 	
 	/**we allocate the memory for one skb in dma rcv ctx**/
-	rtskb_pool_init(&d->pool,10);
+	rtpkb_pool_init(&d->pool,10);
 	
 
 		d->ctrlSet = context_base + OHCI1394_ContextControlSet;
@@ -3922,7 +3922,7 @@ EXPORT_SYMBOL(ohci1394_stop_context);
 
 /**
  * @ingroup ohci
- * @anchor ohci1394_init_iso_ctx
+ * @anchor ohci1394_init_iso_bh
  * initialize an isochronous transaction bottomhalf task in rtai  
  */
 void ohci1394_init_iso_ctx(struct ohci1394_iso_ctx *t, int type, struct hpsb_iso *iso)
@@ -3949,15 +3949,7 @@ void ohci1394_init_iso_ctx(struct ohci1394_iso_ctx *t, int type, struct hpsb_iso
 			break;
 	}
 }
-
-void ohci1394_free_iso_ctx(struct ohci1394_iso_ctx *t)
-{
-	rt_serv_delete(t->srv);
-	kfree(t);
-}
-
 EXPORT_SYMBOL(ohci1394_init_iso_ctx);
-EXPORT_SYMBOL(ohci1394_free_iso_ctx);
 
 /**
  * @ingroup ohci
@@ -4029,8 +4021,6 @@ void ohci1394_unregister_iso_ctx(struct ti_ohci *ohci,
 	}
 
 	list_del(&t->link);
-	
-	ohci1394_free_iso_ctx(t);
 
 	rtos_spin_unlock_irqrestore(&ohci->iso_ctx_list_lock, flags);
 }

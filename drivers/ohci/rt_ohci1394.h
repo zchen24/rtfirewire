@@ -31,7 +31,7 @@
 #include "ieee1394_types.h"
 #include <asm/io.h>
 
-#include "rtskbuff.h"
+#include "rtpkbuff.h"
 #include "rt_serv.h"
 
 #define OHCI1394_DRIVER_NAME      "rt_ohci1394"
@@ -129,7 +129,7 @@ struct dma_rcv_ctx {
 	int cmdPtr;
 	int ctxtMatch;
 	
-	struct rtskb_pool pool;
+	struct rtpkb_pool pool;
 	/** pointer to the bottomhalf server **/
 	struct rt_serv_struct *srv;
 };
