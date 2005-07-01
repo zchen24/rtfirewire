@@ -491,3 +491,14 @@ module_init(rtpkb_pools_init);
 module_exit(rtpkb_pools_release);
 
 MODULE_LICENSE("GPL");
+
+#ifdef CONFIG_KBUILD
+EXPORT_SYMBOL(alloc_rtpkb);
+EXPORT_SYMBOL(kfree_rtpkb);
+EXPORT_SYMBOL(rtpkb_acquire);
+EXPORT_SYMBOL(rtpkb_pool_shrink);
+EXPORT_SYMBOL(rtpkb_pool_extend);
+EXPORT_SYMBOL(rtpkb_pool_init);
+EXPORT_SYMBOL(__rtpkb_pool_release);
+EXPORT_SYMBOL(global_pool);
+#endif /* CONFIG_KBUILD */
