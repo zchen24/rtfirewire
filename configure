@@ -20554,11 +20554,11 @@ echo $ECHO_N "checking for RTAI version... $ECHO_C" >&6
     0.6.6-fusion)
 	CONFIG_RTFW_RTAI_VERSION=066
 	;;
-    0.6.7-fusion)
-	CONFIG_RTFW_RTAI_VERSION=067
+    0.7.2-fusion | 0.7.3-fusion)
+	CONFIG_RTFW_RTAI_VERSION=fusion-072
 	;;
-    0.6.8-fusion)
-	CONFIG_RTFW_RTAI_VERSION=068
+    0.7.4-fusion | 0.7.5-fusion | 0.8*-fusion)
+	CONFIG_RTFW_RTAI_VERSION=fusion-074
 	;;
     *)
 	{ { echo "$as_me:$LINENO: error: *** Unsupported RTAI version $CONFIG_RTFW_RTAI_3_VERSION in $RTAI_DIR" >&5
@@ -20587,7 +20587,7 @@ echo "${ECHO_T}${CONFIG_RTFW_RTAI_CONFIG_FILE}" >&6
     . ${CONFIG_RTFW_RTAI_CONFIG_FILE}
 
     case "$CONFIG_RTFW_RTAI_VERSION" in
-        30 | 31)	# ---> RTAI 3.x <---
+        30 | 31 |32)	# ---> RTAI 3.x <---
 
 	    # check for semas, needed by RTFW
 	    echo "$as_me:$LINENO: checking for RTAI semaphores" >&5
@@ -20624,7 +20624,7 @@ echo "$as_me: error: *** Please enable fifos in RTAI" >&2;}
 
 	    ;;
 
-	06*)	# ---> FUSION <---
+	fusion-07*)	# ---> FUSION <---
 
 	    # check for native RTAI skin, needed by RTFW
 	    echo "$as_me:$LINENO: checking for RTAI native skin" >&5
@@ -20726,10 +20726,17 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 	;;
-    06*)
+    fusion-072)
 
 cat >>confdefs.h <<\_ACEOF
-#define CONFIG_FUSION_06 1
+#define CONFIG_FUSION_072 1
+_ACEOF
+
+	;;
+    fusion-074)
+
+cat >>confdefs.h <<\_ACEOF
+#define CONFIG_FUSION_074 1
 _ACEOF
 
 	;;
@@ -20798,7 +20805,7 @@ case "${CONFIG_RTFW_RTAI_VERSION}" in
 	RTAI_USER_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
 	CONFIG_RTFW_RTAI_ARCH="`${RTAI_CONFIG} --arch`"
 	;;
-    06*)
+    fusion-07*)
 	RTAI_USER_CFLAGS="`${RTAI_CONFIG} --fusion-cflags`"
 	CONFIG_RTFW_RTAI_ARCH="`${RTAI_CONFIG} --arch`"
 	;;
@@ -20820,7 +20827,7 @@ echo "$as_me: error: *** internal error" >&2;}
 	31 | 32)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
 	    ;;
-	06*)
+	fusion-07*)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --fusion-cflags`"
 	    ;;
 	*)
@@ -20837,7 +20844,7 @@ else
 	30 | 31 | 32)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --module-cflags`"
 	    ;;
-	06*)
+	fusion-07*)
 	    { { echo "$as_me:$LINENO: error: *** internal error" >&5
 echo "$as_me: error: *** internal error" >&2;}
    { (exit 1); exit 1; }; }
@@ -21076,7 +21083,7 @@ fi
 done
 
             ;;
-	06*)
+	fusion-07*)
 
 
 
@@ -21292,7 +21299,7 @@ fi
 done
 
 	    ;;
-	06*)
+	fusion-07*)
 	    { { echo "$as_me:$LINENO: error: *** internal error" >&5
 echo "$as_me: error: *** internal error" >&2;}
    { (exit 1); exit 1; }; }
@@ -21346,7 +21353,7 @@ case "${CONFIG_RTFW_RTAI_VERSION}" in
 	    *) CONFIG_NEWLXRT=no ;;
 	esac
 	;;
-    06*) CONFIG_NEWLXRT=no
+    fusion-07*) CONFIG_NEWLXRT=no
 	;;
     *)
 	{ { echo "$as_me:$LINENO: error: *** internal error" >&5

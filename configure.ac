@@ -361,11 +361,11 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
     0.6.6-fusion)
 	CONFIG_RTFW_RTAI_VERSION=066
 	;;
-    0.6.7-fusion)
-	CONFIG_RTFW_RTAI_VERSION=067
+    0.7.2-fusion | 0.7.3-fusion)
+	CONFIG_RTFW_RTAI_VERSION=fusion-072
 	;;
-    0.6.8-fusion)
-	CONFIG_RTFW_RTAI_VERSION=068
+    0.7.4-fusion | 0.7.5-fusion | 0.8*-fusion)
+	CONFIG_RTFW_RTAI_VERSION=fusion-074
 	;;
     *)
 	AC_MSG_ERROR([*** Unsupported RTAI version $CONFIG_RTFW_RTAI_3_VERSION in $RTAI_DIR])
@@ -387,7 +387,7 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
     . ${CONFIG_RTFW_RTAI_CONFIG_FILE}
 
     case "$CONFIG_RTFW_RTAI_VERSION" in
-        30 | 31)	# ---> RTAI 3.x <---
+        30 | 31 |32)	# ---> RTAI 3.x <---
 
 	    # check for semas, needed by RTFW
 	    AC_MSG_CHECKING([for RTAI semaphores])
@@ -412,7 +412,7 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
 
 	    ;;
 
-	06*)	# ---> FUSION <---
+	fusion-07*)	# ---> FUSION <---
 
 	    # check for native RTAI skin, needed by RTFW
 	    AC_MSG_CHECKING([for RTAI native skin])
@@ -479,8 +479,11 @@ case "$CONFIG_RTFW_RTAI_VERSION" in
     32)
 	AC_DEFINE(CONFIG_RTAI_32, 1, [We build for rtai 3.2rx])
 	;;
-    06*)
-	AC_DEFINE(CONFIG_FUSION_06, 1, [We build for fusion 0.6.x])
+    fusion-072)
+	AC_DEFINE(CONFIG_FUSION_072, 1, [We build for fusion 0.7.2/0.7.3])
+	;;
+    fusion-074)
+	AC_DEFINE(CONFIG_FUSION_074, 1, [We build for fusion 0.7.4 or better])
 	;;
     *)
 	AC_MSG_ERROR([*** No RTAI found in $with_rtai])
@@ -536,7 +539,7 @@ case "${CONFIG_RTFW_RTAI_VERSION}" in
 	RTAI_USER_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
 	CONFIG_RTFW_RTAI_ARCH="`${RTAI_CONFIG} --arch`"
 	;;
-    06*)
+    fusion-07*)
 	RTAI_USER_CFLAGS="`${RTAI_CONFIG} --fusion-cflags`"
 	CONFIG_RTFW_RTAI_ARCH="`${RTAI_CONFIG} --arch`"
 	;;
@@ -554,7 +557,7 @@ if test "$CONFIG_KBUILD" = "y"; then
 	31 | 32)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
 	    ;;
-	06*)
+	fusion-07*)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --fusion-cflags`"
 	    ;;
 	*)
@@ -569,7 +572,7 @@ else
 	30 | 31 | 32)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --module-cflags`"
 	    ;;
-	06*)
+	fusion-07*)
 	    AC_MSG_ERROR([*** internal error])
 	    ;;
 	*)
@@ -730,7 +733,7 @@ if test "${CONFIG_KBUILD}" = "y"; then	# building against linux-2.6
 #include <linux/kernel.h>
 		])
             ;;
-	06*)
+	fusion-07*)
 	    AC_CHECK_HEADERS([rtai/sem.h rtai/mutex.h rtai/pipe.h],
 		[],
 		[AC_MSG_ERROR([*** header not found or working, please check RTAI installation])],
@@ -760,7 +763,7 @@ else					# building against linux-2.4
 #include <linux/kernel.h>
             ])
 	    ;;
-	06*)
+	fusion-07*)
 	    AC_MSG_ERROR([*** internal error])
 	    ;;
 	*)
@@ -807,7 +810,7 @@ case "${CONFIG_RTFW_RTAI_VERSION}" in
 	    *) CONFIG_NEWLXRT=no ;;
 	esac
 	;;
-    06*) CONFIG_NEWLXRT=no
+    fusion-07*) CONFIG_NEWLXRT=no
 	;;
     *)
 	AC_MSG_ERROR([*** internal error])
