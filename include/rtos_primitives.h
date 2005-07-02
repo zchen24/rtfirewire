@@ -22,17 +22,6 @@
 #ifndef __RTOS_PRIMITIVES_H_
 #define __RTOS_PRIMITIVES_H_
 
-#if defined(CONFIG_RTAI_24) || defined(CONFIG_RTAI_30) || \
-    defined(CONFIG_RTAI_31) || defined(CONFIG_RTAI_32)
-
-#include <linux/spinlock.h>
-
-#ifdef CONFIG_RTAI_24
-# define INTERFACE_TO_LINUX	/* makes RT_LINUX_PRIORITY visible */
-#endif
-
-#include <rtai.h>
-#include <rtai_sched.h>
 
 #define RTOS_ASSERT(expr, func) \
 	if (!(expr))	\
@@ -44,6 +33,19 @@
 	
 #define RTOS_SET_MODULE_OWNER(some_struct)	\
 	do {(some_struct)->rt_owner = THIS_MODULE; } while (0)
+	
+	
+#if defined(CONFIG_RTAI_24) || defined(CONFIG_RTAI_30) || \
+    defined(CONFIG_RTAI_31) || defined(CONFIG_RTAI_32)
+
+#include <linux/spinlock.h>
+
+#ifdef CONFIG_RTAI_24
+# define INTERFACE_TO_LINUX	/* makes RT_LINUX_PRIORITY visible */
+#endif
+
+#include <rtai.h>
+#include <rtai_sched.h>
 
 /* RTAI-3.x only headers */
 #ifdef HAVE_RTAI_MALLOC_H
@@ -457,6 +459,8 @@ static inline void rtos_irq_reacquire_lock(void)
 #include <rtai/pipe.h>
 #include <rtai/intr.h>
 
+typedef __s64 nanosecs_t; /*used for time calculations and I/O */
+
 /* basic types */
 typedef struct {
     RTIME          val;               /* high precision time */
@@ -696,6 +700,11 @@ static inline void rtos_event_broadcast(rtos_event_t *event)
 /* note: wakes up a single waiting task, must store events if no one is
  *       listening */
 static inline void rtos_event_sem_signal(rtos_event_sem_t *event)
+{
+    rt_sem_v(event);
+}
+
+static inline void rtos_event_signal(rtos_event_t *event)
 {
     rt_sem_v(event);
 }

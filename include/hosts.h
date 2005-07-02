@@ -18,6 +18,7 @@
 /*! host types */
 #define HOST_TYPE_OHCI1394	0x1F
 #define HOST_TYPE_PCILYNX	0X1E
+#define HOST_TYPE_SIM1394	0X10
 
 /* Standard interface flags (netdevice->flags). copied from Linux/if.h */
 #define	IFF_UP		0x1		/* interface is up		*/

@@ -34,14 +34,4 @@
 #define	CONFIG_KERNEL_26
 #endif
 
-/* Support for RTAI 24.1.x and 3.x */
-#if defined(CONFIG_RTAI_24) || defined(CONFIG_RTAI_30) || \
-    defined(CONFIG_RTAI_31) || defined(CONFIG_RTAI_32)
-# include <rtos_primitives.h>
-#elif defined(CONFIG_FUSION_072) || defined(CONFIG_FUSION_074)
-/* Support for fusion 0.7.2 or better */
-#error Fusion is not supported yet.
-#endif
-
-
 #endif /* __RT1394_SYS_H_ */

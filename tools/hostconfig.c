@@ -32,6 +32,8 @@ void print_dev(void)
 	
 	if ((cmd.args.info.flags & IFF_DUMMY) != 0)
 		printf("Local Loopback\n");
+	else if (cmd.args.info.type == HOST_TYPE_SIM1394)
+		printf("Simulated FireWire Adapter\n");
 	else if (cmd.args.info.type == HOST_TYPE_OHCI1394)
 		printf("OHCI1394   G-U-ID: "
 			"%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",

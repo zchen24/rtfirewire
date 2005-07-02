@@ -66,6 +66,32 @@
 
 #include <rt_serv.h>
 
+//#define CONFIG_VERBOSE_PRINT 1 //this should be an option in auto configuration. 
+
+#ifdef CONFIG_VERBOSE_PRINT
+#define DEBUGP(fmt,args...) \
+	rtos_print("RT-FireWire:"fmt"\n",##args)
+#else
+#define DEBUGP(fmt,args...)
+#endif
+
+#ifdef CONFIG_VERBOSE_PRINT
+static void dump_packet(const char *text, quadlet_t *data, int size)
+{
+	int i;
+
+	size /= 4;
+	size = (size > 4 ? 4 : size);
+
+	rtos_print("RT-FireWire: %s", text);
+	for (i = 0; i < size; i++)
+		rtos_print(" %08x", data[i]);
+	rtos_print("\n");
+}
+#else
+#define dump_packet(x,y,z)
+#endif
+
 /** response list for response broker */
 struct rtpkb_head comp_list = {
 	.name = "comp",
@@ -106,23 +132,6 @@ MODULE_LICENSE("GPL");
 const char *hpsb_speedto_str[] = { "S100", "S200", "S400", "S800", "S1600", "S3200" };
 const int hpsb_speedto_val[] = { 100, 200, 400, 800, 1600, 3200};
 
-#define ENABLE_RTFW_VERBOSEDEBUG
-#ifdef ENABLE_RTFW_VERBOSEDEBUG
-static void dump_packet(const char *text, quadlet_t *data, int size)
-{
-	int i;
-
-	size /= 4;
-	size = (size > 4 ? 4 : size);
-
-	rtos_print(KERN_DEBUG "ieee1394: %s", text);
-	for (i = 0; i < size; i++)
-		rtos_print(" %08x", data[i]);
-	rtos_print("\n");
-}
-#else
-#define dump_packet(x,y,z)
-#endif
 
 static void abort_requests(struct hpsb_host *host);
 static void queue_packet_complete(struct hpsb_packet *packet);
@@ -143,7 +152,7 @@ static void queue_packet_complete(struct hpsb_packet *packet);
 void hpsb_set_packet_complete_task(struct hpsb_packet *packet,
 				   void (*routine)(void *), void *data)
 {
-	BUG_ON(packet->complete_routine != NULL);
+	RTOS_ASSERT(packet->complete_routine == NULL, return;);
 	packet->complete_routine = routine;
 	packet->complete_data = data;
 	return;
@@ -647,6 +656,8 @@ int hpsb_send_packet(struct hpsb_packet *packet)
 		packet->sendtime = jiffies;
 		rtpkb_queue_tail(&host->pending_packet_queue, packet->pkb);
 	}
+	
+	DEBUGP("packet is sent to %d, while host is %d", packet->node_id, host->node_id);
 	if (packet->node_id == host->node_id) {
 		rtos_print("sending to local....\n");
 		
@@ -1349,7 +1360,7 @@ void comp_worker(unsigned long data)
 	
 	while ((pkb = rtpkb_dequeue(list)) != NULL) {
 			packet = (struct hpsb_packet *)pkb->data;
-				
+			
 			//get the time of receiving response
 			rtos_get_time(&time);
 			//calculate and log the time elapsecd between request and response

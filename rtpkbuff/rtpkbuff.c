@@ -101,7 +101,7 @@ void rtpkb_over_panic(struct rtpkb *pkb, int sz, void *here)
  */
 void rtpkb_under_panic(struct rtpkb *pkb, int sz, void *here)
 {
-    char *name = "";
+    char *name;
     if ( pkb->dev_name )
         name=pkb->dev_name;
     else
@@ -492,7 +492,7 @@ module_exit(rtpkb_pools_release);
 
 MODULE_LICENSE("GPL");
 
-#ifdef CONFIG_KBUILD
+#if defined(CONFIG_KBUILD) || defined(CONFIG_FUSION_072) || defined(CONFIG_FUSION_074)
 EXPORT_SYMBOL(alloc_rtpkb);
 EXPORT_SYMBOL(kfree_rtpkb);
 EXPORT_SYMBOL(rtpkb_acquire);

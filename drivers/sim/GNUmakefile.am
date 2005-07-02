@@ -1,0 +1,39 @@
+moduledir = $(DESTDIR)@RTFW_MODULE_DIR@
+modext = @RTFW_MODULE_EXT@
+
+EXTRA_LIBRARIES = libkernel_sim1394.a
+
+libkernel_sim1394_a_CPPFLAGS = \
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include \
+	@RTAI_KMOD_CFLAGS@
+	
+	
+libkernel_sim1394_a_SOURCES = \
+    rt_sim1394.c          
+
+OBJS = \
+	  rt_sim1394$(modext) 
+
+rt_sim1394.o: libkernel_sim1394.a
+	$(LD) --whole-archive $< -r -o $@
+
+rt_sim1394.ko: @RTFW_KBUILD_ENV@
+rt_sim1394.ko: $(libkernel_sim1394_a_SOURCES) FORCE
+	@RTFW_KBUILD_CMD@
+
+all-local: $(OBJS)
+
+install-exec-local: $(OBJS)
+	$(mkinstalldirs) $(moduledir)
+	$(INSTALL_DATA) $^ $(moduledir)
+
+clean-local: $(libkernel_sim1394_a_SOURCES)
+	@RTFW_KBUILD_CLEAN@
+   
+
+EXTRA_DIST = Makefile.kbuild
+
+DISTCLEANFILES = Makefile
+
+.PHONY: FORCE
