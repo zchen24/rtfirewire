@@ -66,9 +66,9 @@
 
 #include <rt_serv.h>
 
-//#define CONFIG_VERBOSE_PRINT 1 //this should be an option in auto configuration. 
+#define CONFIG_IEEE1394_VERBOSE 1 //this should be an option in auto configuration. 
 
-#ifdef CONFIG_VERBOSE_PRINT
+#ifdef CONFIG_IEEE1394_VERBOSE
 #define DEBUGP(fmt,args...) \
 	rtos_print("RT-FireWire:"fmt"\n",##args)
 #else
@@ -562,8 +562,10 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
         packet->sendtime = jiffies;
 
         rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
-	
+
+#if 0
 	mod_timer(&host->timeout, jiffies + host->timeout_interval);
+#endif
 }
 
 

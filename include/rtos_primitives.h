@@ -244,6 +244,10 @@ static inline void rtos_task_sleep_until(rtos_time_t *wakeup_time)
     rt_sleep_until(wakeup_time->val);
 }
 
+static inline void rtos_task_sleep(int time)
+{
+	rt_sleep(nano2count(time));
+}
 
 static inline int rtos_in_rt_context(void)
 {
