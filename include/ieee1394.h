@@ -58,6 +58,13 @@
 /* The current highest tested speed supported by the subsystem */
 #define IEEE1394_SPEED_MAX		IEEE1394_SPEED_800
 
+/* The priority of IEEE1394 packet, using the last 4bits of frist quadlet
+of packet header*/
+#define IEEE1394_PRIORITY_HIGHEST	0x0
+#define IEEE1394_PRIORITY_LOWEST	0xf
+#define IEEE1394_PRIORITY_INC		-1
+#define IEEE1394_PRIORITY_DEC		+1
+
 /* Maps speed values above to a string representation */
 extern const char *hpsb_speedto_str[];
 

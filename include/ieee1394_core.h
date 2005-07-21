@@ -1,8 +1,29 @@
+/* rtfirewire/stack/ieee1394_core.c
+ * Implementation of RT-FireWire kernel
+ * adapted from Linux 1394subsystem kernel
+ *			
+ * Copyright (C) 2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+
 /**
  * @ingroup core
  * @file
  *
- * Data structures and interfaces of 1394 core @ref core "Firewire Stack Core"
+ * Data structures and interfaces of RT-FireWire kernel @ref kernel "FireWire Kernel"
  * 
  */
 
@@ -14,12 +35,19 @@
 #include <asm/semaphore.h>
 
 #include <hosts.h>
+
 #include <rt1394_sys.h>
 
 /**
  * The core data structure of stack, 
  */
 struct hpsb_packet {
+	
+	/** opaque **/
+	struct rtpkb_base base;
+	
+	/*** FireWire specific stuff, must be sized under 256bytes ***/
+	
         /*! This struct is basically read-only for hosts with the exception of
          * the data buffer contents and xnext - see below. 
 	*/
@@ -77,32 +105,30 @@ struct hpsb_packet {
 	atomic_t refcnt;
 
 	/*! Function (and possible data to pass to it) to call when this
-	 * packet is completed.  */
-	void (*complete_routine)(void *);
+	 * packet is completed.  Only used for request-response transaction
+	*/
+	void (*complete_routine)(struct hpsb_packet *, void *);
 	void *complete_data;
 
-	/*! XXX This is just a hack at the moment */
-	struct rtpkb *pkb;
-
-        /*! Store jiffies for implementing bus timeouts. */
-        unsigned long sendtime;
-	
 	nanosecs_t		xmit_time;
 
 	unsigned pri :4;
-	int 	ack;
+	int 	write_acked;
 	
-	wait_queue_head_t waitq;
+	//~ wait_queue_head_t waitq;
 	volatile int        processed;
 	
-	quadlet_t embedded_header[5];
+	//~ quadlet_t embedded_header[5];
+	
+	//currently, this is used to store timeout request in request packet. 
+	unsigned long misc;
 };
 
 
 
 /* Set a task for when a packet completes */
 void hpsb_set_packet_complete_task(struct hpsb_packet *packet,
-		void (*routine)(void *), void *data);
+		void (*routine)(struct hpsb_packet *, void *), void *data);
 
 static inline struct hpsb_packet *driver_packet(struct list_head *l)
 {
@@ -111,7 +137,8 @@ static inline struct hpsb_packet *driver_packet(struct list_head *l)
 
 void abort_timedouts(unsigned long __opaque);
 
-struct hpsb_packet *hpsb_alloc_packet(size_t data_size, struct rtpkb_pool *pool);
+struct hpsb_packet *hpsb_alloc_packet(size_t data_size, struct rtpkb_pool *pool,
+							unsigned int priority);
 void hpsb_free_packet(struct hpsb_packet *packet);
 
 
@@ -191,7 +218,7 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
  * ack_complete'd already, false otherwise.  This arg is ignored for any other
  * packet type.
  */
-void hpsb_packet_received(struct hpsb_packet *p);
+void hpsb_packet_received(struct hpsb_packet *packet);
 	
 int ieee1394_core_init(void);
 void ieee1394_core_cleanup(void);

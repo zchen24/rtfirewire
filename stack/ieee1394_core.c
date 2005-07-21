@@ -1,8 +1,8 @@
 /* rtfirewire/stack/ieee1394_core.c
- *
- * Copyright (C) 1999, 2000 Andreas E. Bombe
- *                     2002 Manfred Weihs <weihs@ict.tuwien.ac.at>
- *			2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ * Implementation of RT-FireWire kernel
+ * adapted from Linux 1394subsystem kernel
+ *			
+ * Copyright (C) 2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,23 +20,22 @@
  */
  
 /**
- * @ingroup core
+ * @ingroup kernel
  * @file 
  * 
- * Implementation of stack module
+ * Implementation of RT-FireWire kernel 
  * 
  */
  
  /**
-  * @defgroup core 1394 stack core
+  * @defgroup kernel
   * 
-  * Firewire stack core processing:
-  * - hpsb_packet management
-  * - packet handling and forwarding to highlevel or lowlevel
-  * - host time out implementation
-  * - bus initialization after reset
+  * RT-FireWire kernel processing:
+  * - hpsb_packet allocation and management
+  * - asynchronous transaction layer implementation
+  * - 
   *
-  * For more details, see @ref "Overview of Real-Time Firewire Stack". 
+  * For more details, see @ref "Overview of Real-Time FireWire Stack". 
   */
  
 #include <linux/config.h>
@@ -62,20 +61,13 @@
 #include <config_roms.h>
 #include <dma.h>
 #include <iso.h>
-#include <rtpkbuff.h>
 
+#include <rtpkbuff.h>
 #include <rt_serv.h>
 
-#define CONFIG_IEEE1394_VERBOSE 1 //this should be an option in auto configuration. 
+#define MICRO_SEC	1000 //in ns
 
-#ifdef CONFIG_IEEE1394_VERBOSE
-#define DEBUGP(fmt,args...) \
-	rtos_print("RT-FireWire:"fmt"\n",##args)
-#else
-#define DEBUGP(fmt,args...)
-#endif
-
-#ifdef CONFIG_VERBOSE_PRINT
+#ifdef CONFIG_IEEE1394_DEBUG
 static void dump_packet(const char *text, quadlet_t *data, int size)
 {
 	int i;
@@ -90,43 +82,48 @@ static void dump_packet(const char *text, quadlet_t *data, int size)
 }
 #else
 #define dump_packet(x,y,z)
-#endif
+#endif /*! CONFIG_IEEE1394_DEBUG */
 
-/** response list for response broker */
-struct rtpkb_head comp_list = {
-	.name = "comp",
-};
-
-/** request lists for request brokers */
-struct rtpkb_head bis_req_list = {
-	.name = "bis",
-};
-struct rtpkb_head rt_req_list = {
-	.name = "rt",
-};
-struct rtpkb_head nrt_req_list = {
-	.name = "nrt",
+/** packet queue for our response server **/
+struct rtpkb_prio_queue resp_list = {
+	.name = "resp1394",
 };
 
+/** packet queue for our bus internal service request server **/
+struct rtpkb_queue bis_req_list = {
+	.name = "bis1394",
+};
+
+/** packet queue for our real-time request server **/
+struct rtpkb_prio_queue rt_req_list = {
+	.name = "rt1394",
+};
+
+/** packet queue for our non real-time request server **/
+struct rtpkb_queue nrt_req_list = {
+	.name = "nrt1394",
+};
+
+/** memory pool for each server **/
 struct rtpkb_pool bis_req_pool = {
-	.name = "bis",
+	.name = "bis1394",
 };
 struct rtpkb_pool rt_req_pool = {
-	.name = "rt",
+	.name = "rt1394",
 };
 struct rtpkb_pool nrt_req_pool = {
-	.name = "nrt",
+	.name = "nrt1394",
 };
 
-struct rt_serv_struct *comp_server;
+/** servers **/
+struct rt_serv_struct *resp_server;
 struct rt_serv_struct *bis_req_server;
 struct rt_serv_struct *rt_req_server;
 struct rt_serv_struct *nrt_req_server;
+struct rt_serv_struct *timeout_server;
 
+/** this is used for probing internal operation latency **/
 rtos_time_t	probe;
-
-/* We are GPL, so treat us special */
-MODULE_LICENSE("GPL");
 
 /* Some globals used */
 const char *hpsb_speedto_str[] = { "S100", "S200", "S400", "S800", "S1600", "S3200" };
@@ -137,104 +134,93 @@ static void abort_requests(struct hpsb_host *host);
 static void queue_packet_complete(struct hpsb_packet *packet);
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_set_packet_complete_task
- * Set the completion task for packet
+ * Set the callback function of the  request packet.
  *
- * set the task that runs when a packet
- * completes. You cannot call this more than once on a single packet
- * before it is sent.
  *
- * @param packet - the packet whose completion we want the task added to
- * @param routine - function to call
- * @param data - data (if any) to pass to the above function
+ * @param packet - the packet in concern
+ * @param routine - callback function
+ * @param data - data (if any) to pass to the callback function
  */
 void hpsb_set_packet_complete_task(struct hpsb_packet *packet,
-				   void (*routine)(void *), void *data)
+				   void (*routine)(struct hpsb_packet *, void *), void *data)
 {
-	RTOS_ASSERT(packet->complete_routine == NULL, return;);
 	packet->complete_routine = routine;
 	packet->complete_data = data;
 	return;
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_alloc_packet
- * allocate new packet structure from real-time buffer pool
+ * allocate new packet structure from real-time packet buffer pool
  *
- * This function allocates, initializes and returns a new &struct hpsb_packet.
- * It can be used in interrupt context.  A header block is always included, its
- * size is big enough to contain all possible 1394 headers.  The data block is
- * only allocated when data_size is not zero.
+ * This function allocates, initializes and returns a new @struct hpsb_packet.
+ * It can be used in interrupt context. 
  *
- * For packets for which responses will be received the data_size has to be big
- * enough to contain the response's data block since no further allocation
- * occurs at response matching time.
  *
- * The packet's generation value will be set to the current generation number
- * for ease of use.  Remember to overwrite it with your own recorded generation
+ * The packet's generation value will be set to -1 as beginning,
+ * Remember to overwrite it with your own recorded generation
  * number if you can not be sure that your code will not race with a bus reset.
- *
- * @param pri is the priority of the allocated packet. (Priority is only used in asynchronous datagram transaction)
+ * 
+ * @param priority is the priority assigned to the allocated packet, the priority for the 
+ * memory object is IEEE1394_OBJECT_PRIORITY + priority. 
  * @return A pointer to a &struct hpsb_packet or NULL on allocation
  * failure.
  */
-struct hpsb_packet *hpsb_alloc_packet(size_t data_size,struct rtpkb_pool *pool)
+struct hpsb_packet *hpsb_alloc_packet(size_t data_size,struct rtpkb_pool *pool, unsigned int priority)
 {
         
 	struct hpsb_packet *packet = NULL;
         struct rtpkb *pkb;
 
+	size_t length = data_size + IEEE1394_HEADER_SIZE;
+	length = ((length + 3) & ~3);
 	
-	data_size = ((data_size + 3) & ~3);
-	
-	pkb = alloc_rtpkb(data_size + sizeof(*packet), pool);
+	pkb = alloc_rtpkb(length, pool);
 	if(pkb == NULL)
 		return NULL;
 	
-	memset(pkb->data, 0, data_size + sizeof(*packet));
-	
-	packet = (struct hpsb_packet *)pkb->data;
-	if(!packet){
-		rtos_print("%s:buffer data pointer NULL! do hack now\n", __FUNCTION__);
-		rtpkb_clean(pkb);
-		packet = (struct hpsb_packet *)pkb->data;
-	}
-	packet->pkb = pkb;
-	
-	packet->header = packet->embedded_header;
+	packet = (struct hpsb_packet *)pkb;
+	packet->header=(quadlet_t *)pkb->data;
+	packet->data = (quadlet_t *)(pkb->data + IEEE1394_HEADER_SIZE);
+	packet->pri = priority;
+	pkb->priority = IEEE1394_OBJECT_PRIORITY + priority;
+
 	packet->state = hpsb_unused;
 	packet->generation = -1;
 	INIT_LIST_HEAD(&packet->driver_list);
 	atomic_set(&packet->refcnt, 1);
-	
-	packet->data = (quadlet_t *)(pkb->data + sizeof(*packet));//somehow, we dont want the data pointer to be NULL
+
+	packet->header_size = IEEE1394_HEADER_SIZE;
 	packet->data_size = data_size;
-	
-		
+			
 	return packet;
 }
 
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_free_packet
  *
- * Return the associated rtpkb to its origin pool. 
+ * Return the memory object to its origin pool. 
  */
 void hpsb_free_packet (struct hpsb_packet *packet)
 {
-	if(packet && atomic_dec_and_test(&packet->refcnt)) {
-		//~ rtos_print("freeing packet to %s\n", packet->pkb->pool->name);
-		//~ RTNET_ASSERT(!list_empty(&packet->driver_list), );
-		kfree_rtpkb(packet->pkb);
+	if(packet == NULL) {
+		HPSB_ERR("packet NULL!!!\n");
+		return;
 	}
+	if(atomic_dec_and_test(&packet->refcnt))
+		HPSB_ERR("packet still refered!\n");
+	
+	kfree_rtpkb((struct rtpkb *)packet);
 }
 
 
 /**
- * @ingroup core 
+ * @ingroup kernel 
  * @anchor hpsb_reset_bus
  * Call the reset routine of underlying driver with a 
  * specified reset type. 
@@ -251,15 +237,15 @@ int hpsb_reset_bus(struct hpsb_host *host, int type)
 			host->driver->devctl(host, RESET_BUS, type);
                 return 0;
         } else {
-		rtos_print("host %s is already in reset\n", host->name);
+		HPSB_ERR("host %s is already in reset\n", host->name);
                 return 1;
         }
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_bus_reset
- * Called when a bus reset occurs in a certain host. 
+ * Called by driver when a bus reset occurs on a certain host. 
  * This function reset the related host attributes. 
  * 
  * @return 0 on normal, 1 if the bus reset notice has 
@@ -290,7 +276,7 @@ int hpsb_bus_reset(struct hpsb_host *host)
 
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor check_selfids
  * @internal
  * 
@@ -366,7 +352,7 @@ static int check_selfids(struct hpsb_host *host)
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor build_speed_map
  * To build the speed map for the whole bus
  * after bus reset. 
@@ -448,7 +434,7 @@ static void build_speed_map(struct hpsb_host *host, int nodecount)
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_selfid_received
  *
  * @param sid -  the received selfid pakcet
@@ -468,7 +454,7 @@ void hpsb_selfid_received(struct hpsb_host *host, quadlet_t sid)
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_selfid_complete
  * 
  * This function is called when selfid phase is finished. 
@@ -525,11 +511,11 @@ void hpsb_selfid_complete(struct hpsb_host *host, int phyid, int isroot)
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_packet_sent
  * Function called when the ack of a certain request packet has been reecived. 
  *
- * @note see @ref Asynchronous Transaction setion of "Overview of Real-Time Firewire stack".
+ * @note see @ref Asynchronous Transaction setion of "Overview of Real-Time FireWire stack".
  */
 void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet, 
                       int ackcode)
@@ -552,25 +538,34 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
 
         if (ackcode != ACK_PENDING || !packet->expect_response) {
                 packet->state = hpsb_complete;
-		__rtpkb_unlink(packet->pkb, &host->pending_packet_queue);
+		__rtpkb_unlink((struct rtpkb *)packet, &host->pending_packet_queue);
 		rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
 		queue_packet_complete(packet);
                 return;
         }
 
         packet->state = hpsb_pending;
-        packet->sendtime = jiffies;
 
         rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
+	
+	nanosecs_t  timeout = 3000*MICRO_SEC; //for real-time application
+	
+	if(packet->pri==IEEE1394_PRIORITY_HIGHEST) //for bus internal service
+		timeout = 2000*MICRO_SEC;
+	if(packet->pri==IEEE1394_PRIORITY_LOWEST) //for non real-time application
+		timeout = 5000*MICRO_SEC;
 
-#if 0
-	mod_timer(&host->timeout, jiffies + host->timeout_interval);
-#endif
+	//here we add new timeout to our timeout server
+	packet->misc = (unsigned long ) rt_request_pend(timeout_server, (unsigned long)packet, //the parameter passed to server
+							timeout,//the time length of timeout (ns)
+							NULL, //for now, no callback needed from server
+							0, NULL); //no callback data; no name
+	rt_serv_sync(timeout_server);
 }
 
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_send_phy_config
  * transmit a PHY configuration packet on the bus
  *
@@ -594,7 +589,8 @@ int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
 		return -EINVAL;
 	}
 
-	packet = hpsb_alloc_packet(0,&host->pool);
+	/* we assign highest priority to physical packet */
+	packet = hpsb_alloc_packet(0,&host->pool, IEEE1394_PRIORITY_HIGHEST);
 	if (!packet)
 		return -ENOMEM;
 
@@ -623,7 +619,7 @@ int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_send_packet
  * transmit a packet on the bus
  *
@@ -631,8 +627,8 @@ int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
  * Before sending, the packet's transmit speed is automatically determined using
  * the local speed map when it is an async, non-broadcast packet.
  *
- * Possibilities for failure are that host is either not initialized, in bus
- * reset, the packet's generation number doesn't match the current generation
+ * Possibilities for failure are that host is either not initialized, or in bus
+ * reset, or the packet's generation number doesn't match the current generation
  * number or the host reports a transmit error.
  *
  * @return False (0) on failure, true (1) otherwise.
@@ -655,43 +651,56 @@ int hpsb_send_packet(struct hpsb_packet *packet)
 	
 	if(!packet->no_waiter || packet->expect_response) {
 		atomic_inc(&packet->refcnt);
-		packet->sendtime = jiffies;
-		rtpkb_queue_tail(&host->pending_packet_queue, packet->pkb);
+		rtpkb_queue_tail(&host->pending_packet_queue, (struct rtpkb *)packet);
 	}
 	
-	DEBUGP("packet is sent to %d, while host is %d", packet->node_id, host->node_id);
+	HPSB_NOTICE("packet is sent to %d, while host is %d", packet->node_id, host->node_id);
 	if (packet->node_id == host->node_id) {
-		rtos_print("sending to local....\n");
+		HPSB_NOTICE("sending to local....\n");
 		
 		rtos_get_time(&probe);
 		packet->xmit_time = rtos_time_to_nanosecs(&probe);
 		
-		struct hpsb_packet *pkt;
-		size_t size;
+		struct hpsb_packet *recvpkt;
 		
-		pkt = hpsb_alloc_packet(0, &host->pool);
-		if(!pkt)
+		recvpkt = hpsb_alloc_packet(packet->data_size, &host->pool, packet->pri);
+		if(!recvpkt)
 			return -ENOMEM;
 		
-		size = packet->data_size + packet->header_size;
-		pkt->data_size = size;
+		//~ size = packet->data_size + packet->header_size;
+		//~ pkt->data_size = size;
 
-                memcpy(pkt->data, packet->header, packet->header_size);
+                //~ memcpy(pkt->data, packet->header, packet->header_size);
 
-		if(packet->data_size)
-			memcpy(((u8*)pkt->data)+packet->header_size, packet->data, packet->data_size);
+		//~ if(packet->data_size)
+			//~ memcpy(((u8*)pkt->data)+packet->header_size, packet->data, packet->data_size);
 		
 		//~ host->pkt->ack = ((data[size/4-1]>>16)&0x1f
 				//~ == 0x11) ? 1 : 0;
-		pkt->ack = 0;
-		pkt->pri = packet->pri;
-		pkt->host = host;
+		//~ pkt->ack = 0;
+		//~ pkt->pri = packet->pri;
+		
+		recvpkt->data_size = packet->data_size;
+		recvpkt->header_size = packet->header_size;
+
+                memcpy(recvpkt->header, packet->header, packet->header_size);
+
+		if(packet->data_size)
+			memcpy(recvpkt->data, packet->data, packet->data_size);
+		DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+		
+		recvpkt->write_acked = (((packet->data[packet->data_size/4-1]>>16) & 0x1f)
+				== 0x11) ? 1 : 0;
+		recvpkt->host = host;
+		recvpkt->tcode = packet->tcode;
 		
 		dump_packet("send packet local:", packet->header, 
 				packet->header_size);
 		
-		hpsb_packet_sent(host, packet, packet->expect_response ? ACK_PENDING : ACK_COMPLETE);
-		hpsb_packet_received(pkt);
+		DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+		hpsb_packet_sent(host, packet, packet->expect_response ? 
+				ACK_PENDING : ACK_COMPLETE);
+		hpsb_packet_received(recvpkt);
 		
 		return 0;
 	}
@@ -720,42 +729,45 @@ int hpsb_send_packet(struct hpsb_packet *packet)
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor complete_packet
- * To notify the complete of packet transaction, set as a callback. 
+ * To notify the completion of transaction, set as a callback. 
  *
- * We could just use complete() directly as the packet complete
- * callback, but this is more typesafe, in the sense that we get a 
- * compiler error if the prototype for the complete() changes. 
+ * @param data -- the counting semaphore set during sending of the packet. 
  */
-static void complete_packet (void *data)
+static void complete_packet (struct hpsb_packet *packet, void *data)
 {
-	struct hpsb_packet *p = (struct hpsb_packet *)data;
-	p->processed = 1;	
-	wake_up(&p->waitq);
+	packet->processed = 1;	
+	//~ wake_up(&packet->waitq);
+	rtos_event_t	*sem=(rtos_event_t *)data;
+	rtos_event_signal(sem);
 }
 	
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_send_packet_and_wait
  * Wait until packet transaction is done. 
+ * Synchronized versoin of hpsb_send_packet. 
  */
 int hpsb_send_packet_and_wait(struct hpsb_packet *packet)
 {
 	int retval;
+	rtos_event_t	sem;
+	rtos_event_init(&sem);
 	
-	init_waitqueue_head(&packet->waitq);
-	hpsb_set_packet_complete_task(packet, complete_packet, (void *)packet);
+	//~ init_waitqueue_head(&packet->waitq);
+	hpsb_set_packet_complete_task(packet, complete_packet, (void *)&sem);
 	retval = hpsb_send_packet(packet);
 	if (retval == 0)
-		retval = wait_event_interruptible(packet->waitq, packet->processed);
+		//~ retval = wait_event_interruptible(packet->waitq, packet->processed);
+		rtos_event_wait(&sem);
 	
 	return retval;
 }
 
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor send_packet_nocare
  */
 static void send_packet_nocare(struct hpsb_packet *packet)
@@ -766,38 +778,31 @@ static void send_packet_nocare(struct hpsb_packet *packet)
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor handle_packet_respnse
  * handle the response packet.
  *
  * Return is void, but error can happen when the tlabel does not match. 
  * Or tcode does not match. 
- *
- * @note see more info in @ref Asynchronous Transaction section of 
- * "Overview of Real-Time Firewire Stack". 
- *
- * @todo this routine will be moved to rtai domain. 
  */
-void handle_packet_response(struct hpsb_packet *pkt)
+void handle_packet_response(struct hpsb_packet *resp)
 {
 	struct hpsb_packet *packet = NULL;
-	struct hpsb_host  *host = pkt->host;
-	quadlet_t *data = pkt->data;
-	size_t size = pkt->data_size;
+	struct hpsb_host  *host = resp->host;
         struct rtpkb *pkb;
-	int tcode = pkt->tcode;
+	int tcode = resp->tcode;
         int tcode_match = 0;
         int tlabel;
         unsigned long flags;
 
-	tlabel = (data[0] >> 10) & 0x3f;
+	tlabel = (resp->header[0] >> 10) & 0x3f;
 
         rtos_spin_lock_irqsave(&host->pending_packet_queue.lock, flags);
 	
 	rtpkb_queue_walk(&host->pending_packet_queue, pkb) {
-		packet = (struct hpsb_packet *)pkb->data;
+		packet = (struct hpsb_packet *)pkb;
 		if ((packet->tlabel == tlabel)
-			&& (packet->node_id == (data[1] >> 16))){
+			&& (packet->node_id == (resp->header[1] >> 16))){
 				break;
 		}
 		
@@ -805,70 +810,112 @@ void handle_packet_response(struct hpsb_packet *pkt)
 	}
 	
 	if (packet == NULL) {
-		HPSB_DEBUG("unsolicited response packet received - no tlabel match");
-		dump_packet("contents:", data, 16);
+		HPSB_DEBUG("unsolicited response packet received \
+					or packet has been dequeued due to timeout \
+					- no tlabel match");
+		dump_packet("contents:", resp->header, 16);
 		rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
+		hpsb_free_packet(resp);
 		return;
 	}
+	
+	//we first cancel the timeout setting in timeout server
+	rt_request_delete(timeout_server, (struct rt_request_struct *)packet->misc);
 
+	rtos_print("request tcode:%d\n",packet->tcode);
+	switch(packet->tcode){
+		case TCODE_WRITEQ:
+		case TCODE_WRITEB:
+				if(tcode != TCODE_WRITE_RESPONSE)
+					break;
+				tcode_match = 1;
+				break;
+		case TCODE_READQ:
+				if (tcode != TCODE_READQ_RESPONSE)
+					break;
+				tcode_match = 1;
+				break;
+		case TCODE_READB:
+				if (tcode != TCODE_READB_RESPONSE)
+					break;
+				tcode_match = 1;
+				break;
+		case TCODE_LOCK_REQUEST:
+				if (tcode != TCODE_LOCK_RESPONSE)
+					break;
+				tcode_match = 1;
+				break;
+	}
 	//~ rtos_print("request tcode: %d\n", packet->tcode);
-        switch (packet->tcode) {
-        case TCODE_WRITEQ:
-        case TCODE_WRITEB:
-                if (tcode != TCODE_WRITE_RESPONSE)
-			break;
-		tcode_match = 1;
-		memcpy(packet->header, data, 12);
-		break;
-        case TCODE_READQ:
-                if (tcode != TCODE_READQ_RESPONSE)
-			break;
-		tcode_match = 1;
-		memcpy(packet->header, data, 16);
-                break;
-        case TCODE_READB:
-                if (tcode != TCODE_READB_RESPONSE)
-			break;
-		tcode_match = 1;
-		BUG_ON(packet->pkb->len - sizeof(*packet) < size -16);
-		memcpy(packet->header, data, 16);
-		memcpy(packet->data, data+4, size-16);
-		break;
-        case TCODE_LOCK_REQUEST:
-                if (tcode != TCODE_LOCK_RESPONSE)
-			break;
-		tcode_match = 1;
-		size = min((size - 16), (size_t)8);
-		BUG_ON(packet->pkb->len - sizeof(*packet) < size);
-		memcpy(packet->header, data, 16);
-		memcpy(packet->data, data+4, size);
-		break;
-        }
+        //~ switch (packet->tcode) {
+        //~ case TCODE_WRITEQ:
+        //~ case TCODE_WRITEB:
+                //~ if (tcode != TCODE_WRITE_RESPONSE)
+			//~ break;
+		//~ tcode_match = 1;
+		//~ memcpy(packet->header, data, 12);
+		//~ break;
+        //~ case TCODE_READQ:
+                //~ if (tcode != TCODE_READQ_RESPONSE)
+			//~ break;
+		//~ tcode_match = 1;
+		//~ memcpy(packet->header, data, 16);
+                //~ break;
+        //~ case TCODE_READB:
+                //~ if (tcode != TCODE_READB_RESPONSE)
+			//~ break;
+		//~ tcode_match = 1;
+		//~ BUG_ON(packet->pkb->len - sizeof(*packet) < size -16);
+		//~ memcpy(packet->header, data, 16);
+		//~ memcpy(packet->data, data+4, size-16);
+		//~ break;
+        //~ case TCODE_LOCK_REQUEST:
+                //~ if (tcode != TCODE_LOCK_RESPONSE)
+			//~ break;
+		//~ tcode_match = 1;
+		//~ size = min((size - 16), (size_t)8);
+		//~ BUG_ON(packet->pkb->len - sizeof(*packet) < size);
+		//~ memcpy(packet->header, data, 16);
+		//~ memcpy(packet->data, data+4, size);
+		//~ break;
+        //~ }
 	
 	if(!tcode_match) {
 		rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
 		HPSB_INFO("unsolicited response packet received - tcode mismatch");
-                dump_packet("contents:", data, 16);
+                dump_packet("contents:", resp->header, resp->header_size);
+		hpsb_free_packet(resp);
 		return;
 	}
 	
 	__rtpkb_unlink(pkb, pkb->list);
 	
+	
 	if (packet->state == hpsb_queued) {
-		packet->sendtime =  jiffies;
-		packet->ack_code = ACK_PENDING;
+		resp->ack_code = ACK_PENDING;
+	}else{
+		resp->ack_code = packet->ack_code;
 	}
 	
-	packet->state = hpsb_complete;
+	resp->state = hpsb_complete;
+	
+	resp->xmit_time = packet->xmit_time;
+	resp->no_waiter = packet->no_waiter;
+	resp->complete_routine = packet->complete_routine;
+	resp->complete_data = packet->complete_data;
+	
 	rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
 	
-	queue_packet_complete(packet);
-	
-	hpsb_free_packet(pkt);
+	struct rtpkb_pool *pool = pkb->pool;
+	hpsb_free_tlabel(packet);
+	hpsb_free_packet(packet);
+	rtpkb_acquire((struct rtpkb *)resp, pool);
+		
+	queue_packet_complete(resp);
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor create_reply_packet
  * Create the general reply packet for asynchronous transactions
  * 
@@ -877,41 +924,40 @@ void handle_packet_response(struct hpsb_packet *pkt)
  * @param data - the received request packet, from which the created reply 
  * packet draw the header info from: like node_id, tlabel. 
  * @note this routine can be called both in rtai and linux domain. 
- * @todo to distiguish if current process context if real-time or not.
+ * @todo to distiguish if current process context is real-time or not.
  * and do sub-routines accordingly. 
  */
 static struct hpsb_packet *create_reply_packet(struct hpsb_host *host,
-					       quadlet_t *data, size_t dsize, int pri)
+					       quadlet_t *req_header, size_t dsize, int pri)
 {
-	struct hpsb_packet *p;
+	struct hpsb_packet *packet;
 	
 	
-	p = hpsb_alloc_packet(dsize, &host->pool);
-	if (unlikely (p == NULL)) {
+	packet = hpsb_alloc_packet(dsize, &host->pool, pri);
+	if (packet == NULL) {
 		/* FIXME - send data_error response */
 			return NULL;
 	}
+
+	packet->type = hpsb_async;
+	packet->state = hpsb_unused;
+	packet->host = host;
+	packet->node_id = req_header[1] >> 16;
+	packet->tlabel = (req_header[0] >> 10)& 0x3f;
+	packet->no_waiter = 1;
 	
-	p->pri = pri;
-	p->type = hpsb_async;
-	p->state = hpsb_unused;
-	p->host = host;
-	p->node_id = data[1] >> 16;
-	p->tlabel = (data[0] >> 10)& 0x3f;
-	p->no_waiter = 1;
-	
-	p->generation = get_hpsb_generation(host);
+	packet->generation = get_hpsb_generation(host);
 	
 	if(dsize % 4)
-		p->data[dsize / 4] = 0;
+		packet->data[dsize / 4] = 0;
 	
-	return p;
+	return packet;
 }
 
 #define PREP_ASYNC_HEAD_RCODE(tc) \
 	packet->tcode = tc; \
 	packet->header[0] = (packet->node_id << 16) | (packet->tlabel << 10) \
-		| (1 << 8) | (tc << 4); \
+		| (1 << 8) | (tc << 4) | (packet->pri); \
 	packet->header[1] = (packet->host->node_id << 16) | (rcode << 12); \
 	packet->header[2] = 0
 /**
@@ -975,61 +1021,61 @@ static void fill_async_lock_resp(struct hpsb_packet *packet, int rcode, int extc
 }
 
 #define PREP_REPLY_PACKET(length, pri) \
-                packet = create_reply_packet(host, data, length, pri); \
+                packet = create_reply_packet(host, req->header, length, pri); \
                 if (packet == NULL) break
 
 /**
- * @ingroup core
- * @anchor handle_incoming_packet
- * Routine for processing request packets.
- *
- * This routine also create the response packet (if needed) and send it.
- *
- * @note the routines entered by highlevel_x should be done
- * in either Linux or rtai domain. That means there should be 
- * a task handover between this routine and next. 
- * @todo add task handover to Linux/rtai here.
+ * Routine for prcessing incoming request packets.
+ * @param arg is the priority of request packet. 
+ * According to the priority, the routine finds the request
+ * from three queues: bus internal service queue, real-time application
+ * queue and non real-time application queue. 
  */
 void req_worker(unsigned long arg)
 {
 	
-	struct rtpkb_head *list = (struct rtpkb_head *)arg;
+	int priority = (int)arg;
 	struct rtpkb *pkb;
-	struct hpsb_packet *pkt;
+	if(priority == 0)
+		pkb = rtpkb_dequeue(&bis_req_list);
+	else {
+		if(priority == 15)
+			pkb = rtpkb_dequeue(&nrt_req_list);
+		else
+			pkb = rtpkb_prio_dequeue(&rt_req_list);
+	}
+	
+	struct hpsb_packet *req;
 	struct hpsb_host *host;
-	quadlet_t *data;
 	char tcode;
 	int write_acked, pri;
 	
 	struct hpsb_packet *packet;
         int length, rcode, extcode;
         quadlet_t buffer;
-        nodeid_t source;
-        nodeid_t dest;
-        u16 flags;
-        u64 addr;
+        //~ nodeid_t source;
+        //~ nodeid_t dest;
+        //~ u16 flags;
+        //~ u64 addr;
 
-	while ((pkb = rtpkb_dequeue(list)) != NULL) {
-			
-			pkt = (struct hpsb_packet *)pkb->data;
-			tcode = pkt->tcode;
-			data = pkt->data;
-			write_acked = pkt->ack;
-			pri = pkt->pri;
-			host = pkt->host;
-			source = data[1] >> 16;
-			dest = data[0] >> 16;
-			flags = (u16) data[0];
+	{		
+		req = (struct hpsb_packet *)pkb;
+		tcode = req->tcode;
+		write_acked = req->write_acked;
+		pri = req->pri;
+		host = req->host;
+			//~ source = req->header[1] >> 16;
+			//~ dest = req->header[0] >> 16;
+			//~ flags = (u16) req->header[0];
+			//~ addr = (((u64)(req->header[1] & 0xffff)) << 32) | req->header[2];
 			
 			//~ rtos_print("tcode: %d\n", tcode);	
 			switch (tcode) {
 				case TCODE_WRITEQ:
-					addr = (((u64)(data[1] & 0xffff)) << 32) | data[2];
-					rcode = highlevel_write(host, source, dest, data+3,
-									addr, 4, flags);
+					rcode = highlevel_write(host, req, 4);
 
 					if (!write_acked
-						&& (NODEID_TO_NODE(data[0] >> 16) != NODE_MASK)
+						&& (NODEID_TO_NODE(req->header[0] >> 16) != NODE_MASK)
 						&& (rcode >= 0)) {
 						/* not a broadcast write, reply */
 						PREP_REPLY_PACKET(0,pri);
@@ -1039,12 +1085,11 @@ void req_worker(unsigned long arg)
 					break;
 
 				case TCODE_WRITEB:
-					addr = (((u64)(data[1] & 0xffff)) << 32) | data[2];
-					rcode = highlevel_write(host, source, dest, data+4,
-									addr, data[3]>>16, flags);
+					length = req->header[3] >> 16;
+					rcode = highlevel_write(host, req, length);
 
 					if (!write_acked
-						&& (NODEID_TO_NODE(data[0] >> 16) != NODE_MASK)
+						&& (NODEID_TO_NODE(req->header[0] >> 16) != NODE_MASK)
 						&& (rcode >= 0)) {
 						/* not a broadcast write, reply */
 						PREP_REPLY_PACKET(0, pri);
@@ -1054,8 +1099,7 @@ void req_worker(unsigned long arg)
 					break;
 
 				case TCODE_READQ:
-					addr = (((u64)(data[1] & 0xffff)) << 32) | data[2];
-					rcode = highlevel_read(host, source, &buffer, addr, 4, flags);
+					rcode = highlevel_read(host, req, (void *)&buffer, 4);
 
 					if (rcode >= 0) {
 						PREP_REPLY_PACKET(0, pri);
@@ -1065,14 +1109,10 @@ void req_worker(unsigned long arg)
 					break;
 
 				case TCODE_READB:
-				
-					length = data[3] >> 16;
+					length = req->header[3] >> 16;
 					PREP_REPLY_PACKET(length, pri);
-					addr = (((u64)(data[1] & 0xffff)) << 32) | data[2];
-					rcode = highlevel_read(host, source, packet->data, addr,
-								length, flags);
-					
-
+					rcode = highlevel_read(host, req, (void *)packet->data, length);
+				
 					if (rcode >= 0) {
 						fill_async_readblock_resp(packet, rcode, length);
 						send_packet_nocare(packet);
@@ -1083,9 +1123,8 @@ void req_worker(unsigned long arg)
 					break;
 
 				case TCODE_LOCK_REQUEST:
-					length = data[3] >> 16;
-					extcode = data[3] & 0xffff;
-					addr = (((u64)(data[1] & 0xffff)) << 32) | data[2];
+					length = req->header[3] >> 16;
+					extcode = req->header[3] & 0xffff;
 
 					PREP_REPLY_PACKET(8, pri);
 
@@ -1096,32 +1135,24 @@ void req_worker(unsigned long arg)
 
 				switch (length) {
 				case 4:
-					rcode = highlevel_lock(host, source, (quadlet_t *)packet->data, addr,
-							       data[4], 0, extcode,flags);
+					rcode = highlevel_lock(host, req, (quadlet_t *)packet->data);
 					fill_async_lock_resp(packet, rcode, extcode, 4);
 					break;
 				case 8:
 					if ((extcode != EXTCODE_FETCH_ADD) 
 					    && (extcode != EXTCODE_LITTLE_ADD)) {
-						rcode = highlevel_lock(host, source,
-								       (quadlet_t *)packet->data, addr,
-								       data[5], data[4], 
-								       extcode, flags);
+						rcode = highlevel_lock(host, req,
+								       (quadlet_t *)packet->data);
 						fill_async_lock_resp(packet, rcode, extcode, 4);
 					} else {
-						rcode = highlevel_lock64(host, source,
-							     (octlet_t *)packet->data, addr,
-							     *(octlet_t *)(data + 4), 0ULL,
-							     extcode, flags);
+						rcode = highlevel_lock64(host, req,
+							     (octlet_t *)packet->data);
 						fill_async_lock_resp(packet, rcode, extcode, 8);
 					}
 					break;
 				case 16:
-					rcode = highlevel_lock64(host, source,
-								 (octlet_t *)packet->data, addr,
-								 *(octlet_t *)(data + 6),
-								 *(octlet_t *)(data + 4), 
-								 extcode, flags);
+					rcode = highlevel_lock64(host, req,
+								 (octlet_t *)packet->data);
 					fill_async_lock_resp(packet, rcode, extcode, 8);
 					break;
 				default:
@@ -1137,8 +1168,9 @@ void req_worker(unsigned long arg)
 				break;
 			}
 			
-		kfree_rtpkb(pkb);
 	}
+	
+	hpsb_free_packet(req);
 }
 
 #undef PREP_REPLY_PACKET
@@ -1147,36 +1179,34 @@ void req_worker(unsigned long arg)
 	(noswap ? data : le32_to_cpu(data))
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsb_packet_received
- * Routine for received packet.
+ * Routine for processing received packet.
  * 
  * @param write_acked - 
  */
-void hpsb_packet_received(struct hpsb_packet *pkt)
+void hpsb_packet_received(struct hpsb_packet *packet)
 {
-        char tcode;
-	struct rtpkb_head *req_list;
-	struct hpsb_host *host;
-	
-	host = pkt->host;
+        DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//~ char tcode;
+	struct rt_serv_struct *broker=NULL;
 
-        if (host->in_bus_reset) {
+        if (packet->host->in_bus_reset) {
                 HPSB_INFO("received packet during reset; ignoring");
                 return;
         }
 
-	dump_packet("received packet:", pkt->data, pkt->data_size);
+	dump_packet("received packet:", packet->header, packet->header_size);
+	HPSB_NOTICE("packet priority %d\n, tcode %d", packet->pri, packet->tcode);
+        //packet->tcode = ((packet->header)[0] >> 4) & 0xf; 
+	//~ pkt->tcode = tcode;
 
-        tcode = ((pkt->data)[0] >> 4) & 0xf; 
-	pkt->tcode = tcode;
-
-        switch (tcode) {
+        switch (packet->tcode) {
         case TCODE_WRITE_RESPONSE:
         case TCODE_READQ_RESPONSE:
         case TCODE_READB_RESPONSE:
         case TCODE_LOCK_RESPONSE:
-                handle_packet_response(pkt);
+                handle_packet_response(packet);
                 break;
 
         case TCODE_WRITEQ:
@@ -1184,38 +1214,52 @@ void hpsb_packet_received(struct hpsb_packet *pkt)
         case TCODE_READQ:
         case TCODE_READB:
         case TCODE_LOCK_REQUEST:
-		
+		DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		//~ rtos_print("request received with pri:%d\n",pkt->pri);
 	
 		//~ rtos_time_t pa, pb;
 		//~ rtos_get_time(&pa);
-		/**
-		* it's a request, so we need to deliver it to one of the brokers*/
-		if(pkt->pri == 0)
-			req_list = &bis_req_list;
-		else if(pkt->pri>0||pkt->pri<15)
-			req_list = &rt_req_list;
-			else if(pkt->pri==15)
-			req_list = &nrt_req_list;
-				else
-				rtos_print("request with outrange priority received!!!\n");
-				
-		if(rtpkb_acquire(pkt->pkb, req_list->pool)) {
-			rtos_print("req list %s run out of memory\n", req_list->name);
-			break;
+		//it's a request, so we need to deliver it to one of the brokers
+		switch(packet->pri){
+			case IEEE1394_PRIORITY_HIGHEST:
+					if(rtpkb_acquire((struct rtpkb *)packet, bis_req_list.pool)) {
+						HPSB_ERR("req list %s run out of memory\n", bis_req_list.name);
+						break;
+					}
+					rtpkb_queue_tail(&bis_req_list, (struct rtpkb *)packet);
+					broker = bis_req_server;
+					break;
+			case IEEE1394_PRIORITY_LOWEST:
+					if(rtpkb_acquire((struct rtpkb *)packet, nrt_req_list.pool)) {
+						HPSB_ERR("req list %s run out of memory\n", nrt_req_list.name);
+						break;
+					}
+					rtpkb_queue_tail(&nrt_req_list, (struct rtpkb *)packet);
+					broker = nrt_req_server;
+					break;
+			default:
+					if(packet->pri >15 || packet->pri <0){
+						HPSB_ERR("request with outrange priority received!!!\n");
+						break;
+					}else{
+						if(rtpkb_acquire((struct rtpkb *)packet,rt_req_list.pool)) {
+							HPSB_ERR("req list %s run out of memory\n", rt_req_list.name);
+							break;
+						}
+						rtpkb_prio_queue_tail(&rt_req_list, (struct rtpkb *)packet); 
+						broker = rt_req_server;
+					}
+					break;
 		}
+		
 		//~ rtos_get_time(&pb);
 		//~ rtos_time_diff(&pb, &pb, &pa);
 		//~ rtos_print("%s:time diff is %d ns\n", __FUNCTION__, rtos_time_to_nanosecs(&pb));
 		
-		if(pkt->pri>0 || pkt->pri<15)
-			rtpkb_queue_pri(req_list, pkt->pkb); //we do queue-reordering based on priority for realtime data request.
-		else
-			rtpkb_queue_tail(req_list, pkt->pkb);
 		//~ rtos_get_time(&pb);
 		//~ rtos_time_diff(&pb, &pb, &pa);
 		//~ rtos_print("%s:time diff is %d ns\n", __FUNCTION__, rtos_time_to_nanosecs(&pb));
-		
+		DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		break;
 
         case TCODE_ISO_DATA:
@@ -1223,19 +1267,27 @@ void hpsb_packet_received(struct hpsb_packet *pkt)
                 break;
 
         case TCODE_CYCLE_START:
-		rtos_print("cycle start!\n");
+		HPSB_NOTICE("cycle start!\n");
                 /* simply ignore this packet if it is passed on */
                 break;
 
         default:
                 HPSB_NOTICE("received packet with bogus transaction code %d", 
-                            tcode);
+                            packet->tcode);
                 break;
         }
+	if(broker){
+		//ok, we need to pend the request to server, and sync it. 
+		rt_request_pend(broker, (unsigned long)packet->pri, //the parameter passed to server
+								0, //no delay wanted
+								NULL, //for now, no callback needed from server
+								0, NULL); //no callback data; no name
+		rt_serv_sync(broker);
+	}
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor abort_requests
  * Cancel requests
  *
@@ -1252,8 +1304,11 @@ void abort_requests(struct hpsb_host *host)
 	host->driver->devctl(host, CANCEL_REQUESTS, 0);
 	
 	while ((pkb = rtpkb_dequeue(&host->pending_packet_queue)) != NULL) {
-		packet = (struct hpsb_packet *)pkb->data;
+		packet = (struct hpsb_packet *)pkb;
 		
+		//dont forget to cancel timeout setting
+		rt_request_delete(timeout_server, (struct rt_request_struct *)packet->misc);
+			
 		packet->state = hpsb_complete;
 		packet->ack_code = ACKX_ABORTED;
 		queue_packet_complete(packet);
@@ -1261,60 +1316,76 @@ void abort_requests(struct hpsb_host *host)
 }
 	
 /**
- * @ingroup core
- * @anchor abort_timedouts
- * Routine for implementing bus timeout.
- * 
- * The host timer gives an alarm, afterwhich, 
- * the expired request packets will be dequeued from pending
- * queue and queued in completion queue, with 
- * ack_code = ACKX_TIMEOUT.
- * 
- * @note the host timer is based on Linux jiffies.
- * @param __opaque - pointer to host. 	
+ * Routine for the timeout server
+ * @param data is the pointer to the request packet which has expired
+ * This function dequeues the expired request packet from pending 
+ * queue, changes its state, add ack code (ACKX_TIMEOUT) and queue it
+ * to complete queue, i.e. handover the packet to response server. 
  */
-void abort_timedouts(unsigned long __opaque)
+void abort_timedouts(unsigned long data)
 {
-	struct hpsb_host *host = (struct hpsb_host *)__opaque;
-        unsigned long flags;
-        struct hpsb_packet *packet;
-	struct rtpkb *pkb;
-        unsigned long expire;
-
-        rtos_spin_lock_irqsave(&host->csr.lock, flags);
-	expire = host->csr.expire;
-        rtos_spin_unlock_irqrestore(&host->csr.lock, flags);
-	
-	/* Hold the lock around this, since we aren't dequeuing all 
-	 * packets, just ones we need. */
-        rtos_spin_lock_irqsave(&host->pending_packet_queue.lock, flags);
-	
-	while (!rtpkb_queue_empty (&host->pending_packet_queue)) {
-		pkb = rtpkb_peek(&host->pending_packet_queue);
+	struct hpsb_packet *packet = (struct hpsb_packet *)data;
+	struct hpsb_host *host = packet->host;
 		
-		packet = (struct hpsb_packet *)pkb->data;
-			
-		if  (time_before(packet->sendtime + expire, jiffies)) {
-			__rtpkb_unlink(pkb, pkb->list);
-			packet->state = hpsb_complete;
-			packet->ack_code = ACKX_TIMEOUT;
-			queue_packet_complete(packet);
-		}else {
-			/* Since packets are added to the tail, the oldest
-			 * ones are first, always. When we get to one that 
-			 * isn't timed out, the rest aren't either. */
-			break;
-		}
-	}
+	HPSB_ERR("packet sent to node[%d] from %s timeouts!!!\n", 
+			packet->node_id, packet->host->name);
 	
-	if(!rtpkb_queue_empty(&host->pending_packet_queue))
-		mod_timer(&host->timeout, jiffies + host->timeout_interval);
+	unsigned long flags;
+	rtos_spin_lock_irqsave(&host->pending_packet_queue.lock, flags);
+	
+	//get packet out of the pending packet queue
+	struct rtpkb *pkb = (struct rtpkb *)packet;
+	__rtpkb_unlink(pkb, pkb->list); 
+	
+	//assign the state and ack code and queue it to complete queue
+	packet->state = hpsb_complete;
+	packet->ack_code = ACKX_TIMEOUT;
+	queue_packet_complete(packet);
 	
 	rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
 }
+//~ void abort_timedouts(unsigned long __opaque)
+//~ {
+	//~ struct hpsb_host *host = (struct hpsb_host *)__opaque;
+        //~ unsigned long flags;
+        //~ struct hpsb_packet *packet;
+	//~ struct rtpkb *pkb;
+        //~ unsigned long expire;
+
+        //~ rtos_spin_lock_irqsave(&host->csr.lock, flags);
+	//~ expire = host->csr.expire;
+        //~ rtos_spin_unlock_irqrestore(&host->csr.lock, flags);
+	
+	//~ /* Hold the lock around this, since we aren't dequeuing all 
+	 //~ * packets, just ones we need. */
+        //~ rtos_spin_lock_irqsave(&host->pending_packet_queue.lock, flags);
+	
+	//~ while (!rtpkb_queue_empty (&host->pending_packet_queue)) {
+		//~ pkb = rtpkb_peek(&host->pending_packet_queue);
+		
+		//~ packet = (struct hpsb_packet *)pkb;
+			
+		//~ if  (time_before(packet->xmit_time + expire, jiffies)) {
+			//~ __rtpkb_unlink(pkb, pkb->list);
+			//~ packet->state = hpsb_complete;
+			//~ packet->ack_code = ACKX_TIMEOUT;
+			//~ queue_packet_complete(packet);
+		//~ }else {
+			//~ /* Since packets are added to the tail, the oldest
+			 //~ * ones are first, always. When we get to one that 
+			 //~ * isn't timed out, the rest aren't either. */
+			//~ break;
+		//~ }
+	//~ }
+	
+	//~ if(!rtpkb_queue_empty(&host->pending_packet_queue))
+		//~ mod_timer(&host->timeout, jiffies + host->timeout_interval);
+	
+	//~ rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
+//~ }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor queue_packet_complete
  * This function queues the packet that is completed to the queue of
  * kernel thread @khpsbpkt, which serves the various completion routines 
@@ -1329,11 +1400,19 @@ void abort_timedouts(unsigned long __opaque)
 static void queue_packet_complete(struct hpsb_packet *packet)
 {
 	if (packet->no_waiter) {
+		DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		hpsb_free_packet(packet);
 		return;
 	}
 	if (packet->complete_routine != NULL) {
-		rtpkb_queue_pri(&comp_list, packet->pkb);
+		rtpkb_prio_queue_tail(&resp_list, (struct rtpkb *)packet);
+		rt_request_pend(resp_server, 0, //no parameter needs to be passed to response server 
+						0, //delay? NO
+						NULL, // NO callback 
+						0, NULL); // NO callback data, and NO name
+		//dont forget to sync the server
+		rt_serv_sync(resp_server);
+		//resp_worker(0);
 	}
 	return;
 }
@@ -1341,7 +1420,7 @@ static void queue_packet_complete(struct hpsb_packet *packet)
 
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor hpsbpkt_thread
  * The routine for kernel thread for postprocessing
  * of finished packet
@@ -1350,34 +1429,34 @@ static void queue_packet_complete(struct hpsb_packet *packet)
  * @note the synchronization between this kernel thread and 
  * stack is done via semaphore; @khpsbpkt_sig. 
  */
-void comp_worker(unsigned long data)
+void resp_worker(unsigned long dummy)
 {
 	
-	struct rtpkb_head *list = (struct rtpkb_head *)data;
+	struct rtpkb_prio_queue *list = (struct rtpkb_prio_queue *)&resp_list;
 	struct rtpkb *pkb;
 	struct hpsb_packet *packet;
-	void (*complete_routine)(void*);
+	void (*complete_routine)(struct hpsb_packet *, void*);
 	void *complete_data;
 	rtos_time_t		time;
 	
-	while ((pkb = rtpkb_dequeue(list)) != NULL) {
-			packet = (struct hpsb_packet *)pkb->data;
+	if ((pkb = rtpkb_prio_dequeue(list)) != NULL) {
+			packet = (struct hpsb_packet *)pkb;
 			
 			//get the time of receiving response
 			rtos_get_time(&time);
 			//calculate and log the time elapsecd between request and response
 			packet->xmit_time = rtos_time_to_nanosecs(&time) - packet->xmit_time;
-			rtos_print("%s:req2resp latency is %d ns\n", __FUNCTION__, (int)packet->xmit_time);
+			HPSB_NOTICE("%s:req2resp latency is %d ns\n", __FUNCTION__, (int)packet->xmit_time);
 				
 			complete_routine = packet->complete_routine;
 			complete_data = packet->complete_data;
 			
 			packet->complete_routine = packet->complete_data = NULL;
 			
-			if(!complete_routine)
-				rtos_print("%s: complete routine NULL\n", __FUNCTION__);
-			else
-				complete_routine(complete_data);
+			if(complete_routine)
+				complete_routine(packet, complete_data);
+			
+			hpsb_free_packet(packet);
 	}
 }
 		
@@ -1388,7 +1467,7 @@ void comp_worker(unsigned long data)
 struct proc_dir_entry *rtfw_procfs_entry;
 	
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor ieee1394_core_init
  */
 int ieee1394_core_init(void)
@@ -1413,54 +1492,55 @@ int ieee1394_core_init(void)
 	
 	
 	
-	rtpkb_queue_head_init(&comp_list);
-	name = "comp";
-	comp_server = rt_serv_init(name, comp_worker, (unsigned long)&comp_list, 10);
-	if(!comp_server){
-		rtos_print("RT-FireWire:response server initialization failed\n");
+	rtpkb_prio_queue_init(&resp_list);
+	name = "resp1394";
+	resp_server = rt_serv_init(name, 10, -1, -1, resp_worker);
+	if(!resp_server){
+		HPSB_ERR("response server initialization failed\n");
 		ret = -ENOMEM;
-		goto error_exit_comp_server;
+		goto error_exit_resp_server;
 	}
 	
-	comp_list.event = &comp_server->event;
-	
-	
-	rtpkb_queue_head_init(&bis_req_list);
+	rtpkb_queue_init(&bis_req_list);
 	rtpkb_pool_init(&bis_req_pool, 16);
 	bis_req_list.pool = &bis_req_pool;
-	name = "bis";
-	bis_req_server = rt_serv_init(name, req_worker, (unsigned long)&bis_req_list, 20);
+	name = "bis1394";
+	bis_req_server = rt_serv_init(name, 20, -1, -1, req_worker);
 	if(!bis_req_server){
-		rtos_print("RT-FireWire:Bus internal request server initialization failed\n");
+		HPSB_ERR("Bus internal request server initialization failed\n");
 		ret = -ENOMEM;
 		goto error_exit_bis_req_server;
 	}
-	bis_req_list.event = &bis_req_server->event;
 
-	rtpkb_queue_head_init(&rt_req_list);
+	rtpkb_prio_queue_init(&rt_req_list);
 	rtpkb_pool_init(&rt_req_pool, 16);
 	rt_req_list.pool = &rt_req_pool;
-	name = "rt";
-	rt_req_server = rt_serv_init(name, req_worker, (unsigned long)&rt_req_list, 30);
+	name = "rt1394";
+	rt_req_server = rt_serv_init(name, 30, -1, -1, req_worker);
 	if(!rt_req_server){
-		rtos_print("RT-FireWire:Real-Time request server initialization failed\n");
+		HPSB_ERR("Real-Time request server initialization failed\n");
 		ret = -ENOMEM;
 		goto error_exit_rt_req_server;
 	}
-	rt_req_list.event = &rt_req_server->event;
 
-	rtpkb_queue_head_init(&nrt_req_list);
+	rtpkb_queue_init(&nrt_req_list);
 	rtpkb_pool_init(&nrt_req_pool, 16);
 	nrt_req_list.pool = &nrt_req_pool;
-	name = "nrt";
-	nrt_req_server = rt_serv_init(name, req_worker, (unsigned long)&nrt_req_list, 40);
+	name = "nrt1394";
+	nrt_req_server = rt_serv_init(name, -1, -1, -1, req_worker);//we are in linux
 	if(!nrt_req_server){
-		rtos_print("RT-FireWire:Non Real-Time request server initialization failed\n");
+		HPSB_ERR("Non Real-Time request server initialization failed\n");
 		ret = -ENOMEM;
 		goto error_exit_nrt_req_server;
 	}
-	nrt_req_list.event = &nrt_req_server->event;
 	
+	name = "timeout";
+	timeout_server = rt_serv_init(name, 5, -1, -1,abort_timedouts);
+	if(!timeout_server){
+		HPSB_ERR("Timeout server initialization failed\n");
+		ret = -ENOMEM;
+		goto error_exit_timeout_server;
+	}
 	
 	ret = init_csr();
 	if(ret) {
@@ -1472,6 +1552,8 @@ int ieee1394_core_init(void)
 	return ret;
 
 error_exit_init_csr:
+	rt_serv_delete(timeout_server);
+error_exit_timeout_server:
 	rt_serv_delete(nrt_req_server);
 error_exit_nrt_req_server:
 	rtpkb_pool_release(&nrt_req_pool);
@@ -1481,25 +1563,26 @@ error_exit_rt_req_server:
 	rt_serv_delete(bis_req_server);
 error_exit_bis_req_server:
 	rtpkb_pool_release(&bis_req_pool);
-	rt_serv_delete(comp_server);
-error_exit_comp_server:
+	rt_serv_delete(resp_server);
+error_exit_resp_server:
 	hpsb_cleanup_config_roms();
 	remove_proc_entry("rt-firewire",0);
 	return ret;
 }
 
 /**
- * @ingroup core
+ * @ingroup kernel
  * @anchor ieee1394_core_cleanup
  */
 void ieee1394_core_cleanup(void)
 {
 	cleanup_csr();
 	
+	rt_serv_delete(timeout_server);
 	rt_serv_delete(nrt_req_server);
 	rt_serv_delete(rt_req_server);
 	rt_serv_delete(bis_req_server);
-	rt_serv_delete(comp_server);
+	rt_serv_delete(resp_server);
 	rtpkb_pool_release(&bis_req_pool);
 	rtpkb_pool_release(&nrt_req_pool);
 	rtpkb_pool_release(&rt_req_pool);

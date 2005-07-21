@@ -1,7 +1,7 @@
 /* rtfirewire/stack/ieee1394_transactions.c
- *
- * Copyright (C) 1999, 2000 Andreas E. Bombe
- *			2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ * Transaction helper module for RT-FireWire,
+ * adapted from Linux 1394subsystem.
+ * Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,11 @@
  * @ingroup trans
  * @file 
  *
- * Implementation of stack transaction helper module
+ * Transaction helper module
+ * - functions to make packets for different type of transaction
+ * - functions to get/free transaction label
+ * - functions to examine the result of transaction
+ * - functions to do atomic transaction. 
  *
  */
  
@@ -35,10 +39,11 @@
 #include <asm/errno.h>
 
 #include <ieee1394.h>
-#include "ieee1394_types.h"
-#include "hosts.h"
-#include "ieee1394_core.h"
-#include "highlevel.h"
+#include <ieee1394_types.h>
+#include <hosts.h>
+#include <ieee1394_core.h>
+#include <highlevel.h>
+#include <ieee1394_transactions.h>
 
 
 #define PREP_ASYNC_HEAD_ADDRESS(tc) \
@@ -176,9 +181,7 @@ static void fill_async_stream_packet(struct hpsb_packet *packet, int length,
  *
  * @param packet - the packet who's tlabel/tpool we set
  * @return  Zero on success, otherwise non-zero. A non-zero return
- * generally means there are no available tlabels. If this is called out
- * of interrupt or atomic context, then it will sleep until can return a
- * tlabel.
+ * generally means there are no available tlabels. 
  */
 int hpsb_get_tlabel(struct hpsb_packet *packet)
 {
@@ -196,7 +199,7 @@ int hpsb_get_tlabel(struct hpsb_packet *packet)
 	//~ }
 	//~ rtos_res_lock(&tp->count); //64 tasks can call here without blocking
 	if(atomic_read(&tp->count)<0) {
-		rtos_print("%s: run out of tlabel\n",__FUNCTION__);
+		HPSB_PRINT(KERN_ERR, "run out of tlabel\n");
 		return 1;
 	}
 	atomic_dec(&tp->count);
@@ -330,19 +333,18 @@ int hpsb_packet_success(struct hpsb_packet *packet)
  * to make an async read packet
  */
 struct hpsb_packet *hpsb_make_readpacket(struct hpsb_host *host, nodeid_t node,
-					 u64 addr, size_t length, int pri)
+					 u64 addr, size_t length, unsigned int pri)
 {
         struct hpsb_packet *packet;
 
 	if (length == 0)
 		return NULL;
 
-	packet = hpsb_alloc_packet(length,&host->pool);
+	packet = hpsb_alloc_packet(length,&host->pool,pri);
 	if (!packet){
 		
 		return NULL;
 	}
-	packet->pri = pri;
 	
 	packet->host = host;
 	packet->node_id = node;
@@ -366,17 +368,16 @@ struct hpsb_packet *hpsb_make_readpacket(struct hpsb_host *host, nodeid_t node,
  * @anchor hpsb_make_writepacket
  */
 struct hpsb_packet *hpsb_make_writepacket (struct hpsb_host *host, nodeid_t node,
-					   u64 addr, quadlet_t *buffer, size_t length, int pri)
+					   u64 addr, quadlet_t *buffer, size_t length, unsigned int pri)
 {
 	struct hpsb_packet *packet;
 
 	if (length == 0)
 		return NULL;
 
-	packet = hpsb_alloc_packet(length,&host->pool);
+	packet = hpsb_alloc_packet(length,&host->pool,pri);
 	if (!packet)
 		return NULL;
-	packet->pri = pri;
 	
 	if (length % 4) { /* zero padding bytes */
 		packet->data[length >> 2] = 0;
@@ -406,14 +407,14 @@ struct hpsb_packet *hpsb_make_writepacket (struct hpsb_host *host, nodeid_t node
  * make an stream packet
  */
 struct hpsb_packet *hpsb_make_streampacket(struct hpsb_host *host, u8 *buffer, int length,
-                                           int channel, int tag, int sync)
+                                           int channel, int tag, int sync, unsigned int pri)
 {
 	struct hpsb_packet *packet;
 
 	if (length == 0)
 		return NULL;
 
-	packet = hpsb_alloc_packet(length, &host->pool);
+	packet = hpsb_alloc_packet(length, &host->pool, pri);
 	if (!packet)
 		return NULL;
 
@@ -440,19 +441,18 @@ struct hpsb_packet *hpsb_make_streampacket(struct hpsb_host *host, u8 *buffer, i
  */
 struct hpsb_packet *hpsb_make_lockpacket(struct hpsb_host *host, nodeid_t node,
                                          u64 addr, int extcode, quadlet_t *data,
-					 quadlet_t arg, int pri)
+					 quadlet_t arg, unsigned int pri)
 {
-	struct hpsb_packet *p;
+	struct hpsb_packet *packet;
 	u32 length;
 
-	p = hpsb_alloc_packet(8, &host->pool);
-	if (!p) return NULL;
-	p->pri = pri;	
+	packet = hpsb_alloc_packet(8, &host->pool, pri);
+	if (!packet) return NULL;
 
-	p->host = host;
-	p->node_id = node;
-	if (hpsb_get_tlabel(p)) {
-		hpsb_free_packet(p);
+	packet->host = host;
+	packet->node_id = node;
+	if (hpsb_get_tlabel(packet)) {
+		hpsb_free_packet(packet);
 		return NULL;
 	}
 
@@ -461,19 +461,19 @@ struct hpsb_packet *hpsb_make_lockpacket(struct hpsb_host *host, nodeid_t node,
 	case EXTCODE_LITTLE_ADD:
 		length = 4;
 		if (data)
-			p->data[0] = *data;
+			packet->data[0] = *data;
 		break;
 	default:
 		length = 8;
 		if (data) {
-			p->data[0] = arg;
-			p->data[1] = *data;
+			packet->data[0] = arg;
+			packet->data[1] = *data;
 		}
 		break;
 	}
-	fill_async_lock(p, addr, extcode, length);
+	fill_async_lock(packet, addr, extcode, length);
 
-	return p;
+	return packet;
 }
 
 /**
@@ -482,19 +482,18 @@ struct hpsb_packet *hpsb_make_lockpacket(struct hpsb_host *host, nodeid_t node,
  */
 struct hpsb_packet *hpsb_make_lock64packet(struct hpsb_host *host, nodeid_t node,
                                            u64 addr, int extcode, octlet_t *data,
-					   octlet_t arg, int pri)
+					   octlet_t arg, unsigned int pri)
 {
-	struct hpsb_packet *p;
+	struct hpsb_packet *packet;
 	u32 length;
 
-	p = hpsb_alloc_packet(16, &host->pool);
-	if (!p) return NULL;
-	p->pri = pri;
+	packet = hpsb_alloc_packet(16, &host->pool, pri);
+	if (!packet) return NULL;
 	
-	p->host = host;
-	p->node_id = node;
-	if (hpsb_get_tlabel(p)) {
-		hpsb_free_packet(p);
+	packet->host = host;
+	packet->node_id = node;
+	if (hpsb_get_tlabel(packet)) {
+		hpsb_free_packet(packet);
 		return NULL;
 	}
 
@@ -503,23 +502,23 @@ struct hpsb_packet *hpsb_make_lock64packet(struct hpsb_host *host, nodeid_t node
 	case EXTCODE_LITTLE_ADD:
 		length = 8;
 		if (data) {
-			p->data[0] = *data >> 32;
-			p->data[1] = *data & 0xffffffff;
+			packet->data[0] = *data >> 32;
+			packet->data[1] = *data & 0xffffffff;
 		}
 		break;
 	default:
 		length = 16;
 		if (data) {
-			p->data[0] = arg >> 32;
-			p->data[1] = arg & 0xffffffff;
-			p->data[2] = *data >> 32;
-			p->data[3] = *data & 0xffffffff;
+			packet->data[0] = arg >> 32;
+			packet->data[1] = arg & 0xffffffff;
+			packet->data[2] = *data >> 32;
+			packet->data[3] = *data & 0xffffffff;
 		}
 		break;
 	}
-	fill_async_lock(p, addr, extcode, length);
+	fill_async_lock(packet, addr, extcode, length);
 
-	return p;
+	return packet;
 }
 
 /**
@@ -529,15 +528,16 @@ struct hpsb_packet *hpsb_make_lock64packet(struct hpsb_host *host, nodeid_t node
 struct hpsb_packet *hpsb_make_phypacket(struct hpsb_host *host,
                                         quadlet_t data)
 {
-        struct hpsb_packet *p;
+        struct hpsb_packet *packet;
 
-        p = hpsb_alloc_packet(0,&host->pool);
-        if (!p) return NULL;
+	/* we assign physical packet the highest priority */
+        packet = hpsb_alloc_packet(0,&host->pool, IEEE1394_PRIORITY_HIGHEST);
+        if (!packet) return NULL;
 
-        p->host = host;
-        fill_phy_packet(p, data);
+        packet->host = host;
+        fill_phy_packet(packet, data);
 
-        return p;
+        return packet;
 }
 
 /**
@@ -546,32 +546,29 @@ struct hpsb_packet *hpsb_make_phypacket(struct hpsb_host *host,
  */
 struct hpsb_packet *hpsb_make_isopacket(struct hpsb_host *host,
 					int length, int channel,
-					int tag, int sync)
+					int tag, int sync, unsigned int pri)
 {
-	struct hpsb_packet *p;
+	struct hpsb_packet *packet;
 
-	p = hpsb_alloc_packet(length, &host->pool);
-	if (!p) return NULL;
+	packet = hpsb_alloc_packet(length, &host->pool, pri);
+	if (!packet) return NULL;
 
-	p->host = host;
-	fill_iso_packet(p, length, channel, tag, sync);
+	packet->host = host;
+	fill_iso_packet(packet, length, channel, tag, sync);
 
-	p->generation = get_hpsb_generation(host);
+	packet->generation = get_hpsb_generation(host);
 
-	return p;
+	return packet;
 }
 
-/*
- * FIXME - these functions should probably read from / write to user space to
- * avoid in kernel buffers for user space callers
- */
+
 /**
  * @ingroup trans
  * @anchor hpsb_read
  * an atomic read, i.e. blocked between req and resp.
  */
 int hpsb_read(struct hpsb_host *host, nodeid_t node, unsigned int generation,
-	      u64 addr, quadlet_t *buffer, size_t length, int pri)
+	      u64 addr, quadlet_t *buffer, size_t length, unsigned int pri)
 {
         struct hpsb_packet *packet;
         int retval = 0;
@@ -616,7 +613,7 @@ hpsb_read_fail:
  * an atomic write, i.e. blocked between req and resp
  */
 int hpsb_write(struct hpsb_host *host, nodeid_t node, unsigned int generation,
-	       u64 addr, quadlet_t *buffer, size_t length, int pri)
+	       u64 addr, quadlet_t *buffer, size_t length, unsigned int pri)
 {
 	struct hpsb_packet *packet;
 	int retval;
@@ -651,7 +648,8 @@ hpsb_write_fail:
  * atomic lock,i.e. blocked between req and resp. 
  */
 int hpsb_lock(struct hpsb_host *host, nodeid_t node, unsigned int generation,
-	      u64 addr, int extcode, quadlet_t *data, quadlet_t arg, int pri)
+		u64 addr, int extcode, quadlet_t *data, quadlet_t arg, 
+		unsigned int pri)
 {
         struct hpsb_packet *packet;
         int retval = 0;
@@ -687,7 +685,7 @@ hpsb_lock_fail:
  */
 int hpsb_send_gasp(struct hpsb_host *host, int channel, unsigned int generation,
 		   quadlet_t *buffer, size_t length, u32 specifier_id,
-		   unsigned int version)
+		   unsigned int version, unsigned int pri)
 {
 	struct hpsb_packet *packet;
 	int retval = 0;
@@ -698,7 +696,7 @@ int hpsb_send_gasp(struct hpsb_host *host, int channel, unsigned int generation,
 
 	length += 8;
 
-	packet = hpsb_make_streampacket(host, NULL, length, channel, 3, 0);
+	packet = hpsb_make_streampacket(host, NULL, length, channel, 3, 0, pri);
 	if (!packet)
 		return -ENOMEM;
 

@@ -41,6 +41,7 @@
 #include "hosts.h"
 #include "ieee1394.h"
 #include "highlevel.h"
+#include "ieee1394_core.h"
 
 /* Module Parameters */
 /* this module parameter can be used to disable mapping of the FCP registers */
@@ -53,20 +54,15 @@ static struct csr1212_keyval *node_cap = NULL;
 static void add_host(struct hpsb_host *host);
 static void remove_host(struct hpsb_host *host);
 static void host_reset(struct hpsb_host *host);
-static int read_maps(struct hpsb_host *host, int nodeid, quadlet_t *buffer,
-		     u64 addr, size_t length, u16 fl);
-static int write_fcp(struct hpsb_host *host, int nodeid, int dest,
-		     quadlet_t *data, u64 addr, size_t length, u16 flags);
-static int read_regs(struct hpsb_host *host, int nodeid, quadlet_t *buf,
-		     u64 addr, size_t length, u16 flags);
-static int write_regs(struct hpsb_host *host, int nodeid, int destid,
-		      quadlet_t *data, u64 addr, size_t length, u16 flags);
-static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
-		     u64 addr, quadlet_t data, quadlet_t arg, int extcode, u16 fl);
-static int lock64_regs(struct hpsb_host *host, int nodeid, octlet_t * store,
-		       u64 addr, octlet_t data, octlet_t arg, int extcode, u16 fl);
-static int read_config_rom(struct hpsb_host *host, int nodeid, quadlet_t *buffer,
-			   u64 addr, size_t length, u16 fl);
+static int read_maps(struct hpsb_host *host, struct hpsb_packet *packet, 
+			void *buffer, size_t length);
+static int write_fcp(struct hpsb_host *host, struct hpsb_packet *packet, size_t length);
+static int read_regs(struct hpsb_host *host, struct hpsb_packet *packet, 
+			void *buffer, size_t length);
+static int write_regs(struct hpsb_host *host, struct hpsb_packet *packet, size_t length);
+static int lock_regs(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *store);
+static int lock64_regs(struct hpsb_host *host, struct hpsb_packet *packet, octlet_t * store);
+static int read_config_rom(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, size_t lengthl);
 static u64 allocate_addr_range(u64 size, u32 alignment, void *__host);
 static void release_addr_range(u64 addr, void *__host);
 
@@ -409,15 +405,14 @@ int hpsb_update_config_rom(struct hpsb_host *host, const quadlet_t *new_rom,
  * Called when access to speedmap/topologymap occurs
  *
  * @param buffer - the buffer to store read info
- * @param addr - the 48-bit address
  * @param length - the length of required data
- * @param fl - not used. 
  *
  * @return only RCODE_COMPLETE is possible. 
  */
-static int read_maps(struct hpsb_host *host, int nodeid, quadlet_t *buffer,
-                     u64 addr, size_t length, u16 fl)
+static int read_maps(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, size_t length)
 {
+	
+	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
 	unsigned long flags;
         int csraddr = addr - CSR_REGISTER_BASE;
         const char *src;
@@ -431,7 +426,7 @@ static int read_maps(struct hpsb_host *host, int nodeid, quadlet_t *buffer,
                 src = ((char *)host->csr.speed_map) + csraddr - CSR_SPEED_MAP;
         }
 
-        memcpy(buffer, src, length);
+        memcpy((quadlet_t *)buffer, src, length);
         spin_unlock_irqrestore(&host->csr.lock, flags);
         return RCODE_COMPLETE;
 }
@@ -454,10 +449,11 @@ static int read_maps(struct hpsb_host *host, int nodeid, quadlet_t *buffer,
  *   - RCODE_TYPE_ERROR
  * @note see more info in @ref csr section of "Overview of Real-Time Firewire Stack". 
  */
-static int read_regs(struct hpsb_host *host, int nodeid, quadlet_t *buf,
-                     u64 addr, size_t length, u16 flags)
+static int read_regs(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, size_t length)
 {
-        int csraddr = addr - CSR_REGISTER_BASE;
+        u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
+	
+	int csraddr = addr - CSR_REGISTER_BASE;
         int oldcycle;
         quadlet_t ret;
 
@@ -466,6 +462,7 @@ static int read_regs(struct hpsb_host *host, int nodeid, quadlet_t *buf,
 
         length /= 4;
 
+	quadlet_t *buf = (quadlet_t *)buffer;
         switch (csraddr) {
         case CSR_STATE_CLEAR:
                 *(buf++) = cpu_to_be32(host->csr.state);
@@ -586,16 +583,18 @@ static int read_regs(struct hpsb_host *host, int nodeid, quadlet_t *buf,
  *   - RCODE_TYPE_ERROR
  * @note see more info in @ref csr section of "Overview of Real-Time Firewire Stack". 
  */
-static int write_regs(struct hpsb_host *host, int nodeid, int destid,
-		      quadlet_t *data, u64 addr, size_t length, u16 flags)
+static int write_regs(struct hpsb_host *host, struct hpsb_packet *packet, size_t length)
 {
-        int csraddr = addr - CSR_REGISTER_BASE;
+	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
+
+	int csraddr = addr - CSR_REGISTER_BASE;
 
         if ((csraddr | length) & 0x3)
                 return RCODE_TYPE_ERROR;
 
         length /= 4;
 
+	quadlet_t *data = packet->data;
         switch (csraddr) {
         case CSR_STATE_CLEAR:
                 /* FIXME FIXME FIXME */
@@ -691,10 +690,11 @@ static int write_regs(struct hpsb_host *host, int nodeid, int destid,
  *   - RCODE_TYPE_ERROR
  * @note see more info in @ref csr section of "Overview of Real-Time Firewire Stack". 
  */
-static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
-                     u64 addr, quadlet_t data, quadlet_t arg, int extcode, u16 fl)
+static int lock_regs(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *store)
 {
-        int csraddr = addr - CSR_REGISTER_BASE;
+        int extcode = packet->header[3] & 0xffff;
+	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
+	int csraddr = addr - CSR_REGISTER_BASE;
         unsigned long flags;
         quadlet_t *regptr = NULL;
 
@@ -705,8 +705,8 @@ static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
             || extcode != EXTCODE_COMPARE_SWAP)
                 goto unsupported_lockreq;
 
-        data = be32_to_cpu(data);
-        arg = be32_to_cpu(arg);
+        quadlet_t data = be32_to_cpu(packet->header[4]);
+        quadlet_t arg = be32_to_cpu(packet->header[5]);
 
 	/* Is somebody releasing the broadcast_channel on us? */
 	if (csraddr == CSR_CHANNELS_AVAILABLE_HI && (data & 0x1)) {
@@ -715,7 +715,7 @@ static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
 		 * eventually. */
 		HPSB_WARN("Node [" NODE_BUS_FMT "] wants to release "
 			  "broadcast channel 31.  Ignoring.",
-			  NODE_BUS_ARGS(host, nodeid));
+			  NODE_BUS_ARGS(host, packet->node_id));
 
 		data &= ~0x1;	/* keep broadcast channel allocated */
 	}
@@ -875,14 +875,15 @@ static int lock_regs(struct hpsb_host *host, int nodeid, quadlet_t *store,
  * @note see more info in @ref csr section of "Overview of Real-Time Firewire Stack". 
  */
 
-static int lock64_regs(struct hpsb_host *host, int nodeid, octlet_t * store,
-		       u64 addr, octlet_t data, octlet_t arg, int extcode, u16 fl)
+static int lock64_regs(struct hpsb_host *host, struct hpsb_packet *packet, octlet_t * store)
 {
+	int extcode = packet->header[3] & 0xffff;
+	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
 	int csraddr = addr - CSR_REGISTER_BASE;
 	unsigned long flags;
 
-	data = be64_to_cpu(data);
-	arg = be64_to_cpu(arg);
+	octlet_t data = be64_to_cpu(*(octlet_t *)(packet->header + 6));
+	octlet_t arg = be64_to_cpu(*(octlet_t *)(packet->header + 4));
 
 	if (csraddr & 0x3)
 		return RCODE_TYPE_ERROR;
@@ -898,7 +899,7 @@ static int lock64_regs(struct hpsb_host *host, int nodeid, octlet_t * store,
                  * eventually. */
 		HPSB_WARN("Node [" NODE_BUS_FMT "] wants to release "
 			  "broadcast channel 31.  Ignoring.",
-			  NODE_BUS_ARGS(host, nodeid));
+			  NODE_BUS_ARGS(host, packet->node_id));
 
 		data &= ~0x100000000ULL;	/* keep broadcast channel allocated */
 	}
@@ -976,20 +977,21 @@ static int lock64_regs(struct hpsb_host *host, int nodeid, octlet_t * store,
  * @return RCODE_COMPLETE on success
  *   - RCODE_TYPE_ERROR on failure. 
  */
-static int write_fcp(struct hpsb_host *host, int nodeid, int dest,
-		     quadlet_t *data, u64 addr, size_t length, u16 flags)
+static int write_fcp(struct hpsb_host *host, struct hpsb_packet *packet, size_t length)
 {
-        int csraddr = addr - CSR_REGISTER_BASE;
+        u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
+	int csraddr = addr - CSR_REGISTER_BASE;
 
+	quadlet_t *data = packet->data;
         if (length > 512)
                 return RCODE_TYPE_ERROR;
 
         switch (csraddr) {
         case CSR_FCP_COMMAND:
-                highlevel_fcp_request(host, nodeid, 0, (u8 *)data, length);
+                highlevel_fcp_request(host, packet->node_id, 0, (u8 *)data, length);
                 break;
         case CSR_FCP_RESPONSE:
-                highlevel_fcp_request(host, nodeid, 1, (u8 *)data, length);
+                highlevel_fcp_request(host, packet->node_id, 1, (u8 *)data, length);
                 break;
         default:
                 return RCODE_TYPE_ERROR;
@@ -1006,13 +1008,12 @@ static int write_fcp(struct hpsb_host *host, int nodeid, int dest,
  * @return RCODE_COMPLETE / RCODE_ADDRESS_ERROR
  * @note see @ref csr section of "Overview of Real-Time Firewire Stack"
  */
-static int read_config_rom(struct hpsb_host *host, int nodeid, quadlet_t *buffer,
-			   u64 addr, size_t length, u16 fl)
+static int read_config_rom(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, size_t length)
 {
-	printk("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
 	u32 offset = addr - CSR1212_REGISTER_SPACE_BASE;
 
-	if (csr1212_read(host->csr.rom, offset, buffer, length) == CSR1212_SUCCESS)
+	if (csr1212_read(host->csr.rom, offset, (quadlet_t *)buffer, length) == CSR1212_SUCCESS)
 		return RCODE_COMPLETE;
 	else
 		return RCODE_ADDRESS_ERROR;
@@ -1062,7 +1063,5 @@ void cleanup_csr(void)
 {
 	if (node_cap)
 		csr1212_release_keyval(node_cap);
-	printk(KERN_DEBUG "pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
         hpsb_unregister_highlevel(&csr_highlevel);
-	printk(KERN_DEBUG "pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 }

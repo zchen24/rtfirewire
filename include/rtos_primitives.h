@@ -33,8 +33,7 @@
 	
 #define RTOS_SET_MODULE_OWNER(some_struct)	\
 	do {(some_struct)->rt_owner = THIS_MODULE; } while (0)
-	
-	
+
 #if defined(CONFIG_RTAI_24) || defined(CONFIG_RTAI_30) || \
     defined(CONFIG_RTAI_31) || defined(CONFIG_RTAI_32)
 
@@ -46,6 +45,9 @@
 
 #include <rtai.h>
 #include <rtai_sched.h>
+#include <asm/rtai_sched.h>
+#include <rtai_schedcore.h>
+
 
 /* RTAI-3.x only headers */
 #ifdef HAVE_RTAI_MALLOC_H
@@ -124,9 +126,9 @@ static inline void rtos_time_diff(rtos_time_t *result,
     result->val = a->val - b->val;
 }
 
-#define RTOS_TIME_IS_ZERO(time)     ((time)->val == 0)
-#define RTOS_TIME_IS_BEFORE(a, b)   ((a)->val < (b)->val)
-#define RTOS_TIME_EQUALS(a, b)      ((a)->val == (b)->val)
+#define RTOS_TIME_IS_ZERO(time)     ((time) == 0)
+#define RTOS_TIME_IS_BEFORE(a, b)   ((a) < (b))
+#define RTOS_TIME_EQUALS(a, b)      ((a) == (b))
 
 
 
@@ -163,7 +165,25 @@ static inline void rtos_time_diff(rtos_time_t *result,
 #define RTOS_RAISE_PRIORITY         (-1)
 #define RTOS_LOWER_PRIORITY         (+1)
 
+#define RTOS_TIME_LIMIT	0x7FFFFFFFFFFFFFFFLL //copied from rtai_hal.h 
+
 static inline int rtos_task_init(rtos_task_t *task, void (*task_proc)(int),
+                                 int arg, int stack_size, int priority, int use_fpu)
+{
+	int ret;
+	
+	ret = rt_task_init(task, task_proc, arg, stack_size, priority, use_fpu, NULL);
+	if(ret < 0)
+		return ret;
+	
+	ret = rt_task_resume(task);
+	if(ret < 0)
+		rt_task_delete(task);
+	
+	return ret;
+}
+				 
+static inline int rtos_task_init_fast(rtos_task_t *task, void (*task_proc)(int),
                                  int arg, int priority)
 {
     int ret;
@@ -206,6 +226,11 @@ static inline int rtos_task_init_suspended(rtos_task_t *task,
 static inline int rtos_task_resume(rtos_task_t *task)
 {
     return rt_task_resume(task);
+}
+
+static inline int rtos_task_suspend(rtos_task_t *task)
+{
+    return rt_task_suspend(task);
 }
 
 static inline int rtos_task_wakeup(rtos_task_t *task)

@@ -1,28 +1,36 @@
+/* rtfirewire/include/iso.h
+ *
+*  Interface and data structure of iso module
+ *
+ * Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+
 /**
  * @ingroup iso
  * @file
  *
  * data structure and interfaces of iso module
  */
-/*** legacy ****/
-/*
- * IEEE 1394 for Linux
- *
- * kernel ISO transmission/reception
- *
- * Copyright (C) 2002 Maas Digital LLC
- *
- * This code is licensed under the GPL.  See the file COPYING in the root
- * directory of the kernel sources for details.
- */
-/**** legacy ******/
 
 #ifndef IEEE1394_ISO_H
 #define IEEE1394_ISO_H
 
-#include "hosts.h"
-#include "dma.h"
-#include <rt1394_sys.h>
+#ifdef __KERNEL__
+
 
 /*****************************************
 * @defgroup iso
@@ -43,12 +51,28 @@ Packet descriptor - the API maintains a ring buffer of these packet
 descriptors in kernel memory (hpsb_iso.infos[]).  
 */
 
+//this structure is delivered by highlevel applications  to kernel as config object
+//~ struct hpsb_iso_config {
+	//~ void *iso_handle; //pointer to the opaque hpsb_iso strucutre
+	//~ unsigned int data_buf_size;
+	//~ unsigned int buf_packets;
+	//~ int channel;
+	//~ int irqinterval;
+	//~ int dma_mode;
+	//~ int pri;
+	//~ void (*callback)(void *, void *); //one arg is iso
+	//~ void *arg; //another arg of callback
+//~ };
+struct hpsb_iso;
 /**
  * @ingroup iso
  * @struct hpsb_iso_packet_info
  */
 struct hpsb_iso_packet_info {
-	/*! offset of data payload relative to the first byte of the buffer */
+	/*! address of data payload */
+	unsigned char *buf;
+	
+	/* relative address to start of data buffer */
 	__u32 offset;
 
 	/*! length of the data payload, in bytes (not including the isochronous header) */
@@ -75,11 +99,26 @@ enum raw1394_iso_dma_recv_mode {
 	HPSB_ISO_DMA_PACKET_PER_BUFFER = 2
 };
 
+/* N packets have been read out of the buffer, re-use the buffer space */
+int  hpsb_iso_recv_release_packets(struct hpsb_iso *, unsigned int n_packets);
+
+/* check for arrival of new packets immediately (even if irq_interval
+   has not yet been reached) */
+int hpsb_iso_recv_flush(struct hpsb_iso *iso);
+
+/* returns # of packets ready to send or receive */
+int hpsb_iso_n_ready(struct hpsb_iso *iso);
+
+//~ struct hpsb_iso_packet_info *get_isopacketinfo(void *iso, int index);
+
+#include <hosts.h>
+#include <dma.h>
+#include <rt1394_sys.h>
+
 /**
  * @ingroup iso
  * @struct hpsb_iso
- * Structure for the kernel data buffer. 
- * 
+ * Isochronous transaction buffer 
  * including attributes setting for the iso
  * transaction&operaton on this buffer. 
  */
@@ -93,10 +132,11 @@ struct hpsb_iso {
 	/*! a function to be called (from interrupt context) after
            outgoing packets have been sent, or incoming packets have
            arrived */
-	void (*callback)(struct hpsb_iso*);
+	void (*callback)(struct hpsb_iso *iso, void *arg);
+	void *arg;
 
 	/*! wait for buffer space */
-	wait_queue_head_t waitq;
+	//wait_queue_head_t waitq;
 
 	int speed; /*! IEEE1394_SPEED_100, 200, or 400 */
 	int channel; /*! -1 if multichannel */
@@ -157,9 +197,9 @@ struct hpsb_iso {
 	 * this entry to fill this field. */
 	struct hpsb_iso_packet_info *infos;
 		
-	int pri;
+	unsigned int pri;
 	
-	unsigned char name[16];
+	unsigned char name[32];
 };
 
 /* functions available to high-level drivers (e.g. raw1394) */
@@ -172,7 +212,7 @@ struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 				    int channel,
 				    int speed,
 				    int irq_interval,
-				    void (*callback)(struct hpsb_iso*), int pri);
+				    void (*callback)(struct hpsb_iso*, void *), void *arg, unsigned char *name, int pri);
 
 /* note: if channel = -1, multi-channel receive is enabled */
 struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
@@ -181,7 +221,7 @@ struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
 				    int channel,
 				    int dma_mode,
 				    int irq_interval,
-				    void (*callback)(struct hpsb_iso*), int pri);
+				    void (*callback)(struct hpsb_iso*, void*), void *arg, unsigned char *name, int pri);
 
 /* multi-channel only */
 int hpsb_iso_recv_listen_channel(struct hpsb_iso *iso, unsigned char channel);
@@ -203,16 +243,6 @@ int hpsb_iso_xmit_queue_packet(struct hpsb_iso *iso, u32 offset, u16 len, u8 tag
 /* wait until all queued packets have been transmitted to the bus */
 int hpsb_iso_xmit_sync(struct hpsb_iso *iso);
 
-/* N packets have been read out of the buffer, re-use the buffer space */
-int  hpsb_iso_recv_release_packets(struct hpsb_iso *recv, unsigned int n_packets);
-
-/* check for arrival of new packets immediately (even if irq_interval
-   has not yet been reached) */
-int hpsb_iso_recv_flush(struct hpsb_iso *iso);
-
-/* returns # of packets ready to send or receive */
-int hpsb_iso_n_ready(struct hpsb_iso *iso);
-
 /* the following are callbacks available to low-level drivers */
 
 /* call after a packet has been transmitted to the bus (interrupt context is OK)
@@ -228,4 +258,5 @@ void hpsb_iso_packet_received(struct hpsb_iso *iso, u32 offset, u16 len,
 /* call to wake waiting processes after buffer space has opened up. */
 void hpsb_iso_wake(struct hpsb_iso *iso);
 
+#endif /* __KERNEL__ */
 #endif /* IEEE1394_ISO_H */

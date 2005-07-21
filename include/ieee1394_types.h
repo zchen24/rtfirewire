@@ -47,7 +47,7 @@ do {	\
 	(_tp)->allocations = 0;			\
 	atomic_set(&(_tp)->count, 63); \
 } while (0)
-#endif
+#endif /*! CONFIG_KERNEL_26 */
 
 
 typedef u32 			quadlet_t;
@@ -64,6 +64,9 @@ typedef u16 			arm_length_t;
 #define LOCAL_BUS 0xffc0
 #define ALL_NODES 0x003f
 
+#define IEEE1394_HEADER_SIZE 160 /*5xsizeof(quadlet_t) */
+#define IEEE1394_OBJECT_PRIORITY 20 /*base priority for memory object */
+
 #define NODEID_TO_BUS(nodeid)	((nodeid & BUS_MASK) >> BUS_SHIFT)
 #define NODEID_TO_NODE(nodeid)	(nodeid & NODE_MASK)
 
@@ -72,19 +75,26 @@ typedef u16 			arm_length_t;
 #define NODE_BUS_ARGS(__host, __nodeid)	\
 	__host->ifindex, NODEID_TO_NODE(__nodeid), NODEID_TO_BUS(__nodeid)
 
-#define HPSB_PRINT(level, fmt, args...) printk(level "ieee1394: " fmt "\n" , ## args)
+#define HPSB_PRINT(level, fmt, args...) printk(level "%s[%s]: " fmt "\n" , __FILE__, __FUNCTION__,## args)
+#define HPSB_ERR(fmt, args...) HPSB_PRINT(KERN_ERR, fmt , ## args)
 
+#ifdef CONFIG_IEEE1394_DEBUG
 #define HPSB_DEBUG(fmt, args...) HPSB_PRINT(KERN_DEBUG, fmt , ## args)
 #define HPSB_INFO(fmt, args...) HPSB_PRINT(KERN_INFO, fmt , ## args)
 #define HPSB_NOTICE(fmt, args...) HPSB_PRINT(KERN_NOTICE, fmt , ## args)
 #define HPSB_WARN(fmt, args...) HPSB_PRINT(KERN_WARNING, fmt , ## args)
-#define HPSB_ERR(fmt, args...) HPSB_PRINT(KERN_ERR, fmt , ## args)
+#else
+#define HPSB_DEBUG(fmt, args...) 
+#define HPSB_INFO(fmt, args...) 
+#define HPSB_NOTICE(fmt, args...)
+#define HPSB_WARN(fmt, args...)
+#endif /*! CONFIG_IEEE1394_DEBUG */
 
 #ifdef CONFIG_IEEE1394_VERBOSEDEBUG
 #define HPSB_VERBOSE(fmt, args...) HPSB_PRINT(KERN_DEBUG, fmt , ## args)
 #else
 #define HPSB_VERBOSE(fmt, args...)
-#endif
+#endif /*! CONFIG_IEEE1394_VERBOSEDEBUG */
 
 #define HPSB_PANIC(fmt, args...) panic("ieee1394: " fmt "\n" , ## args)
 
@@ -125,6 +135,6 @@ static __inline__ void *memcpy_le32(u32 *dest, const u32 *src, size_t count)
         return memcpy(dest, src, count);
 }
 
-#endif /* __BIG_ENDIAN */
+#endif /*! __BIG_ENDIAN */
 
 #endif /* _IEEE1394_TYPES_H */

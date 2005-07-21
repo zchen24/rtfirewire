@@ -1,8 +1,8 @@
 /* rtfirewire/stack/highlevel.c
- * Implementation of highlevel drivers management
+ * Implementation of application layer management for RT-FireWire
+ * adapted from Linux 1394subsystem. 
  *
- * Copyright (C) 1999 Andreas E. Bombe
- *			2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ * Copyright (C) 2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -315,6 +315,7 @@ void hpsb_register_highlevel(struct hpsb_highlevel *hl)
 		up(&hpsb_hosts_lock);
 	}
 	
+	/*if the highlevel application introduces new ioctl to /dev/rt-firewire */
 	if(hl->hl_ioctl)
 		list_add_tail(&hl->hl_ioctl->entry, &ioctl_handlers);
 	
@@ -348,12 +349,10 @@ static void __unregister_host(struct hpsb_highlevel *hl, struct hpsb_host *host,
 	struct list_head *lh, *next;
 	struct hpsb_address_serve *as;
 
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	/*! First, let the highlevel driver unreg */
 	if (hl->remove_host)
 		hl->remove_host(host);
 
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	/*! Remove any addresses that are matched for this highlevel driver
 	 * and this particular host. */
 	write_lock_irqsave(&addr_space_lock, flags);
@@ -365,11 +364,9 @@ static void __unregister_host(struct hpsb_highlevel *hl, struct hpsb_host *host,
 	}
 	write_unlock_irqrestore(&addr_space_lock, flags);
 
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	/*! Now update the config-rom to reflect anything removed by the
 	 * highlevel driver. */
 	//~ if (update_cr && host->update_config_rom) {
-		//~ rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		//~ if (hpsb_update_config_rom_image(host) < 0) {
 			//~ HPSB_ERR("Failed to generate Configuration ROM image for host "
 				 //~ "%s-%d", hl->name, host->ifindex);
@@ -379,7 +376,6 @@ static void __unregister_host(struct hpsb_highlevel *hl, struct hpsb_host *host,
 	/*! And finally, remove all the host info associated between these
 	 * two. */
 	hpsb_destroy_hostinfo(hl, host);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 }
 
 /**
@@ -392,7 +388,6 @@ static void __unregister_host(struct hpsb_highlevel *hl, struct hpsb_host *host,
 static int highlevel_for_each_host_unreg(struct hpsb_host *host, void *__data)
 {
 	struct hpsb_highlevel *hl = __data;
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);	
 
 	__unregister_host(hl, host, 1);
 
@@ -407,7 +402,7 @@ static int highlevel_for_each_host_unreg(struct hpsb_host *host, void *__data)
  *This includes unregisterring the address mapping , 
  * calling the driver-specific "remove_host" routine for each exsiting host, 
  * destorying the hostinfo 
- * and unregisterring the ioctl handler from stack management (char device).
+ * and possibly unregisterring the ioctl handler from /dev/rt-firewire.
  * 
  * @param hl the pointer to the hpsb_highlevel struct
  * @return void 
@@ -418,20 +413,16 @@ void hpsb_unregister_highlevel(struct hpsb_highlevel *hl)
 	struct hpsb_host *host;
 	int i;
 		
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	write_lock(&hl_irqs_lock);
 	list_del(&hl->irq_list);
 	write_unlock(&hl_irqs_lock);
 
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	write_lock(&hl_drivers_lock);
         list_del(&hl->hl_list);
 	write_unlock(&hl_drivers_lock);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	down(&hpsb_hosts_lock);
 		for (i = 0; i < MAX_RT_HOSTS; i++) {
-			rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 			host = hpsb_hosts[i];
 			if(host)
 				highlevel_for_each_host_unreg(host, hl);
@@ -440,7 +431,6 @@ void hpsb_unregister_highlevel(struct hpsb_highlevel *hl)
 	
 	if(hl->hl_ioctl)
 		list_del(&hl->hl_ioctl->entry);
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 }
 
 
@@ -544,7 +534,7 @@ u64 hpsb_allocate_and_register_addrspace(struct hpsb_highlevel *hl,
 int hpsb_register_addrspace(struct hpsb_highlevel *hl, struct hpsb_host *host,
                             struct hpsb_address_ops *ops, u64 start, u64 end)
 {
-        struct hpsb_address_serve *as;
+	struct hpsb_address_serve *as;
         struct list_head *lh;
         int retval = 0;
         unsigned long flags;
@@ -631,52 +621,91 @@ int hpsb_unregister_addrspace(struct hpsb_highlevel *hl, struct hpsb_host *host,
 /**
  * @ingroup highlevel
  * @anchor hpsb_listen_channel
- * To register listenning a certain channel
+ * To register listenning to a certain channel
  * 
  * @param channel number can not be larger than 63. 
+ * @param isoconfig
  * @return 0 on success. 
- * 
- * @note the channel may also be listened by other highlevel module. 
- * if so, we only increase the counter of that channel. 
  */
 int hpsb_listen_channel(struct hpsb_highlevel *hl, struct hpsb_host *host,
                          unsigned int channel)
 {
-        if (channel > 63) {
-                HPSB_ERR("%s called with invalid channel", __FUNCTION__);
+        //~ int ret;
+	//~ struct hpsb_iso *iso;
+	//~ unsigned int data_buf_size = isoconfig->data_buf_size;
+	//~ unsigned int buf_packets = isoconfig->buf_packets;
+	//~ int channel=isoconfig->channel;
+	//~ int irqinterval = isoconfig->irqinterval;
+	//~ int dma_mode = isoconfig->dma_mode;
+	//~ int pri = isoconfig->pri;
+	
+	if (channel > 63 || channel < 0) {
+                HPSB_ERR("%s called with invalid channel", hl->name);
                 return -EINVAL;
         }
-
-        if (host->iso_listen_count[channel]++ == 0) {
-                return host->driver->devctl(host, ISO_LISTEN_CHANNEL, channel);
-        }
-
+	
+	if(host->iso_listen_count[channel]++==0){
+		//this channel on hardware was not opened
+		HPSB_NOTICE("%s try to allocate channel[%d]\n", hl->name, channel);
+		return host->driver->devctl(host, ISO_LISTEN_CHANNEL, channel);
+	}	
+	
 	return 0;
+	//~ if (host->iso_listen_count[channel]++ > 0) {
+		//~ //one channel can only be listened by one highlevel
+		//~ HPSB_ERR("%s try to allocate channel %d which is already occupied\n", hl->name, channel);
+	//~ }
+	
+	//~ //now we start to operation on software level
+	//~ iso = hpsb_iso_recv_init(host,data_buf_size,buf_packets, channel,
+						//~ dma_mode,irq_interval,isoconfig->callback,isoconfig->arg,pri);
+	//~ if(iso==NULL){
+		//~ ret = -ENOMEM;
+		//~ goto isofail;
+	//~ }
+	
+	//~ //now on the hardware level
+	//~ ret= host->driver->devctl(host, ISO_LISTEN_CHANNEL, channel);
+	//~ if(ret) //hardware level operation failed
+		//~ goto hwfail;
+	
+	//~ isoconfig->iso_handle = (void *)iso;
+	//~ return ret;
+
+//~ hwfail:
+	//~ hpsb_iso_shutdown(iso);
+//~ isofail:
+	//~ return ret;
 }
 
 /**
  * @ingroup highlevel
  * @anchor hpsb_unlisten_channel
- * To unlisten a certain channel 
+ * To unlisten to a certain channel 
  *
  * @param channel number, can not be larger 63. 
  * @return void
  *
- * @note the channel may also be listened by other highlevel modules. 
- * So it will only be unlistened in hardware if the counter is 0, otherwise
- * only counter is decreased. 
- */
+*/
 void hpsb_unlisten_channel(struct hpsb_highlevel *hl, struct hpsb_host *host, 
                            unsigned int channel)
 {
-        if (channel > 63) {
-                HPSB_ERR("%s called with invalid channel", __FUNCTION__);
+	
+	if (channel > 63 || channel < 0) {
+                HPSB_ERR("%s called with invalid channel", hl->name);
                 return;
         }
 
         if (--host->iso_listen_count[channel] == 0) {
                 host->driver->devctl(host, ISO_UNLISTEN_CHANNEL, channel);
         }
+		//~ }else{
+		//~ //one channel can only be listened by one highlevel
+		//~ HPSB_ERR("%d channel is occupied by multiple highlevels!!!\n", channel);
+	//~ }
+	
+	//~ struct hpsb_iso *iso=(struct hpsb_iso *)isoconfig->iso_handle;
+	//~ hpsb_iso_shutdown(iso);
 }
 
 /**
@@ -710,7 +739,8 @@ static void init_hpsb_highlevel(struct hpsb_host *host)
  */
 void highlevel_add_host(struct hpsb_host *host)
 {
-        struct hpsb_highlevel *hl = NULL;
+       rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	struct hpsb_highlevel *hl = NULL;
 	struct list_head *lh;
 		
 	init_hpsb_highlevel(host);
@@ -723,11 +753,11 @@ void highlevel_add_host(struct hpsb_host *host)
         }
         read_unlock(&hl_drivers_lock);
 	
-	if (host->update_config_rom) {
-		if (hpsb_update_config_rom_image(host) < 0)
-			HPSB_ERR("Failed to generate Configuration ROM image for "
-				 "host %s-%d", hl->name, host->ifindex);
-	}
+	//~ if (host->update_config_rom) {
+		//~ if (hpsb_update_config_rom_image(host) < 0)
+			//~ HPSB_ERR("Failed to generate Configuration ROM image for "
+				 //~ "host %s-%d", hl->name, host->ifindex);
+	//~ }
 }
 
 /**
@@ -832,11 +862,12 @@ void highlevel_fcp_request(struct hpsb_host *host, int nodeid, int direction,
  *
  * @note see @ref highlevel module management section of "Overview of Real-Time Firewire stack". 
  */
-int highlevel_read(struct hpsb_host *host, int nodeid, void *data,
-                   u64 addr, unsigned int length, u16 flags)
+int highlevel_read(struct hpsb_host *host, struct hpsb_packet *req, void *data, unsigned int length)
 {
-        struct hpsb_address_serve *as;
-        unsigned int partlength;
+        u64 addr = (((u64)(req->header[1] & 0xffff))<<32) | req->header[2];
+	
+	struct hpsb_address_serve *as;
+        //~ unsigned int partlength;
         int rcode = RCODE_ADDRESS_ERROR;
 
         read_lock(&addr_space_lock);
@@ -846,30 +877,32 @@ int highlevel_read(struct hpsb_host *host, int nodeid, void *data,
 			break;
 
                 if (as->end > addr) {
-                        partlength = min(as->end - addr, (u64) length);
+                        //~ partlength = min(as->end - addr, (u64) length);
+			if(as->end - addr < (u64)length){
+				HPSB_ERR("shared packet between multiple registered address ranges\
+								is deprecated!\n");
+				rcode = RCODE_ADDRESS_ERROR;
+				break;
+			}
 
                         if (as->op->read) {
-                                rcode = as->op->read(host, nodeid, data,
-						     addr, partlength, flags);
+                                rcode = as->op->read(host, req, data, length);
                         } else {
                                 rcode = RCODE_TYPE_ERROR;
                         }
+			break;
 
-			data += partlength;
-                        length -= partlength;
-                        addr += partlength;
+			//~ data += partlength;
+                        //~ length -= partlength;
+                        //~ addr += partlength;
 
-                        if ((rcode != RCODE_COMPLETE) || !length) {
-                                break;
-                        }
+                        //~ if ((rcode != RCODE_COMPLETE) || !length) {
+                                //~ break;
+                        //~ }
                 }
         }
 
         read_unlock(&addr_space_lock);
-
-        if (length && (rcode == RCODE_COMPLETE)) {
-                rcode = RCODE_ADDRESS_ERROR;
-        }
 
         return rcode;
 }
@@ -892,11 +925,12 @@ int highlevel_read(struct hpsb_host *host, int nodeid, void *data,
  *
  * @note see @ref highlevel module management section of "Overview of Real-Time Firewire stack". 
  */
-int highlevel_write(struct hpsb_host *host, int nodeid, int destid,
-		    void *data, u64 addr, unsigned int length, u16 flags)
+int highlevel_write(struct hpsb_host *host, struct hpsb_packet *req, unsigned int length)
 {
+	 u64 addr = (((u64)(req->header[1] & 0xffff))<<32) | req->header[2];
+	
 	struct hpsb_address_serve *as;
-        unsigned int partlength;
+        //~ unsigned int partlength;
         int rcode = RCODE_ADDRESS_ERROR;
 
         read_lock(&addr_space_lock);
@@ -906,30 +940,36 @@ int highlevel_write(struct hpsb_host *host, int nodeid, int destid,
 			break;
 
                 if (as->end > addr) {
-                        partlength = min(as->end - addr, (u64) length);
+                        //~ partlength = min(as->end - addr, (u64) length);
+			if(as->end - addr < (u64)length){
+				HPSB_ERR("shared packet between multiple registered address ranges\
+								is deprecated!\n");
+				rcode = RCODE_ADDRESS_ERROR;
+				break;
+			}
 
                         if (as->op->write) {
-                                rcode = as->op->write(host, nodeid, destid,
-						      data, addr, partlength, flags);
+                                rcode = as->op->write(host, req, length);
                         } else {
                                 rcode = RCODE_TYPE_ERROR;
                         }
+			break;
 
-			data += partlength;
-                        length -= partlength;
-                        addr += partlength;
+			//~ data += partlength;
+                        //~ length -= partlength;
+                        //~ addr += partlength;
 
-                        if ((rcode != RCODE_COMPLETE) || !length) {
-                                break;
-                        }
+                        //~ if ((rcode != RCODE_COMPLETE) || !length) {
+                                //~ break;
+                        //~ }
                 }
         }
 
         read_unlock(&addr_space_lock);
 
-        if (length && (rcode == RCODE_COMPLETE)) {
-                rcode = RCODE_ADDRESS_ERROR;
-        }
+        //~ if (length && (rcode == RCODE_COMPLETE)) {
+                //~ rcode = RCODE_ADDRESS_ERROR;
+        //~ }
 
         return rcode;
 }
@@ -952,10 +992,11 @@ int highlevel_write(struct hpsb_host *host, int nodeid, int destid,
  *
  * @note see @ref highlevel module management section of "Overview of Real-Time Firewire stack". 
  */
-int highlevel_lock(struct hpsb_host *host, int nodeid, quadlet_t *store,
-                   u64 addr, quadlet_t data, quadlet_t arg, int ext_tcode, u16 flags)
+int highlevel_lock(struct hpsb_host *host, struct hpsb_packet *req, quadlet_t *store)
 {
-        struct hpsb_address_serve *as;
+        u64 addr = (((u64)(req->header[1] & 0xffff))<<32) | req->header[2];
+	
+	struct hpsb_address_serve *as;
         int rcode = RCODE_ADDRESS_ERROR;
 
         read_lock(&addr_space_lock);
@@ -966,8 +1007,7 @@ int highlevel_lock(struct hpsb_host *host, int nodeid, quadlet_t *store,
 
                 if (as->end > addr) {
                         if (as->op->lock) {
-                                rcode = as->op->lock(host, nodeid, store, addr,
-                                                     data, arg, ext_tcode, flags);
+                                rcode = as->op->lock(host, req, store);
                         } else {
                                 rcode = RCODE_TYPE_ERROR;
                         }
@@ -1000,10 +1040,11 @@ int highlevel_lock(struct hpsb_host *host, int nodeid, quadlet_t *store,
  *
  * @note see @ref highlevel module management section of "Overview of Real-Time Firewire stack". 
  */
-int highlevel_lock64(struct hpsb_host *host, int nodeid, octlet_t *store,
-                     u64 addr, octlet_t data, octlet_t arg, int ext_tcode, u16 flags)
+int highlevel_lock64(struct hpsb_host *host, struct hpsb_packet *req, octlet_t *store)
 {
-        struct hpsb_address_serve *as;
+        u64 addr = (((u64)(req->header[1] & 0xffff))<<32) | req->header[2];
+	
+	struct hpsb_address_serve *as;
         int rcode = RCODE_ADDRESS_ERROR;
 
         read_lock(&addr_space_lock);
@@ -1014,9 +1055,7 @@ int highlevel_lock64(struct hpsb_host *host, int nodeid, octlet_t *store,
 
                 if (as->end > addr) {
                         if (as->op->lock64) {
-                                rcode = as->op->lock64(host, nodeid, store,
-                                                       addr, data, arg,
-                                                       ext_tcode, flags);
+                                rcode = as->op->lock64(host, req, store);
                         } else {
                                 rcode = RCODE_TYPE_ERROR;
                         }
@@ -1029,4 +1068,7 @@ int highlevel_lock64(struct hpsb_host *host, int nodeid, octlet_t *store,
 
         return rcode;
 }
+
+
+
 

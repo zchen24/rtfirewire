@@ -11,7 +11,7 @@
 /*! the maximum number of Firewire hosts in local system */
 #define MAX_RT_HOSTS                  8
 
-#define IFNAMSIZ 		32
+
 #define MAX_DEV_ID_LEN	32
 #define MAX_DRV_NAME_LEN 32
 
@@ -19,6 +19,10 @@
 #define HOST_TYPE_OHCI1394	0x1F
 #define HOST_TYPE_PCILYNX	0X1E
 #define HOST_TYPE_SIM1394	0X10
+
+#ifndef __KERNEL__
+
+#define IFNAMSIZ 		32
 
 /* Standard interface flags (netdevice->flags). copied from Linux/if.h */
 #define	IFF_UP		0x1		/* interface is up		*/
@@ -32,11 +36,25 @@
 #define	IFF_PROMISC	0x100		/* receive all packets		*/
 #define	IFF_ALLMULTI	0x200		/* receive all multicast packets*/
 
+enum netdev_state_t
+{
+	__LINK_STATE_XOFF=0,
+	__LINK_STATE_START,
+	__LINK_STATE_PRESENT,
+	__LINK_STATE_SCHED,
+	__LINK_STATE_NOCARRIER,
+	__LINK_STATE_RX_SCHED
+};
+
+#endif
+
 #ifdef __KERNEL__
 
 #include <linux/wait.h>
 #include <linux/list.h>
 #include <linux/timer.h>
+#include <linux/if.h>
+#include <linux/netdevice.h>
 
 #include <rtpkbuff.h>
 
@@ -45,8 +63,8 @@
 #include "ieee1394_types.h"
 #include "csr.h"
 
-/*! the real-time device structure version */
-#define RTDEV_VERS_2_1                 0x0201
+//~ /*! the real-time device structure version */
+//~ #define RTDEV_VERS_2_1                 0x0201
 
 #define PRIV_FLAG_UP                    0
 #define PRIV_FLAG_ADDING_ROUTE          1
@@ -67,15 +85,6 @@
  * code. (copied from linux/netdevice.h)
  */
 
-enum netdev_state_t
-{
-	__LINK_STATE_XOFF=0,
-	__LINK_STATE_START,
-	__LINK_STATE_PRESENT,
-	__LINK_STATE_SCHED,
-	__LINK_STATE_NOCARRIER,
-	__LINK_STATE_RX_SCHED
-};
 
 
 struct hpsb_iso;
@@ -92,8 +101,9 @@ struct hpsb_host {
     
     atomic_t refcount;
     
-    struct rtpkb_head pending_packet_queue;
-    
+    struct rtpkb_queue pending_packet_queue;
+
+    /* this is still linux-fashion, we need to adapte it to rtai*/
     struct timer_list	timeout;
     unsigned long	timeout_interval;
     
@@ -142,8 +152,6 @@ struct hpsb_host {
     
     struct list_head addr_space;
     
-    unsigned int	vers;
-    
     unsigned char 		name[IFNAMSIZ];
     
     //~ unsigned long 	rmem_end;
@@ -165,6 +173,16 @@ struct hpsb_host {
     unsigned char dev_id[MAX_DEV_ID_LEN];
     unsigned int dev_id_len;
 
+/* non-real-time locking ,should be named nrt_lock; it's a mutex... */
+    struct semaphore    nrt_lock;   
+
+    
+    unsigned int 		add_rtpkbs;
+    
+    struct rtpkb_pool 	pool;
+	    
+    struct hpsb_host_driver *driver;
+	    
 #if 0
   /*
     * Todo
@@ -180,23 +198,12 @@ struct hpsb_host {
     rtos_res_lock_t     xmit_lock;
 /* management lock              */    
     rtos_spinlock_t     host_lock; 
-#endif
-/* non-real-time locking ,should be named nrt_lock; it's a mutex... */
-    struct semaphore    nrt_lock;   
 
-    
-    unsigned int 		add_rtpkbs;
-    
-    struct rtpkb_pool 	pool;
-
-#if 0    
-    /* RTmac related fields */
+   /* RTmac related fields */
     struct rtmac_disc	*mac_disc;
     struct rtmac_priv	*mac_priv;
      int	(*mac_detach)(struct hpsb_host *host);
 #endif 
-     
-     struct hpsb_host_driver *driver;
 };
 
 enum devctl_cmd {

@@ -34,6 +34,7 @@ struct bis_cmd {
 		struct {
 			int	destid;	
 			size_t	msg_size;
+			int pri;
 			unsigned int	timeout;
 			__s64	rtt;
 		} ping;

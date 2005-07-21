@@ -1,7 +1,8 @@
 /* rtfirewire/rtpkbuff/rtpkbuff.c
- * Generic Pakcet buffer Structure and interfaces for RT-FireWire
+ * Generic Real-Time Memory Object Management Module
+ * 	adapted from rtpkb management in RTnet (Jan Kiszka <jan.kiszka@web.de>)
  *
- *  Copyright (C) 2005 Zhang Yuchen
+ *  Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,12 +28,11 @@
 
 #include <rtpkbuff.h>
 
+#define RTPKB_PRINT(fmt, args...) \
+	rtos_print(KERN_ERR "RTPKB:%s[%d]: " fmt "\n",  __FUNCTION__, __LINE__, ## args)
 
-static unsigned int global_rtpkbs    = DEFAULT_GLOBAL_RTPKBS;
 static unsigned int rtpkb_cache_size = DEFAULT_RTPKB_CACHE_SIZE;
-MODULE_PARM(global_rtpkbs, "i");
 MODULE_PARM(rtpkb_cache_size, "i");
-MODULE_PARM_DESC(global_rtpkbs, "Number of realtime socket buffers in global pool");
 MODULE_PARM_DESC(rtpkb_cache_size, "Number of cached rtpkbs for creating pools in real-time");
 
 
@@ -46,11 +46,6 @@ static kmem_cache_t *rtpkb_slab_pool;
 /* preallocated rtpkbs for real-time pool creation */
 static struct rtpkb_pool rtpkb_cache={
 	.name = "rtpkb cache",
-};
-
-/* pool of rtpkbs for global use */
-struct rtpkb_pool global_pool = {
-	.name = "global pool",
 };
 
 /* pool statistics */
@@ -70,8 +65,10 @@ LIST_HEAD(pool_list);
  */
 static rwlock_t pool_list_lock = RW_LOCK_UNLOCKED;
 
+
+
 /**
- *  skb_over_panic - private function
+ *  pkb_over_panic - private function
  *  @pkb: buffer
  *  @sz: size
  *  @here: address
@@ -80,19 +77,15 @@ static rwlock_t pool_list_lock = RW_LOCK_UNLOCKED;
  */
 void rtpkb_over_panic(struct rtpkb *pkb, int sz, void *here)
 {
-    char *name= "";
-    if ( pkb->dev_name )
-        name=pkb->dev_name;
-    else
-        name="<NULL>";
-    rtos_print("rtpkb: rtpkb_put :over: %p:%d put:%d dev:%s\n", here, pkb->len,
-               sz, name);
+    
+    rtos_print("rtpkb of %s: rtpkb_put :over: %p:%d put:%d \n",pkb->pool->name, here, pkb->len,
+               sz);
 }
 
 
 
 /**
- *  skb_under_panic - private function
+ *  pkb_under_panic - private function
  *  @pkb: buffer
  *  @sz: size
  *  @here: address
@@ -101,14 +94,8 @@ void rtpkb_over_panic(struct rtpkb *pkb, int sz, void *here)
  */
 void rtpkb_under_panic(struct rtpkb *pkb, int sz, void *here)
 {
-    char *name;
-    if ( pkb->dev_name )
-        name=pkb->dev_name;
-    else
-        name="<NULL>";
-
-    rtos_print("rtpkb: rtpkb_push :under: %p:%d put:%d dev:%s\n", here,
-               pkb->len, sz, name);
+    rtos_print("rtpkb of %s: rtpkb_push :under: %p:%d put:%d\n", pkb->pool->name, here,
+               pkb->len, sz);
 }
 
 /**
@@ -125,6 +112,7 @@ struct rtpkb *alloc_rtpkb(unsigned int size,struct rtpkb_pool *pool)
 	if(size!=0)
 		RTOS_ASSERT(size <= SKB_DATA_ALIGN(RTPKB_SIZE), return NULL;);
 	
+	DEBUG_PRINT("pkb allocated from %s[%d]\n", pool->name, pool->queue.qlen);
 	pkb = rtpkb_dequeue(&pool->queue);
 	
 	if (!pkb)
@@ -144,6 +132,7 @@ void kfree_rtpkb(struct rtpkb *pkb)
     RTOS_ASSERT(pkb != NULL, return;);
     RTOS_ASSERT(pkb->pool != NULL, return;);
 	
+    DEBUG_PRINT("pkb returned to %s[%d]\n", pkb->pool->name, pkb->pool->queue.qlen);
     rtpkb_queue_tail(&pkb->pool->queue, pkb);
 }
 
@@ -158,7 +147,7 @@ unsigned int rtpkb_pool_init(struct rtpkb_pool *pool,
 {
     unsigned int i;
 
-    rtpkb_queue_head_init(&pool->queue);
+    rtpkb_queue_init(&pool->queue);
 
     i = rtpkb_pool_extend(pool, initial_size);
 	
@@ -182,7 +171,7 @@ unsigned int rtpkb_pool_init_rt(struct rtpkb_pool *pool,
 {
     unsigned int i;
 
-    rtpkb_queue_head_init(&pool->queue);
+    rtpkb_queue_init(&pool->queue);
 
     i = rtpkb_pool_extend_rt(pool, initial_size);
 	
@@ -248,15 +237,14 @@ unsigned int rtpkb_pool_extend(struct rtpkb_pool *pool,
     for (i = 0; i < add_rtpkbs; i++) {
         /* get rtpkb from slab pool */
         if (!(pkb = kmem_cache_alloc(rtpkb_slab_pool, GFP_KERNEL))) {
-            rtos_print(KERN_ERR "RTnet: rtpkb allocation from slab pool failed\n");
+	    RTPKB_PRINT("allocation from slab pool failed\n");
             break;
         }
-
         /* fill the header with zero */
-        memset(pkb, 0, sizeof(struct rtpkb));
+        memset(pkb, 0, sizeof(struct rtpkb)+RTPKB_SIZE);
 
         pkb->pool = pool;
-        pkb->buf_start = ((char *)pkb) + ALIGN_RTPKB_STRUCT_LEN;
+        rtpkb_clean(pkb);
 
         rtpkb_queue_tail(&pool->queue, pkb);
 
@@ -283,7 +271,7 @@ unsigned int rtpkb_pool_extend_rt(struct rtpkb_pool *pool,
     for (i = 0; i < add_rtpkbs; i++) {
         /* get rtpkb from rtpkb cache */
         if (!(pkb = rtpkb_dequeue(&rtpkb_cache.queue))) {
-            rtos_print("rtpkb: rtpkb allocation from real-time cache "
+            RTPKB_PRINT("allocation from real-time cache "
                        "failed\n");
             break;
         }
@@ -347,8 +335,12 @@ unsigned int rtpkb_pool_shrink_rt(struct rtpkb_pool *pool,
 
 int rtpkb_acquire(struct rtpkb *rtpkb, struct rtpkb_pool *comp_pool)
 {
+    DEBUG_PRINT("Before buffer exchange between %s[%d] and %s[%d]\n", 
+				rtpkb->pool->name, rtpkb->pool->queue.qlen,
+				comp_pool->name, comp_pool->queue.qlen);
     struct rtpkb *comp_rtpkb;
 
+    struct rtpkb_pool *pool = rtpkb->pool;
     comp_rtpkb = alloc_rtpkb(0, comp_pool);
 
     if (!comp_rtpkb)
@@ -358,6 +350,10 @@ int rtpkb_acquire(struct rtpkb *rtpkb, struct rtpkb_pool *comp_pool)
     kfree_rtpkb(comp_rtpkb);
 
     rtpkb->pool = comp_pool;
+    
+    DEBUG_PRINT("After buffer exchange between %s[%d] and %s[%d]\n", 
+				pool->name, pool->queue.qlen,
+				comp_pool->name, comp_pool->queue.qlen);
 
     return 0;
 }
@@ -423,14 +419,14 @@ int  rtpkb_pools_init(void)
 	struct proc_dir_entry *proc_entry;
 	
 	rtpkb_slab_pool = kmem_cache_create("rtpkb_slab_pool",
-		ALIGN_RTPKB_STRUCT_LEN + SKB_DATA_ALIGN(RTPKB_SIZE),
+		ALIGN_RTPKB_STRUCT_LEN + RTPKB_SIZE,
 		0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (rtpkb_slab_pool == NULL)
 		return -ENOMEM;
 	
 	proc_entry = create_proc_entry("rtpkb", S_IFREG | S_IRUGO | S_IWUSR, 0);
 	if(!proc_entry) {
-		printk("rtpkb:failed to create proc entry!\n");
+		RTPKB_PRINT("failed to create proc entry!\n");
 		goto err_out1;
 	}
 	proc_entry->read_proc = rtpkb_read_proc;
@@ -445,17 +441,11 @@ int  rtpkb_pools_init(void)
 	if (rtpkb_pool_init(&rtpkb_cache, rtpkb_cache_size) < rtpkb_cache_size)
 		goto err_out2;
 
-	/* create the global rtpkb pool */
-	if (rtpkb_pool_init(&global_pool, global_rtpkbs) < global_rtpkbs)
-		goto err_out3;
-	
-	printk("rtpkb:Real-Time Socket Buffer Module Initialized!\n");
+	RTPKB_PRINT("Real-Time Packet Buffer Module Initialized!\n");
 
 	return 0;
 
-err_out3:
-	rtpkb_pool_release(&global_pool);
-	rtpkb_pool_release(&rtpkb_cache);
+
 err_out2:
 	remove_proc_entry("rtpkb", 0);
 
@@ -470,21 +460,20 @@ void rtpkb_pools_release(void)
     struct list_head *lh;
     struct rtpkb_pool *pool;
 
-    rtpkb_pool_release(&global_pool);
     rtpkb_pool_release(&rtpkb_cache);
     
     list_for_each(lh, &pool_list){
 	    pool = list_entry(lh, struct rtpkb_pool, entry);
-	    printk("rtpkb: Memory Pool %s is still in use!!!\n", pool->name);
+	    RTPKB_PRINT("Memory Pool %s is still in use!!!\n", pool->name);
     }
 
     remove_proc_entry("rtpkb",0);
 
     if (kmem_cache_destroy(rtpkb_slab_pool) != 0)
-        printk(KERN_CRIT "rtpkb: memory leakage detected "
+        RTPKB_PRINT("memory leakage detected "
                "- reboot required!\n");
     else
-	    printk("rtpkb: Real-Time Socket Buffer Module unloaded\n");
+	    RTPKB_PRINT("Real-Time Packet Buffer Module unloaded\n");
 }
 
 module_init(rtpkb_pools_init);
@@ -500,5 +489,6 @@ EXPORT_SYMBOL(rtpkb_pool_shrink);
 EXPORT_SYMBOL(rtpkb_pool_extend);
 EXPORT_SYMBOL(rtpkb_pool_init);
 EXPORT_SYMBOL(__rtpkb_pool_release);
-EXPORT_SYMBOL(global_pool);
+EXPORT_SYMBOL(rtpkb_over_panic);
+EXPORT_SYMBOL(rtpkb_under_panic);
 #endif /* CONFIG_KBUILD */

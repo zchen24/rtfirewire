@@ -49,6 +49,7 @@ void bis_queue_echo_request(struct rt_proc_call *call)
 	unsigned long 	flags;
 	struct bis_host_info	*hi;
 		
+	DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	hi = (struct bis_host_info *)hpsb_get_hostinfo(&bis_highlevel, ((struct bis_cmd *)call->priv_data)->host);
 	
 	rtos_spin_lock_irqsave(&hi->echo_calls_lock, flags);
@@ -76,10 +77,9 @@ void bis_cleanup_echo_requests(struct hpsb_host *host)
 	}
 }
 
-static void bis_echo_reply(void *data)
+static void bis_echo_reply(struct hpsb_packet *packet, void *data)
 {
 	
-	struct hpsb_packet *packet = (struct hpsb_packet *)data;
 	unsigned long	flags;
 	struct rt_proc_call	*call = NULL;
 	struct bis_cmd	*cmd;
@@ -116,32 +116,40 @@ static void bis_echo_reply(void *data)
 	cmd->args.ping.rtt = packet->xmit_time;
 	
 echo_fail:
-	hpsb_free_tlabel(packet);
-	hpsb_free_packet(packet);
 	rtpc_complete_call(call, ret);
 	return;	
 }
 
 
-int bis_send_echo(struct hpsb_host *host, nodeid_t node, size_t msg_size, struct rt_proc_call *call)
+int bis_send_echo(struct hpsb_host *host, nodeid_t node, size_t msg_size, 
+						int pri, struct rt_proc_call *call)
 {
+	DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	
 	unsigned int generation = atomic_read(&host->generation);
 	int ret = 0;
-	
 	
 	if(msg_size == 0)
 		return -EINVAL;
 	
 	/** make packet with highest priority **/
-	struct hpsb_packet *packet = hpsb_make_readpacket(host, node, BIS1394_REGION_ADDR_BASE, msg_size,0);
+	struct hpsb_packet *packet = hpsb_make_readpacket(host, node, BIS1394_REGION_ADDR_BASE, msg_size,pri);
 	if(!packet) {
 		
 		return -ENOMEM;
 	}
-
+	
+	#ifdef CONFIG_IEEE1394_VERBOSEDEBUG
+	int i;
+	rtos_print("%s:", __FUNCTION__);
+	for (i = 0; i < packet->header_size; i++)
+		rtos_print(" %08x", packet->header[i]);
+	rtos_print("\n");
+	#endif
+	
 	packet->generation = generation;
 	
-	hpsb_set_packet_complete_task(packet, bis_echo_reply,packet);
+	hpsb_set_packet_complete_task(packet, bis_echo_reply,0);
 	ret = hpsb_send_packet(packet);
 	if (ret<0) {
 		
@@ -161,12 +169,12 @@ static int ping_handler(struct rt_proc_call *call)
 	struct bis_cmd *cmd;
 	int err;
 	
-	
 	cmd = rtpc_get_priv(call, struct bis_cmd);
 	
 	bis_queue_echo_request(call);
 
-	err = bis_send_echo(cmd->host, LOCAL_BUS | cmd->args.ping.destid, cmd->args.ping.msg_size, call);
+	err = bis_send_echo(cmd->host, LOCAL_BUS | cmd->args.ping.destid, cmd->args.ping.msg_size, 
+						cmd->args.ping.pri, call);
 	if(err<0) {
 		bis_cleanup_echo_requests(cmd->host);
 		return err;
@@ -219,7 +227,7 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 				break;
 			}
 			bis1394_iso = hpsb_iso_xmit_init(host, cmd.args.iso.data_buf_size, 1, 
-									cmd.args.iso.channel, 2, 1, NULL, 10);
+									cmd.args.iso.channel, 2, 1, NULL, 0, "bis1394_iso", 10);
 			if(!bis1394_iso)
 				ret = -ENOMEM;
 			break;
@@ -244,8 +252,7 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 
 /** Socket to FireWire stack **/
 
-static int bis_read(struct hpsb_host *host, int nodeid, quadlet_t *buf,
-                     u64 addr, size_t length, u16 flags)
+static int bis_read(struct hpsb_host *host, struct hpsb_packet *packet, void *data, unsigned int len)
 {
 	return RCODE_COMPLETE;
 }
@@ -256,11 +263,10 @@ static struct hpsb_address_ops bis1394_ops = {
   
 static void add_host(struct hpsb_host *host)
 {
+	
 	struct bis_host_info *hi;
 	int ret;
 		
-	
-	
 	hi = hpsb_create_hostinfo(&bis_highlevel, host, sizeof(*hi));
 	if(!hi) {
 		HPSB_ERR("BIS: out of memory in add host");
@@ -281,7 +287,7 @@ static void add_host(struct hpsb_host *host)
 	return;
 out:
 	kfree(hi);	
-	
+	return;
 }
 
 static void remove_host(struct hpsb_host *host)

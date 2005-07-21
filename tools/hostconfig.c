@@ -33,7 +33,11 @@ void print_dev(void)
 	if ((cmd.args.info.flags & IFF_DUMMY) != 0)
 		printf("Local Loopback\n");
 	else if (cmd.args.info.type == HOST_TYPE_SIM1394)
-		printf("Simulated FireWire Adapter\n");
+		printf("SIM1394 G-U-ID: ""%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",
+               cmd.args.info.dev_id[0], cmd.args.info.dev_id[1],
+               cmd.args.info.dev_id[2], cmd.args.info.dev_id[3],
+               cmd.args.info.dev_id[4], cmd.args.info.dev_id[5],
+		cmd.args.info.dev_id[6], cmd.args.info.dev_id[7]);
 	else if (cmd.args.info.type == HOST_TYPE_OHCI1394)
 		printf("OHCI1394   G-U-ID: "
 			"%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",
@@ -95,7 +99,7 @@ void do_display(int print_flags)
 				perror("ioctl");
 				exit(1);
 			}
-	}
+		}
 	else {
 			cmd.args.info.ifindex = 0;
 		

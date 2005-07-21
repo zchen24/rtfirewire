@@ -1,3 +1,24 @@
+/* rt-firewire/include/highlevel.h
+ *
+ * Interface of highlevel application socket module. 
+ *
+ * Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+
 /**
  * @ingroup highlevel
  * @file
@@ -8,17 +29,18 @@
 #ifndef IEEE1394_HIGHLEVEL_H
 #define IEEE1394_HIGHLEVEL_H
 
-#ifdef __KERNEL__
-
 #include <linux/list.h>
+#include <iso.h>
 
+#ifdef __IN_RTFW__
 #include <ieee1394_chrdev.h>
+#endif
 
 extern struct list_head hl_drivers;
 	
 struct hl_host_info {
 	struct list_head list;
-	struct hpsb_host *host;
+	struct hpsb_host *host; 
 	size_t size;
 	unsigned long key;
 	void *data;
@@ -31,7 +53,7 @@ struct hpsb_address_serve {
 
         struct hpsb_address_ops *op;
 
-	struct hpsb_host *host;
+	void *host;
 
         /*! first address handled and first address behind, quadlet aligned */
         u64 start, end;
@@ -56,7 +78,7 @@ struct hpsb_highlevel {
 
         /*! Host about to be removed.  Will also be called during
          * hpsb_unregister_highlevel once for each host. */
-        void (*remove_host) (struct hpsb_host *host);
+        void (*remove_host)  (struct hpsb_host *host);
 
         /*! Host experienced bus reset with possible configuration changes.
 	 * Note that this one may occur during interrupt/bottom half handling.
@@ -66,7 +88,9 @@ struct hpsb_highlevel {
         /*! An isochronous packet was received.  Channel contains the channel
          * number for your convenience, it is also contained in the included
          * packet header (first quadlet, CRCs are missing).  You may get called
-         * for channel/host combinations you did not request. */
+         * for channel/host combinations you did not request. 
+	*(Use of this routine is deprecated, due to the more convenient iso module)
+	*/
         void (*iso_receive) (struct hpsb_host *host, int channel,
                              quadlet_t *data, size_t length);
 
@@ -84,8 +108,10 @@ struct hpsb_highlevel {
 
 	struct list_head host_info_list;
 	rwlock_t host_info_lock;
-	
+
+#ifdef __IN_RTFW__	
 	struct ioctl_handler *hl_ioctl;
+#endif
 };
 
 struct hpsb_address_ops {
@@ -103,45 +129,16 @@ struct hpsb_address_ops {
            later case, no response will be sent and the driver, that handled the request
            will send the response itself
         */
-        int (*read) (struct hpsb_host *host, int nodeid, quadlet_t *buffer,
-                     u64 addr, size_t length, u16 flags);
-        int (*write) (struct hpsb_host *host, int nodeid, int destid,
-		      quadlet_t *data, u64 addr, size_t length, u16 flags);
+        int (*read) (struct hpsb_host *host, struct hpsb_packet *packet, void *data,
+					unsigned int length);
+        int (*write) (struct hpsb_host *host, struct hpsb_packet *packet, 
+					unsigned int length);
 
         /*! Lock transactions: write results of ext_tcode operation into
          * *store. */
-        int (*lock) (struct hpsb_host *host, int nodeid, quadlet_t *store,
-                     u64 addr, quadlet_t data, quadlet_t arg, int ext_tcode, u16 flags);
-        int (*lock64) (struct hpsb_host *host, int nodeid, octlet_t *store,
-                       u64 addr, octlet_t data, octlet_t arg, int ext_tcode, u16 flags);
+        int (*lock) (struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *data);
+        int (*lock64) (struct hpsb_host *host, struct hpsb_packet *packet, octlet_t *data);
 };
-
-
-void highlevel_add_host(struct hpsb_host *host);
-void highlevel_remove_host(struct hpsb_host *host);
-void highlevel_host_reset(struct hpsb_host *host);
-
-/*! these functions are called to handle transactions. They are called, when
-   a packet arrives. The flags argument contains the second word of the first header
-   quadlet of the incoming packet (containing transaction label, retry code,
-   transaction code and priority). These functions either return a response code
-   or a negative number. In the first case a response will be generated; in the
-   later case, no response will be sent and the driver, that handled the request
-   will send the response itself.
-*/
-int highlevel_read(struct hpsb_host *host, int nodeid, void *data,
-                   u64 addr, unsigned int length, u16 flags);
-int highlevel_write(struct hpsb_host *host, int nodeid, int destid,
-		    void *data, u64 addr, unsigned int length, u16 flags);
-int highlevel_lock(struct hpsb_host *host, int nodeid, quadlet_t *store,
-                   u64 addr, quadlet_t data, quadlet_t arg, int ext_tcode, u16 flags);
-int highlevel_lock64(struct hpsb_host *host, int nodeid, octlet_t *store,
-                     u64 addr, octlet_t data, octlet_t arg, int ext_tcode, u16 flags);
-
-void highlevel_iso_receive(struct hpsb_host *host, void *data,
-                           size_t length);
-void highlevel_fcp_request(struct hpsb_host *host, int nodeid, int direction,
-                           void *data, size_t length);
 
 
 /*!
@@ -166,11 +163,12 @@ u64 hpsb_allocate_and_register_addrspace(struct hpsb_highlevel *hl,
 					 struct hpsb_address_ops *ops,
 					 u64 size, u64 alignment,
 					 u64 start, u64 end);
-int hpsb_register_addrspace(struct hpsb_highlevel *hl, struct hpsb_host *host,
+int hpsb_register_addrspace(struct hpsb_highlevel *hl, struct hpsb_host*host,
                             struct hpsb_address_ops *ops, u64 start, u64 end);
 
 int hpsb_unregister_addrspace(struct hpsb_highlevel *hl, struct hpsb_host *host,
                               u64 start);
+
 
 /*!
  * Enable or disable receving a certain isochronous channel through the
@@ -179,8 +177,7 @@ int hpsb_unregister_addrspace(struct hpsb_highlevel *hl, struct hpsb_host *host,
 int hpsb_listen_channel(struct hpsb_highlevel *hl, struct hpsb_host *host,
                          unsigned int channel);
 void hpsb_unlisten_channel(struct hpsb_highlevel *hl, struct hpsb_host *host,
-                           unsigned int channel);
-
+			 unsigned int channel);
 
 /*! Retrieve a hostinfo pointer bound to this driver/host */
 void *hpsb_get_hostinfo(struct hpsb_highlevel *hl, struct hpsb_host *host);
@@ -204,9 +201,42 @@ void *hpsb_get_hostinfo_bykey(struct hpsb_highlevel *hl, unsigned long key);
 /*! Set the hostinfo pointer to something useful. Usually follows a call to
  * hpsb_create_hostinfo, where the size is 0. */
 int hpsb_set_hostinfo(struct hpsb_highlevel *hl, struct hpsb_host *host, void *data);
+	
+//~ int get_nodeid(void *host);
 
-/*! Retrieve hpsb_host using a highlevel handle and a key */
-struct hpsb_host *hpsb_get_host_bykey(struct hpsb_highlevel *hl, unsigned long key);
+//~ u64 get_guid(void *host);
 
-#endif /*__KERNEL__ */
+//~ u16 get_maxpayload(void *host);
+
+//~ int get_bcchannel(void *host);
+
+//~ unsigned char get_sspd(void *host, int i, int j);
+
+
+#ifdef __IN_RTFW__
+
+void highlevel_add_host(struct hpsb_host *host);
+void highlevel_remove_host(struct hpsb_host *host);
+void highlevel_host_reset(struct hpsb_host *host);
+
+/*! these functions are called to handle transactions. They are called, when
+   a packet arrives. The flags argument contains the second word of the first header
+   quadlet of the incoming packet (containing transaction label, retry code,
+   transaction code and priority). These functions either return a response code
+   or a negative number. In the first case a response will be generated; in the
+   later case, no response will be sent and the driver, that handled the request
+   will send the response itself.
+*/
+int highlevel_read(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, unsigned int length);
+int highlevel_write(struct hpsb_host *host, struct hpsb_packet *packet, unsigned int length);
+int highlevel_lock(struct hpsb_host *host, struct hpsb_packet *req, quadlet_t *store);
+int highlevel_lock64(struct hpsb_host *host, struct hpsb_packet *req, octlet_t *store);
+
+void highlevel_iso_receive(struct hpsb_host *host, void *data,
+                           size_t length);
+void highlevel_fcp_request(struct hpsb_host *host, int nodeid, int direction,
+                           void *data, size_t length);
+
+#endif/*__IN_RTFW__*/
+
 #endif /* IEEE1394_HIGHLEVEL_H */

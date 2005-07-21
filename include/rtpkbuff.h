@@ -1,3 +1,102 @@
+/* rtfirewire/rtpkbuff/rtpkbuff.c
+ * Generic Real-Time Memory Object Management Module
+ * 	adapted from rtpkb management in RTnet (Jan Kiszka <jan.kiszka@web.de>)
+ *
+ *  Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+
+
+/***
+
+rtpkb Management - A Short Introduction
+---------------------------------------
+
+1. rtpkbs (Real-Time Socket Buffers)
+
+A rtpkb consists of a management structure (struct rtpkb) and a fixed-sized
+(RTSKB_SIZE) data buffer. It is used to store network packets on their way from
+the API routines through the stack to the NICs or vice versa. rtpkbs are
+allocated as one chunk of memory which contains both the managment structure
+and the buffer memory itself.
+
+
+2. rtpkb Queues
+
+A rtpkb queue is described by struct rtpkb_queue. A queue can contain an
+unlimited number of rtpkbs in an ordered way. A rtpkb can either be added to
+the head (rtpkb_queue_head()) or the tail of a queue (rtpkb_queue_tail()). When
+a rtpkb is removed from a queue (rtpkb_dequeue()), it is always taken from the
+head. Queues are normally spin lock protected unless the __variants of the
+queuing functions are used.
+
+
+3. Prioritized rtpkb Queues
+
+A prioritized queue contains a number of normal rtpkb queues within an array.
+The array index of a sub-queue correspond to the priority of the rtpkbs within
+this queue. For enqueuing a rtpkb (rtpkb_prio_queue_head()), its priority field
+is evaluated and the rtpkb is then placed into the appropriate sub-queue. When
+dequeuing a rtpkb, the first rtpkb of the first non-empty sub-queue with the
+highest priority is returned. The current implementation supports 32 different
+priority levels, the lowest if defined by QUEUE_MIN_PRIO, the highest by
+QUEUE_MAX_PRIO.
+
+
+4. rtpkb Pools
+
+As rtpkbs must not be allocated by a normal memory manager during runtime,
+preallocated rtpkbs are kept ready in several pools. Most packet producers
+(Called device, e.g. NICs, sockets, etc.) have their own pools in order to be independent of the
+load situation of other parts of the stack.
+
+When a pool is created (rtpkb_pool_init()), the required rtpkbs are allocated
+from a Linux slab cache. Pools can be extended (rtpkb_pool_extend()) or
+shrinked (rtpkb_pool_shrink()) during runtime. When shutting down the
+program/module, every pool has to be released (rtpkb_pool_release()). All these
+commands demand to be executed within a non real-time context.
+
+To support real-time pool manipulation, a tunable number of rtpkbs can be
+preallocated in a dedicated pool. When every a real-time-safe variant of the
+commands mentioned above is used (postfix: _rt), rtpkbs are taken from or
+returned to that real-time pool. Note that real-time and non real-time commands
+must not be mixed up when manipulating a pool.
+
+Pools are organized as normal rtpkb queues (struct rtpkb_queue). When a rtpkb
+is allocated (alloc_rtpkb()), it is actually dequeued from the pool's queue.
+When freeing a rtpkb (kfree_rtpkb()), the rtpkb is enqueued to its owning pool.
+rtpkbs can be exchanged between pools (rtpkb_acquire()). In this case, the
+passed rtpkb switches over to from its owning pool to a given pool, but only if
+this pool can pass an empty rtpkb from its own queue back.
+
+
+5. rtpkb Chains
+
+To ease the defragmentation of larger object e.g. network packets, several rtpkbs can form a
+chain. For these purposes, the first rtpkb (and only the first!) provides a
+pointer to the last rtpkb in the chain. When enqueuing the first rtpkb of a
+chain, the whole chain is automatically placed into the destined queue. But,
+to dequeue a complete chain specialized calls are required (postfix: _chain).
+While chains also get freed en bloc (kfree_rtpkb()) when passing the first
+rtpkbs, it is not possible to allocate a chain from a pool (alloc_rtpkb()); a
+newly allocated rtpkb is always reset to a "single rtpkb chain". Furthermore,
+the acquisition of complete chains is NOT supported (rtpkb_acquire()).
+
+**/
+
 /**
  * @ingroup rtpkb
  * @file
@@ -13,25 +112,91 @@
 #include <linux/skbuff.h>
 #include <rt1394_sys.h>
 
+#define RTPKB_ASSERT(expr, func) \
+	if (!(expr))	\
+	{ \
+		rtos_print("Assertion failed! %s:%s:%d:%s\n", \
+		__FILE__, __FUNCTION__, __LINE__, (#expr)); \
+		func \
+	}
+
 /**
  * @addtogroup rtpkb
  *@{*/
-struct rtpkb_head {
+
+struct rtpkb_base {
+	/* really common elements for generic memory operation*/
+	/* these two members must be first, to comply with rtpkb_queue*/
+	struct rtpkb	* next;			/* Next buffer in list 				*/
+	struct rtpkb	* prev;			/* Previous buffer in list 			*/
+	struct rtpkb        *chain_end; 		/* marks the end of a rtpkb chain starting
+								with this very rtpkb */
+
+	struct rtpkb_queue * list;			/* List we are on now				*/
+	struct rtpkb_pool * pool;			/* where we are from and should come back when things are done */
+
+	unsigned char	*head;			/* Head of buffer 				*/
+	unsigned char	*data;			/* Data head pointer				*/
+	unsigned char	*tail;				/* Data tail pointer					*/
+	unsigned char 	*end;			/* End of buffer					*/
+	unsigned int	len;
+
+	void 		(*destructor)(struct rtpkb *);	/* Destruct function		*/
+
+	unsigned int priority;
+};
+
+struct rtpkb {
+	/* really common elements for generic memory operation*/
+	/* these two members must be first, to comply with rtpkb_queue*/
+	struct rtpkb	* next;			/* Next buffer in list 				*/
+	struct rtpkb	* prev;			/* Previous buffer in list 			*/
+	struct rtpkb        *chain_end; 		/* marks the end of a rtpkb chain starting
+								with this very rtpkb */
+
+	struct rtpkb_queue * list;			/* List we are on now				*/
+	struct rtpkb_pool * pool;			/* where we are from and should come back when things are done */
+
+	unsigned char	*head;			/* Head of buffer 				*/
+	unsigned char	*data;			/* Data head pointer				*/
+	unsigned char	*tail;				/* Data tail pointer					*/
+	unsigned char 	*end;			/* End of buffer					*/
+	unsigned int	len;
+
+	void 		(*destructor)(struct rtpkb *);	/* Destruct function		*/
+
+	unsigned int priority;
+
+	/*protocol-specific stuff goes here, size agreed among all exsiting protocols, cant be exceeded!!! */
+	char		specific_stuff[256];
+	
+};
+
+struct rtpkb_queue_base {
 	/* These two members must be first. */
 	struct rtpkb	* next;
 	struct rtpkb	* prev;
-
+		
 	__u32		qlen;
-	spinlock_t	lock;
+	rtos_spinlock_t	lock;
+};
+
+struct rtpkb_queue {
+	/* These two members must be first. */
+	struct rtpkb	* next;
+	struct rtpkb	* prev;
+		
+	__u32		qlen;
+	rtos_spinlock_t	lock;
 	
-	rtos_event_t 	*event; //this is needed when request is queued for server. 
 	struct rtpkb_pool	 *pool;
 	
 	unsigned char name[32];
 };
 
+
 struct rtpkb_pool {
-	struct rtpkb_head queue;
+	struct rtpkb_queue queue;
 			
 	struct list_head entry;
 	/**
@@ -44,39 +209,29 @@ struct rtpkb_pool {
 	unsigned char name[32];
 };
 
-struct rtpkb {
-	/* These two members must be first. */
-	struct rtpkb	* next;			/* Next buffer in list 				*/
-	struct rtpkb	* prev;			/* Previous buffer in list 			*/
+#define QUEUE_MAX_PRIO          0
+#define QUEUE_MIN_PRIO          31
 
-	struct rtpkb_head * list;		/* List we are on now				*/
-	struct rtpkb_pool * pool;		/* where we are from and should come back when things are done */
-
-	unsigned char	*head;			/* Head of buffer 				*/
-	unsigned char	*data;			/* Data head pointer				*/
-	unsigned char	*tail;			/* Tail pointer					*/
-	unsigned char 	*end;			/* End pointer					*/
-	unsigned int	len;
-
-	void 		(*destructor)(struct rtpkb *);	/* Destruct function		*/
-	
-	unsigned char *buf_start;
-	
-	unsigned char *dev_name;
-	
-	unsigned int pri;
+struct rtpkb_prio_queue {
+    unsigned char name[32];
+    struct rtpkb_pool	 *pool;		
+    rtos_spinlock_t     lock;
+    unsigned long       usage;  /* bit array encoding non-empty sub-queues */
+    struct rtpkb_queue_base  queue[QUEUE_MIN_PRIO+1];
 };
+
+#define RTSKB_PRIO_MASK         0x0000FFFF  /* bits  0..15: xmit prio    */
+#define RTSKB_CHANNEL_MASK      0xFFFF0000  /* bits 16..31: xmit channel */
+#define RTSKB_CHANNEL_SHIFT     16
 
 /* default values for the module parameter */
 #define DEFAULT_RTPKB_CACHE_SIZE    16      /* default number of cached rtpkbs for new pools */
-#define DEFAULT_GLOBAL_RTPKBS       16       /* default number of rtpkb's in global pool */
 #define DEFAULT_DEVICE_RTPKBS       16      /* default additional rtpkbs per network adapter */
-#define DEFAULT_SOCKET_RTPKBS       16      /* default number of rtpkb's in socket pools */
 
 #define ALIGN_RTPKB_STRUCT_LEN      SKB_DATA_ALIGN(sizeof(struct rtpkb))
-#define RTPKB_SIZE                  1544 /*maximum buffer load */
+#define RTPKB_SIZE                  SKB_DATA_ALIGN(4096) /*maximum buffer load */
 
-extern unsigned int socket_rtpkbs;      /* default number of rtpkb's in socket pools */
+extern unsigned int device_rtpkbs;      /* default number of rtpkb's in socket pools */
 
 extern unsigned int rtpkb_pools;        /* current number of rtpkb pools      */
 extern unsigned int rtpkb_pools_max;    /* maximum number of rtpkb pools      */
@@ -87,10 +242,29 @@ extern void rtpkb_over_panic(struct rtpkb *pkb, int len, void *here);
 extern void rtpkb_under_panic(struct rtpkb *pkb, int len, void *here);
 
 extern struct rtpkb *alloc_rtpkb(unsigned int size, struct rtpkb_pool *pool);
-#define dev_alloc_rtpkb(len, pool)  alloc_rtpkb(len, pool)
-
 extern void kfree_rtpkb(struct rtpkb *pkb);
-#define dev_kfree_rtpkb(a)  kfree_rtpkb(a)
+
+static inline void rtpkb_queue_init(struct rtpkb_queue *list)
+{
+	rtos_spin_lock_init(&list->lock);
+	list->prev = (struct rtpkb *)list;
+	list->next = (struct rtpkb *)list;
+	list->qlen = 0;
+}
+
+/***
+ *  rtpkb_prio_queue_init - initialize the prioritized queue
+ *  @prioqueue
+ */
+static inline void rtpkb_prio_queue_init(struct rtpkb_prio_queue *prioqueue)
+{
+    rtos_spin_lock_init(&prioqueue->lock);
+    int i;
+    for(i=0; i<=QUEUE_MIN_PRIO; i++)
+    {
+	    rtpkb_queue_init((struct rtpkb_queue *)&prioqueue->queue[i]);
+    }
+}
 
 /**
  *	rtpkb_queue_empty - check if a queue is empty
@@ -99,13 +273,22 @@ extern void kfree_rtpkb(struct rtpkb *pkb);
  *	Returns true if the queue is empty, false otherwise.
  */
  
-static inline int rtpkb_queue_empty(struct rtpkb_head *list)
+static inline int rtpkb_queue_empty(struct rtpkb_queue *list)
 {
 	return (list->next == (struct rtpkb *) list);
 }
 
+/***
+ *  rtpkb_prio_queue_empty
+ *  @queue
+ */
+static inline int rtpkb_prio_queue_empty(struct rtpkb_prio_queue *prioqueue)
+{
+    return (prioqueue->usage == 0);
+}
+
 /**
- *	pkb_peek
+ *	rtpkb_peek
  *	@list_: list to peek at
  *
  *	Peek an &rtpkb. Unlike most other operations you _MUST_
@@ -118,7 +301,7 @@ static inline int rtpkb_queue_empty(struct rtpkb_head *list)
  *	volatile. Use with caution.
  */
  
-static inline struct rtpkb *rtpkb_peek(struct rtpkb_head *list_)
+static inline struct rtpkb *rtpkb_peek(struct rtpkb_queue *list_)
 {
 	struct rtpkb *list = ((struct rtpkb *)list_)->next;
 	if (list == (struct rtpkb *)list_)
@@ -140,7 +323,7 @@ static inline struct rtpkb *rtpkb_peek(struct rtpkb_head *list_)
  *	volatile. Use with caution.
  */
 
-static inline struct rtpkb *rtpkb_peek_tail(struct rtpkb_head *list_)
+static inline struct rtpkb *rtpkb_peek_tail(struct rtpkb_queue *list_)
 {
 	struct rtpkb *list = ((struct rtpkb *)list_)->prev;
 	if (list == (struct rtpkb *)list_)
@@ -155,56 +338,42 @@ static inline struct rtpkb *rtpkb_peek_tail(struct rtpkb_head *list_)
  *	Return the length of an &rtpkb queue. 
  */
  
-static inline __u32 rtpkb_queue_len(struct rtpkb_head *list_)
+static inline __u32 rtpkb_queue_len(struct rtpkb_queue *list_)
 {
 	return(list_->qlen);
 }
 
-static inline void rtpkb_queue_head_init(struct rtpkb_head *list)
-{
-	rtos_spin_lock_init(&list->lock);
-	list->prev = (struct rtpkb *)list;
-	list->next = (struct rtpkb *)list;
-	list->qlen = 0;
-}
-
-/*
- *	Insert an rtpkb at the start of a list.
- *
- *	The "__pkb_xxxx()" functions are the non-atomic ones that
- *	can only be called with interrupts disabled.
- */
 
 /**
  *	__rtpkb_queue_head - queue a buffer at the list head
  *	@list: list to use
- *	@newsk: buffer to queue
+ *	@newpk: buffer to queue
  *
- *	Queue a buffer at the start of a list. This function takes no locks
+ *	Queue a buffer (or a chain of buffer) at the start of a list. This function takes no locks
  *	and you must therefore hold required locks before calling it.
  *
  *	A buffer cannot be placed on two lists at the same time.
  */	
  
-static inline void __rtpkb_queue_head(struct rtpkb_head *list, struct rtpkb *newsk)
+static inline void __rtpkb_queue_head(struct rtpkb_queue *list, struct rtpkb *newpk)
 {
 	struct rtpkb *prev, *next;
 
-	newsk->list = list;
+	newpk->list = list;
 	list->qlen++;
 	prev = (struct rtpkb *)list;
 	next = prev->next;
-	newsk->next = next;
-	newsk->prev = prev;
-	next->prev = newsk;
-	prev->next = newsk;
+	newpk->chain_end->next = next;
+	newpk->prev = prev;
+	next->prev = newpk->chain_end;
+	prev->next = newpk;
 }
 
 
 /**
  *	rtpkb_queue_head - queue a buffer at the list head
  *	@list: list to use
- *	@newsk: buffer to queue
+ *	@newpk: buffer to queue
  *
  *	Queue a buffer at the start of the list. This function takes the
  *	list lock and can be used safely with other locking &rtpkb functions
@@ -213,47 +382,80 @@ static inline void __rtpkb_queue_head(struct rtpkb_head *list, struct rtpkb *new
  *	A buffer cannot be placed on two lists at the same time.
  */	
 
-static inline void rtpkb_queue_head(struct rtpkb_head *list, struct rtpkb *newsk)
+static inline void rtpkb_queue_head(struct rtpkb_queue *list, struct rtpkb *newpk)
 {
 	unsigned long flags;
 
 	rtos_spin_lock_irqsave(&list->lock, flags);
-	__rtpkb_queue_head(list, newsk);
+	__rtpkb_queue_head(list, newpk);
 	rtos_spin_unlock_irqrestore(&list->lock, flags);
 	
-	if(list->event) rtos_event_signal(list->event);
 }
+
+/***
+ *  __rtpkb_prio_queue_head - insert a buffer at the prioritized queue head
+ *                            (w/o locks)
+ *  @queue: queue to use
+ *  @pkb: buffer to queue
+ */
+static inline void __rtpkb_prio_queue_head(struct rtpkb_prio_queue *prioqueue,
+                                           struct rtpkb *pkb)
+{
+    unsigned int prio = pkb->priority & RTSKB_PRIO_MASK;
+
+    RTOS_ASSERT(prio <= 31, prio = 31;);
+
+    __rtpkb_queue_head((struct rtpkb_queue *)&prioqueue->queue[prio], pkb);
+    __set_bit(prio, &prioqueue->usage);
+}
+
+/***
+ *  rtpkb_prio_queue_head - insert a buffer at the prioritized queue head
+ *                          (lock protected)
+ *  @queue: queue to use
+ *  @pkb: buffer to queue
+ */
+static inline void rtpkb_prio_queue_head(struct rtpkb_prio_queue *prioqueue,
+                                         struct rtpkb *pkb)
+{
+    unsigned long flags;
+
+    rtos_spin_lock_irqsave(&prioqueue->lock, flags);
+    __rtpkb_prio_queue_head(prioqueue, pkb);
+    rtos_spin_unlock_irqrestore(&prioqueue->lock, flags);
+}
+
 
 /**
  *	__rtpkb_queue_tail - queue a buffer at the list tail
  *	@list: list to use
- *	@newsk: buffer to queue
+ *	@newpk: buffer to queue
  *
- *	Queue a buffer at the end of a list. This function takes no locks
+ *	Queue a buffer (or a chain of buffer) at the end of a list. This function takes no locks
  *	and you must therefore hold required locks before calling it.
  *
  *	A buffer cannot be placed on two lists at the same time.
  */	
  
 
-static inline void __rtpkb_queue_tail(struct rtpkb_head *list, struct rtpkb *newsk)
+static inline void __rtpkb_queue_tail(struct rtpkb_queue *list, struct rtpkb *newpk)
 {
 	struct rtpkb *prev, *next;
 		
-	newsk->list = list;
+	newpk->list = list;
 	list->qlen++;
 	next = (struct rtpkb *)list;
 	prev = next->prev;
-	newsk->next = next;
-	newsk->prev = prev;
-	next->prev = newsk;
-	prev->next = newsk;
+	newpk->chain_end->next = next;
+	newpk->prev = prev;
+	next->prev = newpk->chain_end;
+	prev->next = newpk;
 }
 
 /**
  *	rtpkb_queue_tail - queue a buffer at the list tail
  *	@list: list to use
- *	@newsk: buffer to queue
+ *	@newpk: buffer to queue
  *
  *	Queue a buffer at the tail of the list. This function takes the
  *	list lock and can be used safely with other locking &rtpkb functions
@@ -262,53 +464,48 @@ static inline void __rtpkb_queue_tail(struct rtpkb_head *list, struct rtpkb *new
  *	A buffer cannot be placed on two lists at the same time.
  */	
 
-static inline void rtpkb_queue_tail(struct rtpkb_head *list, struct rtpkb *newsk)
+static inline void rtpkb_queue_tail(struct rtpkb_queue *list, struct rtpkb *newpk)
 {
 	unsigned long flags;
 	
 	rtos_spin_lock_irqsave(&list->lock, flags);
-	__rtpkb_queue_tail(list, newsk);
+	__rtpkb_queue_tail(list, newpk);
 	rtos_spin_unlock_irqrestore(&list->lock, flags);
 	
-	if(list->event) rtos_event_signal(list->event);
-		
 }
 
-static inline void __rtpkb_queue_pri(struct rtpkb_head *list, struct rtpkb *newsk)
+/***
+ *  __rtpkb_prio_queue_tail - insert a buffer at the prioritized queue tail
+ *                            (w/o locks)
+ *  @prioqueue: queue to use
+ *  @pkb: buffer to queue
+ */
+static inline void __rtpkb_prio_queue_tail(struct rtpkb_prio_queue *prioqueue,
+                                           struct rtpkb *pkb)
 {
-	struct rtpkb *prev, *next;
+    unsigned int prio = pkb->priority & RTSKB_PRIO_MASK;
 
-	newsk->list = list;
-	list->qlen++;
-	
-	for(next=list->next, prev=(struct rtpkb*)list; next!=(struct rtpkb*)list; prev=next, next=next->next) {
-		if(next->pri > newsk->pri){
-			newsk->next = next;
-			newsk->prev = prev;
-			next->prev = newsk;
-			prev->next = newsk;
-			break;
-		}
-	}
-	if(next==(struct rtpkb *)list) {
-		newsk->next = next;
-		newsk->prev = prev;
-		next->prev = newsk;
-		prev->next = newsk;
-	}
+    RTOS_ASSERT(prio <= 31, prio = 31;);
+
+    __rtpkb_queue_tail((struct rtpkb_queue *)&prioqueue->queue[prio], pkb);
+    __set_bit(prio, &prioqueue->usage);
 }
 
-static inline void rtpkb_queue_pri(struct rtpkb_head *list, struct rtpkb *newsk)
+/***
+ *  rtpkb_prio_queue_tail - insert a buffer at the prioritized queue tail
+ *                          (lock protected)
+ *  @prioqueue: queue to use
+ *  @pkb: buffer to queue
+ */
+static inline void rtpkb_prio_queue_tail(struct rtpkb_prio_queue *prioqueue,
+                                         struct rtpkb *pkb)
 {
-	unsigned long flags;
-	
-	rtos_spin_lock_irqsave(&list->lock, flags);
-	__rtpkb_queue_pri(list, newsk);
-	rtos_spin_unlock_irqrestore(&list->lock, flags);
-	
-	if(list->event) rtos_event_signal(list->event);
+    unsigned long flags;
+
+    rtos_spin_lock_irqsave(&prioqueue->lock, flags);
+    __rtpkb_prio_queue_tail(prioqueue, pkb);
+    rtos_spin_unlock_irqrestore(&prioqueue->lock, flags);
 }
-	
 
 /**
  *	__pkb_dequeue - remove from the head of the queue
@@ -319,7 +516,7 @@ static inline void rtpkb_queue_pri(struct rtpkb_head *list, struct rtpkb *newsk)
  *	returned or %NULL if the list is empty.
  */
 
-static inline struct rtpkb *__rtpkb_dequeue(struct rtpkb_head *list)
+static inline struct rtpkb *__rtpkb_dequeue(struct rtpkb_queue *list)
 {
 	struct rtpkb *next, *prev, *result;
 
@@ -348,7 +545,7 @@ static inline struct rtpkb *__rtpkb_dequeue(struct rtpkb_head *list)
  *	returned or %NULL if the list is empty.
  */
 
-static inline struct rtpkb *rtpkb_dequeue(struct rtpkb_head *list)
+static inline struct rtpkb *rtpkb_dequeue(struct rtpkb_queue *list)
 {
 	unsigned long flags;
 	struct rtpkb *result;
@@ -358,38 +555,143 @@ static inline struct rtpkb *rtpkb_dequeue(struct rtpkb_head *list)
 	return result;
 }
 
+/***
+ *  __rtpkb_prio_dequeue - remove from the head of the prioritized queue
+ *                         (w/o locks)
+ *  @prioqueue: queue to remove from
+ */
+static inline struct rtpkb *
+    __rtpkb_prio_dequeue(struct rtpkb_prio_queue *prioqueue)
+{
+    int prio;
+    struct rtpkb *result = NULL;
+    struct rtpkb_queue *sub_queue;
+
+    if (prioqueue->usage) {
+        prio      = ffz(~prioqueue->usage);
+        sub_queue = (struct rtpkb_queue *)&prioqueue->queue[prio];
+        result    = __rtpkb_dequeue(sub_queue);
+        if (rtpkb_queue_empty(sub_queue))
+            __change_bit(prio, &prioqueue->usage);
+    }
+
+    return result;
+}
+
+/***
+ *  rtpkb_prio_dequeue - remove from the head of the prioritized queue
+ *                       (lock protected)
+ *  @prioqueue: queue to remove from
+ */
+static inline struct rtpkb *
+    rtpkb_prio_dequeue(struct rtpkb_prio_queue *prioqueue)
+{
+    unsigned long flags;
+    struct rtpkb *result;
+
+    rtos_spin_lock_irqsave(&prioqueue->lock, flags);
+    result = __rtpkb_prio_dequeue(prioqueue);
+    rtos_spin_unlock_irqrestore(&prioqueue->lock, flags);
+
+    return result;
+}
+
+
+/***
+ *  __rtpkb_dequeue_chain - remove a chain from the head of the queue
+ *                          (w/o locks)
+ *  @queue: queue to remove from
+ */
+static inline struct rtpkb *__rtpkb_dequeue_chain(struct rtpkb_queue *queue)
+{
+    struct rtpkb *result;
+    struct rtpkb *chain_end;
+
+    if ((result = queue->next) != queue->prev) {
+        chain_end = result->chain_end;
+        queue->next = chain_end->next;
+	chain_end->next->prev = (struct rtpkb *)queue;
+        chain_end->next = NULL;
+    }
+
+    return result;
+}
+
+/***
+ *  rtpkb_dequeue_chain - remove a chain from the head of the queue
+ *                        (lock protected)
+ *  @queue: queue to remove from
+ */
+static inline struct rtpkb *rtpkb_dequeue_chain(struct rtpkb_queue *queue)
+{
+    unsigned long flags;
+    struct rtpkb *result;
+
+    rtos_spin_lock_irqsave(&queue->lock, flags);
+    result = __rtpkb_dequeue_chain(queue);
+    rtos_spin_unlock_irqrestore(&queue->lock, flags);
+
+    return result;
+}
+
+/***
+ *  rtpkb_prio_dequeue_chain - remove a chain from the head of the
+ *                             prioritized queue
+ *  @prioqueue: queue to remove from
+ */
+static inline
+    struct rtpkb *rtpkb_prio_dequeue_chain(struct rtpkb_prio_queue *prioqueue)
+{
+    unsigned long flags;
+    int prio;
+    struct rtpkb *result = NULL;
+    struct rtpkb_queue *sub_queue;
+
+    rtos_spin_lock_irqsave(&prioqueue->lock, flags);
+    if (prioqueue->usage) {
+        prio      = ffz(~prioqueue->usage);
+        sub_queue = (struct rtpkb_queue *)&prioqueue->queue[prio];
+        result    = __rtpkb_dequeue_chain(sub_queue);
+        if (rtpkb_queue_empty(sub_queue))
+            __change_bit(prio, &prioqueue->usage);
+    }
+    rtos_spin_unlock_irqrestore(&prioqueue->lock, flags);
+
+    return result;
+}
+
 /*
  *	Insert a packet on a list.
  */
 
-static inline void __rtpkb_insert(struct rtpkb *newsk,
-	struct rtpkb * prev, struct rtpkb *next,
-	struct rtpkb_head * list)
+static inline void __rtpkb_insert(struct rtpkb *newpk,
+	struct rtpkb *prev, struct rtpkb *next,
+	struct rtpkb_queue *list)
 {
-	newsk->next = next;
-	newsk->prev = prev;
-	next->prev = newsk;
-	prev->next = newsk;
-	newsk->list = list;
+	newpk->next = next;
+	newpk->prev = prev;
+	next->prev = newpk;
+	prev->next = newpk;
+	newpk->list = list;
 	list->qlen++;
 }
 
 /**
  *	pkb_insert	-	insert a buffer
  *	@old: buffer to insert before
- *	@newsk: buffer to insert
+ *	@newpk: buffer to insert
  *
  *	Place a packet before a given packet in a list. The list locks are taken
  *	and this function is atomic with respect to other list locked calls
  *	A buffer cannot be placed on two lists at the same time.
  */
 
-static inline void rtpkb_insert(struct rtpkb *old, struct rtpkb *newsk)
+static inline void rtpkb_insert(struct rtpkb *old, struct rtpkb *newpk)
 {
 	unsigned long flags;
 
 	rtos_spin_lock_irqsave(&old->list->lock, flags);
-	__rtpkb_insert(newsk, old->prev, old, old->list);
+	__rtpkb_insert(newpk, old->prev, old, old->list);
 	rtos_spin_unlock_irqrestore(&old->list->lock, flags);
 }
 
@@ -397,15 +699,15 @@ static inline void rtpkb_insert(struct rtpkb *old, struct rtpkb *newsk)
  *	Place a packet after a given packet in a list.
  */
 
-static inline void __rtpkb_append(struct rtpkb *old, struct rtpkb *newsk)
+static inline void __rtpkb_append(struct rtpkb *old, struct rtpkb *newpk)
 {
-	__rtpkb_insert(newsk, old, old->next, old->list);
+	__rtpkb_insert(newpk, old,  old->next, old->list);
 }
 
 /**
  *	pkb_append	-	append a buffer
  *	@old: buffer to insert after
- *	@newsk: buffer to insert
+ *	@newpk: buffer to insert
  *
  *	Place a packet after a given packet in a list. The list locks are taken
  *	and this function is atomic with respect to other list locked calls.
@@ -413,12 +715,12 @@ static inline void __rtpkb_append(struct rtpkb *old, struct rtpkb *newsk)
  */
 
 
-static inline void rtpkb_append(struct rtpkb *old, struct rtpkb *newsk)
+static inline void rtpkb_append(struct rtpkb *old, struct rtpkb *newpk)
 {
 	unsigned long flags;
 
 	rtos_spin_lock_irqsave(&old->list->lock, flags);
-	__rtpkb_append(old, newsk);
+	__rtpkb_append(old, newpk);
 	rtos_spin_unlock_irqrestore(&old->list->lock, flags);
 }
 
@@ -427,7 +729,7 @@ static inline void rtpkb_append(struct rtpkb *old, struct rtpkb *newsk)
  * the list known..
  */
  
-static inline void __rtpkb_unlink(struct rtpkb *pkb, struct rtpkb_head *list)
+static inline void __rtpkb_unlink(struct rtpkb *pkb, struct rtpkb_queue *list)
 {
 	struct rtpkb * next, * prev;
 
@@ -456,7 +758,7 @@ static inline void __rtpkb_unlink(struct rtpkb *pkb, struct rtpkb_head *list)
 
 static inline void rtpkb_unlink(struct rtpkb *pkb)
 {
-	struct rtpkb_head *list = pkb->list;
+	struct rtpkb_queue *list = pkb->list;
 
 	if(list) {
 		unsigned long flags;
@@ -469,7 +771,6 @@ static inline void rtpkb_unlink(struct rtpkb *pkb)
 }
 
 /* XXX: more streamlined implementation */
-
 /**
  *	__rtpkb_dequeue_tail - remove from the tail of the queue
  *	@list: list to dequeue from
@@ -479,7 +780,7 @@ static inline void rtpkb_unlink(struct rtpkb *pkb)
  *	returned or %NULL if the list is empty.
  */
 
-static inline struct rtpkb *__rtpkb_dequeue_tail(struct rtpkb_head *list)
+static inline struct rtpkb *__rtpkb_dequeue_tail(struct rtpkb_queue *list)
 {
 	struct rtpkb *pkb = rtpkb_peek_tail(list); 
 	if (pkb)
@@ -496,7 +797,7 @@ static inline struct rtpkb *__rtpkb_dequeue_tail(struct rtpkb_head *list)
  *	returned or %NULL if the list is empty.
  */
 
-static inline struct rtpkb *rtpkb_dequeue_tail(struct rtpkb_head *list)
+static inline struct rtpkb *rtpkb_dequeue_tail(struct rtpkb_queue *list)
 {
 	unsigned long flags;
 	struct rtpkb *result;
@@ -507,6 +808,7 @@ static inline struct rtpkb *rtpkb_dequeue_tail(struct rtpkb_head *list)
 	return result;
 }
 
+
 #define rtpkb_queue_walk(queue,pkb) \
 		for (pkb = (queue)->next; \
 			prefetch(pkb->next), (pkb != (struct rtpkb *)(queue)); \
@@ -516,7 +818,7 @@ static inline struct rtpkb *rtpkb_dequeue_tail(struct rtpkb_head *list)
  *  rtpkb_head_purge - clean the queue
  *  @queue
  */
-static inline void rtpkb_head_purge(struct rtpkb_head *queue)
+static inline void rtpkb_head_purge(struct rtpkb_queue *queue)
 {
     struct rtpkb *pkb;
     while ( (pkb=rtpkb_dequeue(queue))!=NULL )
@@ -525,6 +827,8 @@ static inline void rtpkb_head_purge(struct rtpkb_head *queue)
 
 static inline void rtpkb_reserve(struct rtpkb *pkb, unsigned int len)
 {
+    RTPKB_ASSERT(pkb->tail+len <= pkb->end, 
+			rtpkb_over_panic(pkb, len, current_text_addr()););
     pkb->data+=len;
     pkb->tail+=len;
 }
@@ -545,7 +849,7 @@ static inline unsigned char *rtpkb_put(struct rtpkb *pkb, unsigned int len)
     pkb->tail+=len;
     pkb->len+=len;
 
-    RTOS_ASSERT(pkb->tail <= pkb->end,
+    RTPKB_ASSERT(pkb->tail <= pkb->end,
         rtpkb_over_panic(pkb, len, current_text_addr()););
 
     return tmp;
@@ -563,7 +867,7 @@ static inline unsigned char *rtpkb_push(struct rtpkb *pkb, unsigned int len)
     pkb->data-=len;
     pkb->len+=len;
 
-    RTOS_ASSERT(pkb->data >= pkb->buf_start,
+    RTOS_ASSERT(pkb->data >= pkb->head,
         rtpkb_under_panic(pkb, len, current_text_addr()););
 
     return pkb->data;
@@ -572,8 +876,8 @@ static inline unsigned char *rtpkb_push(struct rtpkb *pkb, unsigned int len)
 static inline char *__rtpkb_pull(struct rtpkb *pkb, unsigned int len)
 {
     pkb->len-=len;
-    if (pkb->len < 0)
-        BUG();
+    RTOS_ASSERT(pkb->len<0,
+        rtpkb_under_panic(pkb, len, current_text_addr()););
     return pkb->data+=len;
 }
 
@@ -615,14 +919,15 @@ static inline unsigned char *rtpkb_fillin(struct rtpkb *pkb, void *src, unsigned
 static inline void rtpkb_clean(struct rtpkb *pkb)
 {
 	/*! reset the data buffer */
-	//~ memset(pkb->buf_start, 0, PKB_DATA_ALIGN(RTPKB_SIZE));
+	//~ memset(pkb->head, 0, PKB_DATA_ALIGN(RTPKB_SIZE));
 	/*! reset the data pointers. */
-	pkb->head = pkb->buf_start;
-	pkb->data = pkb->buf_start;
-	pkb->tail = pkb->buf_start;
-	pkb->end  = pkb->buf_start + SKB_DATA_ALIGN(RTPKB_SIZE);
+	pkb->head = (u8 *)pkb + ALIGN_RTPKB_STRUCT_LEN;
+	pkb->data = pkb->head;
+	pkb->tail = pkb->head;
+	pkb->end  = pkb->head + RTPKB_SIZE;
 	/*! and the data length */
 	pkb->len = 0;
+	pkb->chain_end = pkb;
 }
 	
 static inline struct rtpkb *rtpkb_padto(struct rtpkb *rtpkb, unsigned int len)
@@ -635,8 +940,6 @@ static inline struct rtpkb *rtpkb_padto(struct rtpkb *rtpkb, unsigned int len)
     return rtpkb;
 }
 
-extern struct rtpkb_pool global_pool;
-
 extern unsigned int rtpkb_pool_init(struct rtpkb_pool *pool,
                                     unsigned int initial_size);
 extern unsigned int rtpkb_pool_init_rt(struct rtpkb_pool *pool,
@@ -644,28 +947,22 @@ extern unsigned int rtpkb_pool_init_rt(struct rtpkb_pool *pool,
 extern void __rtpkb_pool_release(struct rtpkb_pool *pool);
 extern void __rtpkb_pool_release_rt(struct rtpkb_pool *pool);
 	
-#if 0
-static inline int rtpkb_is_nonlinear(const struct rtpkb *pkb)
-{
-	return pkb->data_len;
-}
 
 static inline unsigned int rtpkb_headlen(const struct rtpkb *pkb)
 {
-	return pkb->len - pkb->data_len;
+	return pkb->len;
 }
-#endif
 
 #define rtpkb_pool_release(pool)                            \
     do {                                                    \
         RTOS_ASSERT((&(pool)->queue)->qlen == (pool)->capc,             \
-                     printk("pool: %p\n", (pool)););    \
+                     printk("pool: %s\n", ((pool)->name)););    \
         __rtpkb_pool_release((pool));                       \
     } while (0)
 #define rtpkb_pool_release_rt(pool)                         \
     do {                                                    \
         RTOS_ASSERT((&(pool)->queue)->qlen == (pool)->capc,             \
-                     printk("pool: %p\n", (pool)););    \
+                     printk("pool: %s\n", ((pool)->name)););    \
         __rtpkb_pool_release_rt((pool));                    \
     } while (0)
 

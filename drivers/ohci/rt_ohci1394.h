@@ -1,14 +1,8 @@
-/**
- * @ingroup ohci
- * @file
- *
- * data structure and interfaces of ohci module
- */
-
 /*
- * ohci1394.h - driver for OHCI 1394 boards
- * Copyright (C)1999,2000 Sebastien Rougeaux <sebastien.rougeaux@anu.edu.au>
- *                        Gord Peters <GordPeters@smarttech.com>
+ * ohci1394.c - driver for OHCI 1394 boards
+ *  Linkdriver for OHCI of RT-FireWire
+ *  adapted from Linux 1394subsystem 
+ * Copyright (C) 2005	Zhang Yuchen <y.zhang-4@student.utwente.nl>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,15 +18,23 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
+ 
+/**
+ * @ingroup ohci
+ * @file
+ *
+ * data structure and interfaces of Link Driver for OHCI1394
+ */
+ 
 
 #ifndef _OHCI1394_H
 #define _OHCI1394_H
 
-#include "ieee1394_types.h"
+#include <ieee1394_types.h>
 #include <asm/io.h>
 
-#include "rtpkbuff.h"
-#include "rt_serv.h"
+#include <rtpkbuff.h>
+#include <rt_serv.h>
 
 #define OHCI1394_DRIVER_NAME      "rt_ohci1394"
 
@@ -93,21 +95,71 @@ struct at_dma_prg {
 	quadlet_t pad[4]; /* FIXME: quick hack for memory alignment */
 };
 
+/**
+ * @ingroup ohci
+ * @struct iso_xmit_cmd
+ * transmission DMA program:
+   one OUTPUT_MORE_IMMEDIATE for the IT header
+   one OUTPUT_LAST for the buffer data 
+*/
+
+struct iso_xmit_cmd {
+	struct dma_cmd output_more_immediate;
+	u8 iso_hdr[8];
+	u32 unused[2];
+	struct dma_cmd output_last;
+};
+
+
 /* identify whether a DMA context is asynchronous or isochronous */
-enum context_type { DMA_CTX_ASYNC_REQ, DMA_CTX_ASYNC_RESP, DMA_CTX_ISO };
+//~ enum context_type { DMA_CTX_ASYNC_REQ, DMA_CTX_ASYNC_RESP, DMA_CTX_ISO };
+enum context_type{ ASYNC_REQ_TRANSMIT, ASYNC_RESP_TRANSMIT, 
+				ASYNC_REQ_RECEIVE, ASYNC_RESP_RECEIVE,
+				OHCI_ISO_TRANSMIT, OHCI_ISO_RECEIVE,
+				OHCI_ISO_MULTICHANNEL_RECEIVE};
+
+struct dma_base_ctx {
+	struct list_head link;
+	int context;
+	enum context_type type;
+	int task_active;
+	
+	struct rt_event_struct event;
+	
+	u32 ctrlClear;
+	u32 ctrlSet;
+	u32 cmdPtr;
+	u32 ctxtMatch;
+	
+	unsigned char name[32];
+
+};
 
 /** 
  * @ingroup ohci
- * @struct dma_rcv_ctx
+ * @struct dma_asyn_recv
  * DMA receive context */
-struct dma_rcv_ctx {
-	struct ti_ohci *ohci;
+struct dma_asyn_recv {
+	/* common stuff from dma_base_ctx */
+	struct list_head link;
+	int context;
 	enum context_type type;
-	int ctx;
+	int task_active;
+	
+	struct rt_event_struct event;
+	
+	u32 ctrlClear;
+	u32 ctrlSet;
+	u32 cmdPtr;
+	u32 ctxtMatch;
+	
+	unsigned char name[32];
+		
+	struct ti_ohci *ohci;
+	
 	unsigned int num_desc;
 
 	unsigned int buf_size;
-	quadlet_t *spd;
 	unsigned int split_buf_size;
 
 	/* dma block descriptors */
@@ -122,26 +174,33 @@ struct dma_rcv_ctx {
         unsigned int buf_ind;
         unsigned int buf_offset;
         quadlet_t *spb;
-        spinlock_t lock;
-	
-	int ctrlClear;
-	int ctrlSet;
-	int cmdPtr;
-	int ctxtMatch;
+        rtos_spinlock_t lock;
 	
 	struct rtpkb_pool pool;
-	/** pointer to the bottomhalf server **/
-	struct rt_serv_struct *srv;
 };
 
 /**
  * @ingroup ohci
- * @struct dma_trm_ctx
+ * @struct dma_asyn_xmit
  * DMA transmit context */
-struct dma_trm_ctx {
-	struct ti_ohci *ohci;
+struct dma_asyn_xmit {
+	/* common stuff from dma_base_ctx */
+	struct list_head link;
+	int context;
 	enum context_type type;
-	int ctx;
+	int task_active;
+	
+	struct rt_event_struct event;
+	
+	u32 ctrlClear;
+	u32 ctrlSet;
+	u32 cmdPtr;
+	u32 ctxtMatch;
+	
+	unsigned char name[32];
+		
+	struct ti_ohci *ohci;
+		
 	unsigned int num_desc;
 
 	/* dma block descriptors */
@@ -160,25 +219,99 @@ struct dma_trm_ctx {
 	/* list of pending packets to be inserted in the AT FIFO */
 	struct list_head pending_list;
 
-        spinlock_t lock;
-        struct rt_serv_struct *srv;
-	int ctrlClear;
-	int ctrlSet;
-	int cmdPtr;
+        rtos_spinlock_t lock;
+};
+/**
+ * @ingroup ohci
+ * @struct dma_iso_recv
+  We use either buffer-fill or packet-per-buffer DMA mode. The DMA
+  buffer is split into "blocks" (regions described by one DMA
+  descriptor). Each block must be one page or less in size, and
+  must not cross a page boundary.
+
+  There is one little wrinkle with buffer-fill mode: a packet that
+  starts in the final block may wrap around into the first block. But
+  the user API expects all packets to be contiguous. Our solution is
+  to keep the very last page of the DMA buffer in reserve - if a
+  packet spans the gap, we copy its tail into this page.
+*/
+
+struct dma_iso_recv {
+	/* common stuff from dma_base_ctx */
+	struct list_head link;
+	int context;
+	enum context_type type;
+	int task_active;
+	
+	struct rt_event_struct event;
+	
+	u32 ctrlClear;
+	u32 ctrlSet;
+	u32 cmdPtr;
+	u32 ctxtMatch;
+	
+	unsigned char name[32];
+		
+	struct ti_ohci *ohci;
+
+	enum { BUFFER_FILL_MODE = 0,
+	       PACKET_PER_BUFFER_MODE = 1 } dma_mode;
+
+	/*! memory and PCI mapping for the DMA descriptors */
+	struct dma_prog_region prog;
+	struct dma_cmd *block; /* = (struct dma_cmd*) prog.virt */
+
+	/*! how many DMA blocks fit in the buffer */
+	unsigned int nblocks;
+
+	/*! stride of DMA blocks */
+	unsigned int buf_stride;
+
+	/*! number of blocks to batch between interrupts */
+	int block_irq_interval;
+
+	/*! block that DMA will finish next */
+	int block_dma;
+
+	/*! (buffer-fill only) block that the reader will release next */
+	int block_reader;
+
+	/*! (buffer-fill only) bytes of buffer the reader has released,
+	   less than one block */
+	int released_bytes;
+
+	/*! (buffer-fill only) buffer offset at which the next packet will appear */
+	int dma_offset;
+
 };
 
 /**
  * @ingroup ohci
- * @struct ohci1394_iso_tasklet
+ * @struct dma_iso_xmit
  */
-struct ohci1394_iso_ctx {
-	struct rt_event_struct event;
-	struct rt_serv_struct *srv;	
+struct dma_iso_xmit {
+	/* common stuff from dma_base_ctx */
 	struct list_head link;
 	int context;
-	enum { OHCI_ISO_TRANSMIT, OHCI_ISO_RECEIVE,
-	       OHCI_ISO_MULTICHANNEL_RECEIVE } type;
+	enum context_type type;
+	int task_active;
+	
+	struct rt_event_struct event;
+	
+	u32 ctrlClear;
+	u32 ctrlSet;
+	u32 cmdPtr;
+	u32 ctxtMatch;
+	
+	unsigned char name[32];
+	       
+	struct ti_ohci *ohci;
+		
+	struct dma_prog_region prog;
+
 };
+
+
 
 /**
  * @ingroup ohci
@@ -213,34 +346,33 @@ struct ti_ohci {
 	unsigned int max_packet_size;
 
         /* async receive */
-	struct dma_rcv_ctx ar_resp_context;
-	struct dma_rcv_ctx ar_req_context;
+	struct dma_asyn_recv ar_resp_context;
+	struct dma_asyn_recv ar_req_context;
 
 	/* async transmit */
-	struct dma_trm_ctx at_resp_context;
-	struct dma_trm_ctx at_req_context;
+	struct dma_asyn_xmit at_resp_context;
+	struct dma_asyn_xmit at_req_context;
 
         /* iso receive */
 	int nb_iso_rcv_ctx;
 	unsigned long ir_ctx_usage; /* use test_and_set_bit() for atomicity */
 	unsigned long ir_multichannel_used; /* ditto */
-        spinlock_t IR_channel_lock;
+        rtos_spinlock_t IR_channel_lock;
 
-	/* iso receive (legacy API) */
-	u64 ir_legacy_channels; /* note: this differs from ISO_channel_usage;
-				   it only accounts for channels listened to
-				   by the legacy API, so that we can know when
-				   it is safe to free the legacy API context */
+	//~ /* iso receive (legacy API) */
+	//~ u64 ir_legacy_channels; /* note: this differs from ISO_channel_usage;
+				   //~ it only accounts for channels listened to
+				   //~ by the legacy API, so that we can know when
+				   //~ it is safe to free the legacy API context */
 
-	//~ struct dma_rcv_ctx ir_legacy_context;
-	//~ struct ohci1394_iso_tasklet ir_legacy_tasklet;
+	//~ struct dma_iso_recv ir_legacy_context;
 
         /* iso transmit */
 	int nb_iso_xmit_ctx;
 	unsigned long it_ctx_usage; /* use test_and_set_bit() for atomicity */
 
 	/* iso transmit (legacy API) */
-	//~ struct dma_trm_ctx it_legacy_context;
+	//~ struct dma_asyn_xmit it_legacy_context;
 	//~ struct ohci1394_iso_tasklet it_legacy_tasklet;
 
         u64 ISO_channel_usage;
@@ -250,8 +382,8 @@ struct ti_ohci {
 
         int phyid, isroot;
 
-        spinlock_t phy_reg_lock;
-	spinlock_t event_lock;
+        rtos_spinlock_t phy_reg_lock;
+	rtos_spinlock_t event_lock;
 
 	int self_id_errors;
 
@@ -259,7 +391,7 @@ struct ti_ohci {
 	 * amdtp and dv1394 */
 
 	struct list_head iso_ctx_list;
-	spinlock_t iso_ctx_list_lock;
+	rtos_spinlock_t iso_ctx_list_lock;
 
 	/* Swap the selfid buffer? */
 	unsigned int selfid_swap:1;
@@ -268,9 +400,6 @@ struct ti_ohci {
 
 	/* Force extra paranoia checking on bus-reset handling */
 	unsigned int check_busreset:1;
-	
-	/** interrupt events **/
-	struct rt_event_struct reqtx, resptx, reqrx, resprx;
 	
 	/** device id **/
 	int id;
@@ -482,12 +611,12 @@ static inline u32 reg_read(const struct ti_ohci *ohci, int offset)
 
 #define OHCI1394_TCODE_PHY               0xE
 
-void ohci1394_init_iso_ctx(struct ohci1394_iso_ctx *t,
+void ohci1394_init_iso_ctx(struct dma_base_ctx *d,
 			       int type,struct hpsb_iso *iso);
 int ohci1394_register_iso_ctx(struct ti_ohci *ohci,
-				  struct ohci1394_iso_ctx *t);
+				  struct dma_base_ctx *d);
 void ohci1394_unregister_iso_ctx(struct ti_ohci *ohci,
-				     struct ohci1394_iso_ctx *t);
+				     struct dma_base_ctx *d);
 
 /* returns zero if successful, one if DMA context is locked up */
 int ohci1394_stop_context      (struct ti_ohci *ohci, int reg, char *msg);

@@ -88,7 +88,7 @@ static void delayed_reset_bus(void * __reset_info)
 		return;
 	}
 	
-	rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	host->csr.generation = generation;
 	host->update_config_rom = 0;
 	if (host->driver->set_hw_config_rom)
@@ -293,7 +293,7 @@ struct hpsb_host *host_alloc(size_t extra)
 		
 	h->hostdata = h + 1;
 	
-	rtpkb_queue_head_init(&h->pending_packet_queue);
+	rtpkb_queue_init(&h->pending_packet_queue);
 	INIT_LIST_HEAD(&h->addr_space);
 	
 	for (i = 2; i < 16; i++)
@@ -452,12 +452,8 @@ int host_register(struct hpsb_host *host)
 		return -ENOMEM;
 	/* to add extra unit directory, like ip over 1394 */
 	hpsb_add_extra_config_roms(host);
-	
 	highlevel_add_host(host);
-	
-	/* the bus reset is skipped in 2.6, but I still keep it here for I dont know 
-	 * why it can be skipped. 
-	 */
+		
 	//~ if(host->driver->devctl)
 		//~ host->driver->devctl(host,RESET_BUS, LONG_RESET);
 	
@@ -469,10 +465,7 @@ int host_register(struct hpsb_host *host)
 	rtpkb_pool_init(&host->pool,device_rtpkbs);
 	
 	strcpy(host->pool.name, host->name);
-	
-	/* scale global rtpkb pool */
-	host->add_rtpkbs = rtpkb_pool_extend(&global_pool, device_rtpkbs);
-	
+
 	/** 
 	 * we do bus reset immediately, but better to be scheduled as a delayed task.
 	  */
@@ -530,7 +523,6 @@ int host_unregister(struct hpsb_host *host)
 	printk("RT-firewire:unregistered %s\n", host->name);
 	
 	rtpkb_pool_release(&host->pool);
-	rtpkb_pool_shrink(&global_pool, host->add_rtpkbs);
 	
 	RTOS_ASSERT(atomic_read(&host->refcount) == 0,
 			printk("RT-Firewire: host reference counter >0!\n"););
@@ -575,7 +567,7 @@ int hpsb_update_config_rom_image(struct hpsb_host *host)
 	//~ PREPARE_WORK(&host->delayed_reset, delayed_reset_bus, host);
 	//~ schedule_delayed_work(&host->delayed_reset, reset_delay);
 //~ #else
-	rtos_print("We reset the bus immediately\n");
+	HPSB_NOTICE("We reset the bus immediately\n");
 	delayed_reset_bus((void *)host);
 //~ #endif
 	return 0;
@@ -638,12 +630,12 @@ int host_close(struct hpsb_host *host)
  * @anchor host_locked_xmit
  * make the xmit routine critical section
  */
-static int host_locked_xmit(struct rtpkb *pkb, struct hpsb_host *host)
+static int host_locked_xmit(struct hpsb_packet *packet, struct hpsb_host *host)
 {
 	int ret;
 	
 	rtos_res_lock(&host->xmit_lock);
-	ret = host->hard_start_xmit(pkb, host);
+	ret = host->driver->transmit_packet(host,packet);
 	rtos_res_unlock(&host->xmit_lock);
 	
 	return ret;

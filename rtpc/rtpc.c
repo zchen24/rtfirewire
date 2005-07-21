@@ -40,9 +40,9 @@
 
 static rtos_spinlock_t   pending_calls_lock = RTOS_SPIN_LOCK_UNLOCKED;
 static rtos_spinlock_t   processed_calls_lock = RTOS_SPIN_LOCK_UNLOCKED;
-static rtos_event_sem_t  *dispatch_event;
 static rtos_nrt_signal_t rtpc_nrt_signal;
-
+struct rt_serv_struct *rtpc_dispatcher;
+	
 LIST_HEAD(pending_calls);
 LIST_HEAD(processed_calls);
 
@@ -113,8 +113,10 @@ int rtpc_dispatch_call(rtpc_proc proc, unsigned int timeout,
     list_add_tail(&call->list_entry, &pending_calls);
     rtos_spin_unlock_irqrestore(&pending_calls_lock, flags);
 
-    rtos_event_sem_signal(dispatch_event);
-
+    DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+    rt_request_pend(rtpc_dispatcher, 0, 2000000, NULL, 0, NULL); //we make a delay of 2ms
+    rt_serv_sync(rtpc_dispatcher);
+	
     if (timeout > 0) {
         ret = wait_event_interruptible_timeout(call->call_wq,
             call->processed, (timeout * HZ) / 1000);
@@ -191,12 +193,14 @@ static inline struct rt_proc_call *rtpc_dequeue_processed_call(void)
 
 static void rtpc_dispatch_handler(unsigned long arg)
 {
-    struct rt_proc_call *call;
+    DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	struct rt_proc_call *call;
     int                 ret;
 	
-    call = rtpc_dequeue_pending_call();
-	
-    ret = call->proc(call);
+    if((call = rtpc_dequeue_pending_call())!=NULL)	
+	ret = call->proc(call);
+    else
+	return;
         
     if (ret != -CALL_PENDING)
             rtpc_complete_call(call, ret);
@@ -244,7 +248,6 @@ void rtpc_complete_call_nrt(struct rt_proc_call *call, int result)
 }
 
 
-struct rt_serv_struct *rtpc_dispatcher;
 int __init rtpc_init(void)
 {
     int ret;
@@ -255,12 +258,11 @@ int __init rtpc_init(void)
         return ret;
    
     sprintf(name, "rtpc");
-    rtpc_dispatcher = rt_serv_init(name, rtpc_dispatch_handler, 0, 500); //real priority = 500 + SERVER_BASE_PRI
+    rtpc_dispatcher = rt_serv_init(name, 500, -1, -1, rtpc_dispatch_handler); 
     if(!rtpc_dispatcher){
 	    rtos_nrt_signal_delete(&rtpc_nrt_signal);
 	    return -ENOMEM;
     }
-    dispatch_event = &rtpc_dispatcher->event;
     
     return 0;
 }

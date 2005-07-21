@@ -29,7 +29,7 @@ float           wc_rtt   = 0;
 void help(void)
 {
     fprintf(stderr, "Usage:\n"
-        "\trtping [-h host] [-d destid] [-i interval] [-s packetsize]\n"
+        "\trtping [-h host] [-d destid] [-i interval] [-s packetsize] [-p priority]\n"
         );
 
     exit(1);
@@ -126,6 +126,8 @@ int main(int argc, char *argv[])
             cmd.args.ping.destid = getintopt(argc, ++i, argv, 0);
         else if (strcmp(argv[i], "-i") == 0)
             delay = getintopt(argc, ++i, argv, 1);
+	else if (strcmp(argv[i], "-p") == 0)
+            cmd.args.ping.pri = getintopt(argc, ++i, argv, 0);
         else if (strcmp(argv[i], "-s") == 0) {
             cmd.args.ping.msg_size = getintopt(argc, ++i, argv, 0);
             if (cmd.args.ping.msg_size > 4096)
@@ -140,8 +142,9 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    printf("Real-time PING over FireWire: %s to node_%d %d bytes of data.\n",
-           cmd.head.if_name, cmd.args.ping.destid, cmd.args.ping.msg_size);
+    printf("Real-time PING over FireWire: %s to node_%d %d bytes of data with priority %d.\n",
+           cmd.head.if_name, cmd.args.ping.destid, cmd.args.ping.msg_size,
+						cmd.args.ping.pri);
 
     signal(SIGINT, terminate);
     signal(SIGALRM, ping);

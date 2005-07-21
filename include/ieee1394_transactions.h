@@ -2,7 +2,7 @@
  * @ingroup trans
  * @file
  * 
- * interfaces of stack transaction helper module
+ * interfaces of transaction helper module
  */
  
 #ifndef _IEEE1394_TRANSACTIONS_H
@@ -10,7 +10,6 @@
 
 #include <ieee1394_core.h>
 
-#define TRANSACTION_HIGHEST_PRI 0
 /*
  * Get and free transaction labels.
  */
@@ -18,25 +17,27 @@ int hpsb_get_tlabel(struct hpsb_packet *packet);
 void hpsb_free_tlabel(struct hpsb_packet *packet);
 
 struct hpsb_packet *hpsb_make_readpacket(struct hpsb_host *host, nodeid_t node,
-					 u64 addr, size_t length, int pri);
+					 u64 addr, size_t length, unsigned int pri);
 struct hpsb_packet *hpsb_make_lockpacket(struct hpsb_host *host, nodeid_t node,
                                          u64 addr, int extcode, quadlet_t *data,
-					 quadlet_t arg, int pri);
+					 quadlet_t arg, unsigned int pri);
 struct hpsb_packet *hpsb_make_lock64packet(struct hpsb_host *host, nodeid_t node,
                                           u64 addr, int extcode, octlet_t *data,
-					  octlet_t arg, int pri);
+					  octlet_t arg, unsigned int pri);
 struct hpsb_packet *hpsb_make_phypacket(struct hpsb_host *host,
                                         quadlet_t data) ;
 struct hpsb_packet *hpsb_make_isopacket(struct hpsb_host *host,
 					int length, int channel,
-					int tag, int sync);
+					int tag, int sync, unsigned int pri);
 struct hpsb_packet *hpsb_make_writepacket (struct hpsb_host *host, nodeid_t node,
-					   u64 addr, quadlet_t *buffer, size_t length, int pri);
+					   u64 addr, quadlet_t *buffer, size_t length, 
+						unsigned int pri);
 struct hpsb_packet *hpsb_make_streampacket(struct hpsb_host *host, u8 *buffer,
-                                           int length, int channel, int tag, int sync);
+                                           int length, int channel, int tag, int sync,
+						unsigned int pri);
 
 /*
- * hpsb_packet_success - Make sense of the ack and reply codes and
+ * hpsb_packet_success - Make sense of the ack and rcode and
  * return more convenient error codes:
  * 0           success
  * -EBUSY      node is busy, try again
@@ -57,13 +58,13 @@ int hpsb_packet_success(struct hpsb_packet *packet);
  * the wrong nodes when we race with a bus reset.
  */
 int hpsb_read(struct hpsb_host *host, nodeid_t node, unsigned int generation,
-	      u64 addr, quadlet_t *buffer, size_t length, int pri);
+	      u64 addr, quadlet_t *buffer, size_t length, unsigned int pri);
 int hpsb_write(struct hpsb_host *host, nodeid_t node, unsigned int generation,
-	       u64 addr, quadlet_t *buffer, size_t length, int pri);
+	       u64 addr, quadlet_t *buffer, size_t length, unsigned int pri);
 int hpsb_lock(struct hpsb_host *host, nodeid_t node, unsigned int generation,
-	      u64 addr, int extcode, quadlet_t *data, quadlet_t arg, int pri);
+	      u64 addr, int extcode, quadlet_t *data, quadlet_t arg, unsigned int pri);
 int hpsb_send_gasp(struct hpsb_host *host, int channel, unsigned int generation,
 		   quadlet_t *buffer, size_t length, u32 specifier_id,
-		   unsigned int version);
+		   unsigned int version, unsigned int pri);
 
 #endif /* _IEEE1394_TRANSACTIONS_H */
