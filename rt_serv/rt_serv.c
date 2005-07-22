@@ -67,7 +67,6 @@ void irqbrk_worker(int data)
 		
 	rtos_print("RT-Serv:irq broker started\n");
 	while(1){
-		DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		if (RTOS_EVENT_ERROR(rtos_event_wait(&irq_brk_sync)))
 			return;
 		
@@ -81,7 +80,6 @@ void irqbrk_worker(int data)
 				evt->routine(evt->data);
 			else
 				rtos_print("RT-Serv:event has no routine!!!\n");
-			DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 		}
 		INIT_LIST_HEAD(&event_list);
 		rtos_spin_unlock_irqrestore(&event_list_lock,flags);
@@ -134,7 +132,7 @@ void rt_irq_broker_sync(void)
 	}
 	
 	DEBUG_PRINT("sync server %s\n", srv->name);
-	 if(srv->priority==-1){
+	 if(srv->priority==RTOS_LINUX_PRIORITY){
 		//non real-time server in Linux, use srq to sync
 		rt_pend_linux_srq(nrt_serv_srq);
 	}else{
@@ -196,7 +194,7 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 	
 	if(time){
 		rtos_nanosecs_to_time(time, &req->firing_time);
-		req->firing_time.val = rt_get_time() + req->firing_time.val;
+		req->firing_time.val = rt_time_h + req->firing_time.val;
 	}else{
 		req->firing_time.val = 0;
 	}
@@ -208,7 +206,7 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 		strncpy(req->name, name, 32);
 	
 	unsigned long flags;
-	if(srv->priority == -1){
+	if(srv->priority == RTOS_LINUX_PRIORITY){
 		//non real-time server
 		//so it gets very easy, just add it to tail
 		rtos_spin_lock_irqsave(&srv->requests_list_lock,flags);
@@ -258,10 +256,6 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 	req->prev->next = req->next;
 	req->next->prev = req->prev;
 	
-	req->next = &srv->reqobj_pool_head;
-	req->prev = srv->reqobj_pool_head.prev;
-	req->next->prev = req->prev->next = req;
-	
 	atomic_dec(&srv->pending_req);
 	
 	rtos_spin_unlock_irqrestore(&srv->requests_list_lock, flags);
@@ -275,7 +269,7 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 		unsigned long flags;
 
 		//real-time server in rtai
-		if(req_head->firing_time.val <= rt_get_time()){
+		if(req_head->firing_time.val <= rt_time_h){
 			flags = rt_global_save_flags_and_cli();
 			//this next request needs to be taken immediately
 			//but this is not possible!
@@ -300,6 +294,11 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 			rt_global_restore_flags(flags);
 		}
 	}
+	
+	//finally, queue the req object back to our free object pool
+	req->next = &srv->reqobj_pool_head;
+	req->prev = srv->reqobj_pool_head.prev;
+	req->next->prev = req->prev->next = req;
 }
 
 /**
@@ -316,7 +315,7 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 #endif
 	while(1){
 		struct rt_request_struct *req = srv->requests_list.next;
-			if(req->firing_time.val > rt_get_time()){
+			if(req->firing_time.val > rt_time_h){
 			//we need to sleep a while due to the delayed request
 			//~ srv->task.resume_time = req->firing_time.val;
 			//~ rem_ready_task(&srv->task);
@@ -383,13 +382,17 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 		 struct rt_request_struct *req;
 		 req = srv->requests_list.next;
 		 
-		 srv->routine(req->data);
+		if(srv->routine)
+				srv->routine(req->data);
+			else
+				RTSERV_ERR("%s has no routine!!!\n", srv->name);
 		 
 		//get request out of chain	 
 		 req->prev->next = req->next;
 		 req->next->prev = req->prev;
 		
 		 //call the callback 
+		 if(req->callback)
 		 req->callback(req, req->callback_data);
 		 
 		 //return request object to pool
@@ -490,6 +493,9 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, int stack
 		spin_lock(&servers_list_lock);
 		list_add_tail(&srv->entry, &nrt_servers_list);
 		spin_unlock(&servers_list_lock);
+		
+		requests_list_init(&srv->requests_list);
+		srv->requests_list_lock = RTOS_SPIN_LOCK_UNLOCKED;
 	}else{
 		//real time server in rtai
 		spin_lock(&servers_list_lock);

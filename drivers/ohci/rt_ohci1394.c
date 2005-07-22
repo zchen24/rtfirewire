@@ -935,8 +935,9 @@ static int ohci_transmit(struct hpsb_host *host, struct hpsb_packet *packet)
 	if (packet->type == hpsb_raw)
 		d = &ohci->at_req_context;
 	else if ((packet->tcode == TCODE_ISO_DATA) && (packet->type == hpsb_iso)) {
-		DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
-		d = &ohci->at_req_context; //transmit the stream data thru asynchronous dma. 
+		//transmit the stream data thru asynchronous dma. 
+		d = &ohci->at_req_context; 
+		
 		/* The legacy IT DMA context is initialized on first
 		 * use.  However, the alloc cannot be run from
 		 * interrupt context, so we bail out if that is the
@@ -2940,8 +2941,8 @@ static void dma_rcv_routine (unsigned long data)
 			data_p = pkt->data;
 			for(i=0; i<pkt->data_size; i++){
 				rtos_print("%08X ", data_p[i]);
-				rtos_print("\n");
 			}
+			rtos_print("\n");
 		#endif
 
 			hpsb_packet_received(pkt);
@@ -3075,17 +3076,14 @@ static void dma_trm_routine (unsigned long data)
 			}
 		}
 
-		list_del_init(&packet->driver_list);
-		hpsb_packet_sent(ohci->host, packet, ack);
-
 		if (datasize) {
 			#ifdef	CONFIG_OHCI1394_DEBUG
 				int i;
-				quadlet_t *data = (quadlet_t *)cpu_to_le32(d->prg_cpu[d->sent_ind]->end.address);
+				quadlet_t *data = packet->data;
 				for(i=0;i < datasize; i++){
 					rtos_print("%08X ", data[i]);
-					rtos_print("\n");	
-				}					
+				}
+				rtos_print("\n");					
 			#endif
 				
 			pci_unmap_single(ohci->dev,
@@ -3096,6 +3094,9 @@ static void dma_trm_routine (unsigned long data)
 
 		d->sent_ind = (d->sent_ind+1)%d->num_desc;
 		d->free_prgs++;
+		
+		list_del_init(&packet->driver_list);
+		hpsb_packet_sent(ohci->host, packet, ack);
 	}
 
 	dma_trm_flush(ohci, d);

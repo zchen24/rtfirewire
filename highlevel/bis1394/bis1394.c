@@ -137,14 +137,6 @@ int bis_send_echo(struct hpsb_host *host, nodeid_t node, size_t msg_size,
 		return -ENOMEM;
 	}
 	
-	#ifdef CONFIG_IEEE1394_VERBOSEDEBUG
-	int i;
-	rtos_print("%s:", __FUNCTION__);
-	for (i = 0; i < packet->header_size; i++)
-		rtos_print(" %08x", packet->header[i]);
-	rtos_print("\n");
-	#endif
-	
 	packet->generation = generation;
 	
 	hpsb_set_packet_complete_task(packet, bis_echo_reply,0);

@@ -22,22 +22,22 @@
 #ifndef __RT1394_SYS_H_
 #define __RT1394_SYS_H_
 
-#define CONFIG_RTSERVER_DEBUG 	1
+//~ #define CONFIG_RTSERVER_DEBUG 	1
 //~ #define CONFIG_RTSERVER_CHECKED   1
 
-#define CONFIG_IEEE1394_DEBUG	1
-#define CONFIG_IEEE1394_VERBOSEDEBUG	1
-#define CONFIG_OHCI1394_DEBUG	1
+//~ #define CONFIG_IEEE1394_DEBUG	1
+//~ #define CONFIG_IEEE1394_VERBOSEDEBUG	1
+//~ #define CONFIG_OHCI1394_DEBUG	1
 //~ #define CONFIG_OHCI1394_DMA_DEBUG	1
 
-//#define CONFIG_DEBUG_PRINT	1
+//~ #define CONFIG_DEBUG_PRINT	1
 
-//~ #ifdef CONFIG_DEBUG_RPINT
+#ifdef CONFIG_DEBUG_RPINT
 #define	 DEBUG_PRINT(fmt, args...) \
 rtos_print(fmt "\n" , ## args)
-//~ #else
-//~ #define	DEBUG_PRINT(fmt, args...)
-//~ #endif
+#else
+#define	DEBUG_PRINT(fmt, args...)
+#endif
 
 #ifdef __IN_RTFW__
 #include <rt-firewire_config.h>
