@@ -157,7 +157,7 @@ rtos_print(level "%s: " fmt "\n" , OHCI1394_DRIVER_NAME , ## args)
 
 /* print card specific information */
 #define PRINT(level, fmt, args...) \
-rtos_print(level "%s: fw-host%d: " fmt "\n" , OHCI1394_DRIVER_NAME, ohci->host->ifindex , ## args)
+rtos_print(level "%s: fw-host%d: " fmt "\n", OHCI1394_DRIVER_NAME, ohci->host->ifindex , ## args)
 
 static char version[] __devinitdata =
 	"OHCI driver for RT-FireWire project";
@@ -2928,6 +2928,21 @@ static void dma_rcv_routine (unsigned long data)
 			pkt->header_size = hdr_sizes[tcode] * sizeof(quadlet_t);
 			pkt->header = pkt->data;
 			pkt->data = (quadlet_t *)((u8 *)pkt->data+pkt->header_size);
+			
+		#ifdef CONFIG_OHCI1394_DEBUG
+			int i;
+			quadlet_t *data_p = pkt->header;
+			for(i=0; i<hdr_sizes[tcode]; i++){
+				rtos_print("%08X ", data_p[i]);
+				rtos_print("\n");
+			}
+			
+			data_p = pkt->data;
+			for(i=0; i<pkt->data_size; i++){
+				rtos_print("%08X ", data_p[i]);
+				rtos_print("\n");
+			}
+		#endif
 
 			hpsb_packet_received(pkt);
 		}
@@ -2948,7 +2963,6 @@ static void dma_rcv_routine (unsigned long data)
 	d->buf_offset = offset;
 
 	rtos_spin_unlock_irqrestore(&d->lock, flags);
-	DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 }
 /**
  * @ingroup ohci
@@ -2978,8 +2992,7 @@ static void dma_trm_routine (unsigned long data)
 			/* this packet hasn't been sent yet*/
 			break;
 
-#ifdef OHCI1394_DEBUG
-		if (datasize)
+		if (datasize) {
 			if (((le32_to_cpu(d->prg_cpu[d->sent_ind]->data[0])>>4)&0xf) == 0xa)
 				DBGMSG("Stream packet sent to channel %d tcode=0x%X "
 				       "ack=0x%X spd=%d dataLength=%d ctx=%d",
@@ -2997,7 +3010,8 @@ static void dma_trm_routine (unsigned long data)
 				       status&0x1f, (status>>5)&0x3,
 				       le32_to_cpu(d->prg_cpu[d->sent_ind]->data[3])>>16,
 				       d->context);
-		else
+		}
+		else {
 			DBGMSG("Packet sent to node %d tcode=0x%X tLabel="
 			       "%d ack=0x%X spd=%d data=0x%08X ctx=%d",
                                 (le32_to_cpu(d->prg_cpu[d->sent_ind]->data[1])
@@ -3009,7 +3023,7 @@ static void dma_trm_routine (unsigned long data)
                                 status&0x1f, (status>>5)&0x3,
                                 le32_to_cpu(d->prg_cpu[d->sent_ind]->data[3]),
                                 d->context);
-#endif
+		}
 
 		if (status & 0x10) {
 			ack = status & 0xf;
@@ -3065,6 +3079,15 @@ static void dma_trm_routine (unsigned long data)
 		hpsb_packet_sent(ohci->host, packet, ack);
 
 		if (datasize) {
+			#ifdef	CONFIG_OHCI1394_DEBUG
+				int i;
+				quadlet_t *data = (quadlet_t *)cpu_to_le32(d->prg_cpu[d->sent_ind]->end.address);
+				for(i=0;i < datasize; i++){
+					rtos_print("%08X ", data[i]);
+					rtos_print("\n");	
+				}					
+			#endif
+				
 			pci_unmap_single(ohci->dev,
 					 cpu_to_le32(d->prg_cpu[d->sent_ind]->end.address),
 					 datasize, PCI_DMA_TODEVICE);
@@ -3080,21 +3103,21 @@ static void dma_trm_routine (unsigned long data)
 	rtos_spin_unlock_irqrestore(&d->lock, flags);
 }
 
-/**
- * this function currently is not used, due to the deprecation 
- * of legacy iso listening using asyn context.
- */
-static void stop_dma_asyn_recv(struct dma_asyn_recv *d)
-{
-	if (d->ctrlClear) {
-		ohci1394_stop_context(d->ohci, d->ctrlClear, NULL);
+//~ /**
+ //~ * this function currently is not used, due to the deprecation 
+ //~ * of legacy iso listening using asyn context.
+ //~ */
+//~ static void stop_dma_asyn_recv(struct dma_asyn_recv *d)
+//~ {
+	//~ if (d->ctrlClear) {
+		//~ ohci1394_stop_context(d->ohci, d->ctrlClear, NULL);
 
 		//~ if (d->type == DMA_CTX_ISO) {
 			//~ /* disable interrupts */
 			//~ reg_write(d->ohci, OHCI1394_IsoRecvIntMaskClear, 1 << d->context);
 		//~ } 
-	}
-}
+	//~ }
+//~ }
 
 
 static void free_dma_asyn_recv(struct dma_asyn_recv *d)
@@ -3522,7 +3545,7 @@ int ohci_found1(struct pci_dev *pdev)
 	
 	host=host_alloc(sizeof(struct ti_ohci));
 	if(!host)
-		FAIL(-ENOMEM,"ohci_found1:cant allocated new host structure");
+		FAIL(-ENOMEM,"ohci_found1:cant allocated new host structure\n");
 	
 	host->driver = &ohci1394_driver;
 	host_alloc_name(host,"fwhost%d");
@@ -3571,33 +3594,33 @@ int ohci_found1(struct pci_dev *pdev)
 
 	ohci->registers = ioremap(ohci_base, OHCI1394_REGISTER_SIZE);
 	if (ohci->registers == NULL)
-		FAIL(-ENXIO, "Failed to remap registers - card not accessible");
+		FAIL(-ENXIO, "Failed to remap registers - card not accessible\n");
 	host->base_addr = (unsigned long)ohci->registers;
 	
 	ohci->init_state = OHCI_INIT_HAVE_IOMAPPING;
-	DBGMSG("Remapped memory spaces reg 0x%p", ohci->registers);
+	DBGMSG("Remapped memory spaces reg 0x%p\n", ohci->registers);
 	
 	/* csr_config rom allocation */
 	ohci->csr_config_rom_cpu =
 		pci_alloc_consistent(ohci->dev, OHCI_CONFIG_ROM_LEN,
 				     &ohci->csr_config_rom_bus);
-	OHCI_DMA_ALLOC("consistent csr_config_rom");
+	OHCI_DMA_ALLOC("consistent csr_config_rom\n");
 	if (ohci->csr_config_rom_cpu == NULL)
-		FAIL(-ENOMEM, "Failed to allocate buffer config rom");
+		FAIL(-ENOMEM, "Failed to allocate buffer config rom\n");
 	ohci->init_state = OHCI_INIT_HAVE_CONFIG_ROM_BUFFER;
 
 	/* self-id dma buffer allocation */
 	ohci->selfid_buf_cpu = 
 		pci_alloc_consistent(ohci->dev, OHCI1394_SI_DMA_BUF_SIZE,
                       &ohci->selfid_buf_bus);
-	OHCI_DMA_ALLOC("consistent selfid_buf");
+	OHCI_DMA_ALLOC("consistent selfid_buf\n");
 	if (ohci->selfid_buf_cpu == NULL)
-		FAIL(-ENOMEM, "Failed to allocate DMA buffer for self-id packets");
+		FAIL(-ENOMEM, "Failed to allocate DMA buffer for self-id packets\n");
 	ohci->init_state = OHCI_INIT_HAVE_SELFID_BUFFER;
 
 	if ((unsigned long)ohci->selfid_buf_cpu & 0x1fff)
 		PRINT(KERN_INFO, "SelfID buffer %p is not aligned on "
-		      "8Kb boundary... may cause problems on some CXD3222 chip", 
+		      "8Kb boundary... may cause problems on some CXD3222 chip\n", 
 		      ohci->selfid_buf_cpu);  
 
 	/* No self-id errors at startup */
@@ -3609,26 +3632,26 @@ int ohci_found1(struct pci_dev *pdev)
 			      ASYNC_REQ_RECEIVE, 0, AR_REQ_NUM_DESC,
 			      AR_REQ_BUF_SIZE,AR_REQ_SPLIT_BUF_SIZE,
 			      OHCI1394_AsReqRcvContextBase) < 0)
-		FAIL(-ENOMEM, "Failed to allocate AR Req context");
+		FAIL(-ENOMEM, "Failed to allocate AR Req context\n");
 
 	/* AR DMA response context allocation */
 	if (alloc_dma_asyn_recv(ohci, &ohci->ar_resp_context,
 			      ASYNC_RESP_RECEIVE, 0, AR_RESP_NUM_DESC,
 			      AR_RESP_BUF_SIZE,AR_RESP_SPLIT_BUF_SIZE,
 			      OHCI1394_AsRspRcvContextBase) < 0)
-		FAIL(-ENOMEM, "Failed to allocate AR Resp context");
+		FAIL(-ENOMEM, "Failed to allocate AR Resp context\n");
 
 	/* AT DMA request context */
 	if (alloc_dma_asyn_xmit(ohci, &ohci->at_req_context,
 			      ASYNC_REQ_TRANSMIT, 0, AT_REQ_NUM_DESC,
 			      OHCI1394_AsReqTrContextBase) < 0)
-		FAIL(-ENOMEM, "Failed to allocate AT Req context");
+		FAIL(-ENOMEM, "Failed to allocate AT Req context\n");
 
 	/* AT DMA response context */
 	if (alloc_dma_asyn_xmit(ohci, &ohci->at_resp_context,
 			      ASYNC_RESP_TRANSMIT, 1, AT_RESP_NUM_DESC,
 			      OHCI1394_AsRspTrContextBase) < 0)
-		FAIL(-ENOMEM, "Failed to allocate AT Resp context");
+		FAIL(-ENOMEM, "Failed to allocate AT Resp context\n");
 	
 	/* Start off with a soft reset, to clear everything to a sane
 	 * state. */
@@ -3645,13 +3668,13 @@ int ohci_found1(struct pci_dev *pdev)
 	/* Determine the number of available IR and IT contexts. */
 	ohci->nb_iso_rcv_ctx =
 		get_nb_iso_ctx(ohci, OHCI1394_IsoRecvIntMaskSet);
-	DBGMSG("%d iso receive contexts available",
+	DBGMSG("%d iso receive contexts available\n",
 	       ohci->nb_iso_rcv_ctx);
 	host->nb_iso_rcv_ctx = ohci->nb_iso_rcv_ctx;
 
 	ohci->nb_iso_xmit_ctx =
 		get_nb_iso_ctx(ohci, OHCI1394_IsoXmitIntMaskSet);
-	DBGMSG("%d iso transmit contexts available",
+	DBGMSG("%d iso transmit contexts available\n",
 	       ohci->nb_iso_xmit_ctx);
 	host->nb_iso_xmit_ctx = ohci->nb_iso_xmit_ctx;
 
@@ -3671,10 +3694,7 @@ int ohci_found1(struct pci_dev *pdev)
 	//~ ohci->ir_legacy_context.ohci = NULL;
 	/* same for the IT DMA context */
 	//~ ohci->it_legacy_context.ohci = NULL;
-	
-	//~ if(request_irq(pdev->irq, ohci_irq_handler, SA_SHIRQ, 
-				//~ OHCI1394_DRIVER_NAME, ohci))
-		//~ FAIL(-ENOMEM, "Failed to allocate shared interrupt %d", pdev->irq);
+
 	ohci->id = cards_found;
 	if (rtos_irq_request(&ohci_irq[ohci->id],pdev->irq, ohci_irq_handler, ohci)){
 		FAIL(-ENOMEM, "Failed to allocate interrupt %d", pdev->irq);
@@ -3723,7 +3743,7 @@ static int __devinit ohci1394_pci_probe(struct pci_dev *pdev,
 #ifndef PCMCIA
 	if (!request_mem_region(pci_resource_start(pdev, 0),
 			pci_resource_len(pdev, 0), "ohci1394")) {
-		rtos_print (KERN_ERR "ohci1394: cannot reserve MMIO region\n");
+		rtos_print("ohci1394: cannot reserve MMIO region");
 		goto err_out_free_pio_region;
 	}
 #endif
@@ -3733,14 +3753,14 @@ static int __devinit ohci1394_pci_probe(struct pci_dev *pdev,
 	 * clearly says it's 2kb, so this shouldn't be a problem. */ 
 	
 	if (pci_resource_len(pdev, 0) != OHCI1394_REGISTER_SIZE)
-		rtos_print("ohci1394: unexpected PCI resource length of %lx!\n",
+		rtos_print("ohci1394: unexpected PCI resource length of %lx!",
 		      pci_resource_len(pdev, 0));
 	
 	if (version_printed++ == 0)
-		rtos_print("%s", version);
+		rtos_print("%s\n", version);
 
         if (pci_enable_device(pdev)){
-		rtos_print("Failed to enable OHCI hardware %d\n",
+		rtos_print("Failed to enable OHCI hardware %d",
 		        cards_found++);
 		goto err_out_free_mmio_region;
 	}
@@ -3870,7 +3890,6 @@ void ohci1394_init_iso_ctx(struct dma_base_ctx *d, int type, struct hpsb_iso *is
 			break;
 		case OHCI_ISO_RECEIVE:
 			OHCI_ISO_MULTICHANNEL_RECEIVE:
-		DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 			rt_event_init(&d->event, d->name, ohci_iso_recv_task, (unsigned long)iso);
 			break;
 		default:

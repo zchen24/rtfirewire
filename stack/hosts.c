@@ -99,27 +99,6 @@ static void delayed_reset_bus(void * __reset_info)
 	hpsb_reset_bus(host, LONG_RESET);
 }
 
-static int dummy_transmit_packet(struct hpsb_host *h, struct hpsb_packet *p)
-{
-        return 0;
-}
-
-static int dummy_devctl(struct hpsb_host *h, enum devctl_cmd c, int arg)
-{
-        return -1;
-}
-
-static int dummy_isoctl(struct hpsb_iso *iso, enum isoctl_cmd command, unsigned long arg)
-{
-	return -1;
-}
-
-static struct hpsb_host_driver dummy_driver = {
-        .transmit_packet = dummy_transmit_packet,
-        .devctl =          dummy_devctl,
-	.isoctl =          dummy_isoctl
-};
-
 
 /**
  * @ingroup host

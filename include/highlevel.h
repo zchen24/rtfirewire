@@ -98,7 +98,7 @@ struct hpsb_highlevel {
          * 0) or the FCP_RESPONSE (direction = 1) register.  The cts arg
          * contains the cts field (first byte of data). */
         void (*fcp_request) (struct hpsb_host *host, int nodeid, int direction,
-                             int cts, u8 *data, size_t length);
+                             int cts, quadlet_t *data, size_t length);
 
 	/*! These are initialized by the subsystem when the
 	 * hpsb_higlevel is registered. */
@@ -129,7 +129,7 @@ struct hpsb_address_ops {
            later case, no response will be sent and the driver, that handled the request
            will send the response itself
         */
-        int (*read) (struct hpsb_host *host, struct hpsb_packet *packet, void *data,
+        int (*read) (struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *buf,
 					unsigned int length);
         int (*write) (struct hpsb_host *host, struct hpsb_packet *packet, 
 					unsigned int length);
@@ -202,16 +202,6 @@ void *hpsb_get_hostinfo_bykey(struct hpsb_highlevel *hl, unsigned long key);
  * hpsb_create_hostinfo, where the size is 0. */
 int hpsb_set_hostinfo(struct hpsb_highlevel *hl, struct hpsb_host *host, void *data);
 	
-//~ int get_nodeid(void *host);
-
-//~ u64 get_guid(void *host);
-
-//~ u16 get_maxpayload(void *host);
-
-//~ int get_bcchannel(void *host);
-
-//~ unsigned char get_sspd(void *host, int i, int j);
-
 
 #ifdef __IN_RTFW__
 
@@ -227,15 +217,15 @@ void highlevel_host_reset(struct hpsb_host *host);
    later case, no response will be sent and the driver, that handled the request
    will send the response itself.
 */
-int highlevel_read(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, unsigned int length);
+int highlevel_read(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *buffer, unsigned int length);
 int highlevel_write(struct hpsb_host *host, struct hpsb_packet *packet, unsigned int length);
 int highlevel_lock(struct hpsb_host *host, struct hpsb_packet *req, quadlet_t *store);
 int highlevel_lock64(struct hpsb_host *host, struct hpsb_packet *req, octlet_t *store);
 
-void highlevel_iso_receive(struct hpsb_host *host, void *data,
+void highlevel_iso_receive(struct hpsb_host *host, quadlet_t *data,
                            size_t length);
 void highlevel_fcp_request(struct hpsb_host *host, int nodeid, int direction,
-                           void *data, size_t length);
+                           quadlet_t *data, size_t length);
 
 #endif/*__IN_RTFW__*/
 

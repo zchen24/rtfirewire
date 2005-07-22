@@ -30,23 +30,31 @@ void print_dev(void)
 	
 	printf("\n%-9s Medium: ", cmd.head.if_name);
 	
-	if ((cmd.args.info.flags & IFF_DUMMY) != 0)
+	if ((cmd.args.info.flags & IFF_DUMMY) != 0){
 		printf("Local Loopback\n");
+		return;
+	}
 	else if (cmd.args.info.type == HOST_TYPE_SIM1394)
+	{
 		printf("SIM1394 G-U-ID: ""%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",
                cmd.args.info.dev_id[0], cmd.args.info.dev_id[1],
                cmd.args.info.dev_id[2], cmd.args.info.dev_id[3],
                cmd.args.info.dev_id[4], cmd.args.info.dev_id[5],
 		cmd.args.info.dev_id[6], cmd.args.info.dev_id[7]);
+	}
 	else if (cmd.args.info.type == HOST_TYPE_OHCI1394)
+	{
 		printf("OHCI1394   G-U-ID: "
 			"%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",
                cmd.args.info.dev_id[0], cmd.args.info.dev_id[1],
                cmd.args.info.dev_id[2], cmd.args.info.dev_id[3],
                cmd.args.info.dev_id[4], cmd.args.info.dev_id[5],
 		cmd.args.info.dev_id[6], cmd.args.info.dev_id[7]);
-	else
+	}
+	else{
 		printf("unknown (%X)\n", cmd.args.info.type);
+		return;
+	}
 	
 	printf("          Bus Generation:%d  Node ID:%d  IRM:%d  Bus Manager:%d\n",
 			cmd.args.info.generation, cmd.args.info.node_id,

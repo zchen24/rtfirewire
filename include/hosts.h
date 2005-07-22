@@ -22,7 +22,7 @@
 
 #ifndef __KERNEL__
 
-#define IFNAMSIZ 		32
+#define IFNAMSIZ 		16
 
 /* Standard interface flags (netdevice->flags). copied from Linux/if.h */
 #define	IFF_UP		0x1		/* interface is up		*/
@@ -62,9 +62,6 @@ enum netdev_state_t
 
 #include "ieee1394_types.h"
 #include "csr.h"
-
-//~ /*! the real-time device structure version */
-//~ #define RTDEV_VERS_2_1                 0x0201
 
 #define PRIV_FLAG_UP                    0
 #define PRIV_FLAG_ADDING_ROUTE          1

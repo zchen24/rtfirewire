@@ -739,7 +739,6 @@ static void init_hpsb_highlevel(struct hpsb_host *host)
  */
 void highlevel_add_host(struct hpsb_host *host)
 {
-       rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	struct hpsb_highlevel *hl = NULL;
 	struct list_head *lh;
 		
@@ -806,7 +805,7 @@ void highlevel_host_reset(struct hpsb_host *host)
  * 
  * @note the channel number is parsed from data header. 
  */
-void highlevel_iso_receive(struct hpsb_host *host, void *data,
+void highlevel_iso_receive(struct hpsb_host *host, quadlet_t *data,
 			   size_t length)
 {
         struct hpsb_highlevel *hl;
@@ -830,10 +829,10 @@ void highlevel_iso_receive(struct hpsb_host *host, void *data,
  * @param length -- length of data
  */
 void highlevel_fcp_request(struct hpsb_host *host, int nodeid, int direction,
-			   void *data, size_t length)
+			   quadlet_t *data, size_t length)
 {
         struct hpsb_highlevel *hl;
-        int cts = ((quadlet_t *)data)[0] >> 4;
+        int cts = (data)[0] >> 4;
 
         read_lock(&hl_irqs_lock);
 	list_for_each_entry(hl, &hl_irqs, irq_list) {
@@ -862,7 +861,7 @@ void highlevel_fcp_request(struct hpsb_host *host, int nodeid, int direction,
  *
  * @note see @ref highlevel module management section of "Overview of Real-Time Firewire stack". 
  */
-int highlevel_read(struct hpsb_host *host, struct hpsb_packet *req, void *data, unsigned int length)
+int highlevel_read(struct hpsb_host *host, struct hpsb_packet *req, quadlet_t *data, unsigned int length)
 {
         u64 addr = (((u64)(req->header[1] & 0xffff))<<32) | req->header[2];
 	

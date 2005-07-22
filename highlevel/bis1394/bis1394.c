@@ -49,7 +49,6 @@ void bis_queue_echo_request(struct rt_proc_call *call)
 	unsigned long 	flags;
 	struct bis_host_info	*hi;
 		
-	DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	hi = (struct bis_host_info *)hpsb_get_hostinfo(&bis_highlevel, ((struct bis_cmd *)call->priv_data)->host);
 	
 	rtos_spin_lock_irqsave(&hi->echo_calls_lock, flags);
@@ -124,7 +123,6 @@ echo_fail:
 int bis_send_echo(struct hpsb_host *host, nodeid_t node, size_t msg_size, 
 						int pri, struct rt_proc_call *call)
 {
-	DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	
 	unsigned int generation = atomic_read(&host->generation);
 	int ret = 0;
@@ -162,7 +160,6 @@ int bis_send_echo(struct hpsb_host *host, nodeid_t node, size_t msg_size,
 }
 
 
-/** Socket for user **/
 
 static int ping_handler(struct rt_proc_call *call)
 {
@@ -219,8 +216,6 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 				bis_cleanup_echo_requests(host);
 			break;
 			
-		//~ case IOC_RTFW_SYNC:
-			//~ break;
 		case IOC_RTFW_ISO_START:
 			if(bis1394_iso){
 				ret = -EBUSY;
@@ -234,7 +229,6 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 		
 		case IOC_RTFW_ISO_SHUTDOWN:
 			if(bis1394_iso){
-				rtos_print("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 				hpsb_iso_shutdown(bis1394_iso);
 				bis1394_iso = NULL;
 			}
@@ -247,12 +241,9 @@ static int bis_ioctl(struct hpsb_host *host, unsigned int request,
 	
 	return ret;
 }
-/** Socket for user **/
 
 
-/** Socket to FireWire stack **/
-
-static int bis_read(struct hpsb_host *host, struct hpsb_packet *packet, void *data, unsigned int len)
+static int bis_read(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *data, unsigned int len)
 {
 	return RCODE_COMPLETE;
 }
@@ -277,7 +268,7 @@ static void add_host(struct hpsb_host *host)
 	rtos_spin_lock_init(&hi->echo_calls_lock);
 	INIT_LIST_HEAD(&hi->echo_calls);
 	
-	/** register the addr space for testing asynchronous transaction **/	
+	//register the addr space for testing asynchronous transaction	
 	ret = hpsb_register_addrspace(&bis_highlevel, host, &bis1394_ops,
 								BIS1394_REGION_ADDR_BASE,
 								BIS1394_REGION_ADDR_BASE + BIS1394_REGION_ADDR_LEN);
@@ -298,10 +289,10 @@ static void remove_host(struct hpsb_host *host)
 	
 	struct bis_host_info *hi = (struct bis_host_info *)hpsb_get_hostinfo(&bis_highlevel, host);
 		
-	/** to unregister the address space **/
+	// to unregister the address space
 	hpsb_unregister_addrspace(&bis_highlevel, host, BIS1394_REGION_ADDR_BASE);
 	
-	/** to clean up all the queued service requests, i.e. force to complete with -EINTR **/
+	//to clean up all the queued service requests, i.e. force to complete with -EINTR
 	if(hi) {
 		rtos_spin_lock_irqsave(&hi->echo_calls_lock, flags);
 		entry = hi->echo_calls.next;

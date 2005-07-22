@@ -55,14 +55,14 @@ static void add_host(struct hpsb_host *host);
 static void remove_host(struct hpsb_host *host);
 static void host_reset(struct hpsb_host *host);
 static int read_maps(struct hpsb_host *host, struct hpsb_packet *packet, 
-			void *buffer, size_t length);
+			quadlet_t *buffer, size_t length);
 static int write_fcp(struct hpsb_host *host, struct hpsb_packet *packet, size_t length);
 static int read_regs(struct hpsb_host *host, struct hpsb_packet *packet, 
-			void *buffer, size_t length);
+			quadlet_t *buffer, size_t length);
 static int write_regs(struct hpsb_host *host, struct hpsb_packet *packet, size_t length);
 static int lock_regs(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *store);
 static int lock64_regs(struct hpsb_host *host, struct hpsb_packet *packet, octlet_t * store);
-static int read_config_rom(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, size_t lengthl);
+static int read_config_rom(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *buffer, size_t lengthl);
 static u64 allocate_addr_range(u64 size, u32 alignment, void *__host);
 static void release_addr_range(u64 addr, void *__host);
 
@@ -409,7 +409,7 @@ int hpsb_update_config_rom(struct hpsb_host *host, const quadlet_t *new_rom,
  *
  * @return only RCODE_COMPLETE is possible. 
  */
-static int read_maps(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, size_t length)
+static int read_maps(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *buffer, size_t length)
 {
 	
 	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
@@ -426,7 +426,7 @@ static int read_maps(struct hpsb_host *host, struct hpsb_packet *packet, void *b
                 src = ((char *)host->csr.speed_map) + csraddr - CSR_SPEED_MAP;
         }
 
-        memcpy((quadlet_t *)buffer, src, length);
+        memcpy(buffer, src, length);
         spin_unlock_irqrestore(&host->csr.lock, flags);
         return RCODE_COMPLETE;
 }
@@ -449,7 +449,7 @@ static int read_maps(struct hpsb_host *host, struct hpsb_packet *packet, void *b
  *   - RCODE_TYPE_ERROR
  * @note see more info in @ref csr section of "Overview of Real-Time Firewire Stack". 
  */
-static int read_regs(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, size_t length)
+static int read_regs(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *buf, size_t length)
 {
         u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
 	
@@ -462,7 +462,6 @@ static int read_regs(struct hpsb_host *host, struct hpsb_packet *packet, void *b
 
         length /= 4;
 
-	quadlet_t *buf = (quadlet_t *)buffer;
         switch (csraddr) {
         case CSR_STATE_CLEAR:
                 *(buf++) = cpu_to_be32(host->csr.state);
@@ -988,10 +987,10 @@ static int write_fcp(struct hpsb_host *host, struct hpsb_packet *packet, size_t 
 
         switch (csraddr) {
         case CSR_FCP_COMMAND:
-                highlevel_fcp_request(host, packet->node_id, 0, (u8 *)data, length);
+                highlevel_fcp_request(host, packet->node_id, 0, data, length);
                 break;
         case CSR_FCP_RESPONSE:
-                highlevel_fcp_request(host, packet->node_id, 1, (u8 *)data, length);
+                highlevel_fcp_request(host, packet->node_id, 1, data, length);
                 break;
         default:
                 return RCODE_TYPE_ERROR;
@@ -1008,12 +1007,12 @@ static int write_fcp(struct hpsb_host *host, struct hpsb_packet *packet, size_t 
  * @return RCODE_COMPLETE / RCODE_ADDRESS_ERROR
  * @note see @ref csr section of "Overview of Real-Time Firewire Stack"
  */
-static int read_config_rom(struct hpsb_host *host, struct hpsb_packet *packet, void *buffer, size_t length)
+static int read_config_rom(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *buffer, size_t length)
 {
 	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
 	u32 offset = addr - CSR1212_REGISTER_SPACE_BASE;
 
-	if (csr1212_read(host->csr.rom, offset, (quadlet_t *)buffer, length) == CSR1212_SUCCESS)
+	if (csr1212_read(host->csr.rom, offset, buffer, length) == CSR1212_SUCCESS)
 		return RCODE_COMPLETE;
 	else
 		return RCODE_ADDRESS_ERROR;

@@ -60,6 +60,7 @@ LIST_HEAD(ioctl_handlers);
 static int ieee1394_ioctl(struct inode *inode, struct file *file,
                        unsigned int request, unsigned long arg)
 {
+	
 	struct ieee1394_ioctl_head head;
 	struct hpsb_host     *host = NULL;
 	struct ioctl_handler     *ioctls;
@@ -116,10 +117,10 @@ static int ieee1394_core_ioctl(struct hpsb_host *host, unsigned int request,
 {
     struct ieee1394_core_cmd   cmd;
     int                     ret;
-    
     ret = copy_from_user(&cmd, (void *)arg, sizeof(cmd));
-    if (ret != 0)
+    if (ret != 0){
         return -EFAULT;
+    }
 	
     switch (request) {
         case IOC_RTFW_IFUP:
@@ -158,13 +159,15 @@ static int ieee1394_core_ioctl(struct hpsb_host *host, unsigned int request,
             break;
 
         case IOC_RTFW_IFINFO:
-		
             if (cmd.args.info.ifindex > 0){
-                host = host_get_by_index(cmd.args.info.ifindex);}
+                host = host_get_by_index(cmd.args.info.ifindex);
+	}
             else{
-                host = host_get_by_name(cmd.head.if_name);}
-            if (!host) 
+                host = host_get_by_name(cmd.head.if_name);
+	}
+            if (!host) {
                 return -ENODEV;
+	    }
 
             if (down_interruptible(&host->nrt_lock)) {
 		atomic_dec(&host->refcount);
@@ -203,6 +206,9 @@ static int ieee1394_core_ioctl(struct hpsb_host *host, unsigned int request,
             if (copy_to_user((void *)arg, &cmd, sizeof(cmd)) != 0)
                 return -EFAULT;
             break;
+	
+	default:
+		ret = -EINVAL;
     }
     return ret;
 }
