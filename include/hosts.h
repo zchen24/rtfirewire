@@ -100,10 +100,7 @@ struct hpsb_host {
     
     struct rtpkb_queue pending_packet_queue;
 
-    /* this is still linux-fashion, we need to adapte it to rtai*/
-    struct timer_list	timeout;
-    unsigned long	timeout_interval;
-    
+  
     unsigned char iso_listen_count[64];
     
     unsigned int max_packet_size;

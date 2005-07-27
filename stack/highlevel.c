@@ -309,11 +309,13 @@ void hpsb_register_highlevel(struct hpsb_highlevel *hl)
 		down(&hpsb_hosts_lock);
 		for (i = 0; i < MAX_RT_HOSTS; i++) {
 			host = hpsb_hosts[i];
-			if(host)
+			if(host){
 				highlevel_for_each_host_reg(host, hl);
+			}
 		}
 		up(&hpsb_hosts_lock);
 	}
+	
 	
 	/*if the highlevel application introduces new ioctl to /dev/rt-firewire */
 	if(hl->hl_ioctl)
@@ -745,13 +747,12 @@ void highlevel_add_host(struct hpsb_host *host)
 	init_hpsb_highlevel(host);
 
         read_lock(&hl_drivers_lock);
-        list_for_each(lh, &hl_drivers) {
+        list_for_each(lh, &hl_drivers) { 
                 hl = list_entry(lh, struct hpsb_highlevel, hl_list);
 		if (hl->add_host)
 			hl->add_host(host);
         }
         read_unlock(&hl_drivers_lock);
-	
 	//~ if (host->update_config_rom) {
 		//~ if (hpsb_update_config_rom_image(host) < 0)
 			//~ HPSB_ERR("Failed to generate Configuration ROM image for "

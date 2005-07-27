@@ -867,7 +867,6 @@ if test x$CONFIG_KBUILD = xy; then
 	rtpkbuff \
 	rt_serv \
 	rtpc \
-	rtdm \
 	; do
 	    AC_CONFIG_LINKS(${DIR}/Makefile:${DIR}/Makefile.kbuild)
 	done
@@ -878,7 +877,7 @@ dnl		generate output
 dnl ======================================================================
 AC_MSG_NOTICE([generating output])
 
-AC_CONFIG_FILES([GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile rtdm/GNUmakefile])
+AC_CONFIG_FILES([GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile])
    
 AC_OUTPUT
 

@@ -137,9 +137,10 @@ EXPORT_SYMBOL(dma_prog_region_free);
 EXPORT_SYMBOL(dma_region_init);
 EXPORT_SYMBOL(dma_region_alloc);
 EXPORT_SYMBOL(dma_region_free);
-EXPORT_SYMBOL(dma_region_sync);
 EXPORT_SYMBOL(dma_region_mmap);
 EXPORT_SYMBOL(dma_region_offset_to_bus);
+EXPORT_SYMBOL(dma_region_sync_for_cpu);
+EXPORT_SYMBOL(dma_region_sync_for_device);
 
 /** iso.c **/
 EXPORT_SYMBOL(hpsb_iso_xmit_init);

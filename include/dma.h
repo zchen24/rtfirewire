@@ -60,8 +60,9 @@ int  dma_region_alloc(struct dma_region *dma, unsigned long n_bytes, struct pci_
 /* unmap and free the buffer */
 void dma_region_free(struct dma_region *dma);
 	
-void dma_region_sync(struct dma_region *dma, unsigned long offset, unsigned long len);
-
+void dma_region_sync_for_device(struct dma_region *dma, unsigned long offset, unsigned long len);
+void dma_region_sync_for_cpu(struct dma_region *dma, unsigned long offset, unsigned long len);
+	
 //~ /* sync the CPU's view of the buffer */
 //~ void dma_region_sync_for_cpu(struct dma_region *dma, unsigned long offset, unsigned long len);
 //~ /* sync the IO bus' view of the buffer */

@@ -109,9 +109,7 @@ struct hpsb_highlevel {
 	struct list_head host_info_list;
 	rwlock_t host_info_lock;
 
-#ifdef __IN_RTFW__	
 	struct ioctl_handler *hl_ioctl;
-#endif
 };
 
 struct hpsb_address_ops {

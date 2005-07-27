@@ -21,8 +21,10 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
+#include <asm/uaccess.h>
+
 #include <rtpc.h>
-#include <rtos_primitives.h>
+#include <rt1394_sys.h>
 #include <ieee1394_chrdev.h>
 #include <ieee1394_core.h>
 #include <highlevel.h>
@@ -30,7 +32,6 @@
 #include <bis1394.h>
 #include <ieee1394.h>
 #include <ieee1394_transactions.h>
-#include <asm/uaccess.h>
 #include <iso.h>
 
 static void add_host(struct hpsb_host *host);

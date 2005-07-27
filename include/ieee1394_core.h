@@ -135,8 +135,6 @@ static inline struct hpsb_packet *driver_packet(struct list_head *l)
 	return list_entry(l, struct hpsb_packet, driver_list);
 }
 
-void abort_timedouts(unsigned long __opaque);
-
 struct hpsb_packet *hpsb_alloc_packet(size_t data_size, struct rtpkb_pool *pool,
 							unsigned int priority);
 void hpsb_free_packet(struct hpsb_packet *packet);

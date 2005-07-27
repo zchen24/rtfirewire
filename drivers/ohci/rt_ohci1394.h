@@ -313,10 +313,7 @@ struct dma_iso_xmit {
 
 
 
-/**
- * @ingroup ohci
- * @struct ti_ohci
- */
+/* private data of ohci device*/
 struct ti_ohci {
         struct pci_dev *dev;
 
@@ -371,10 +368,6 @@ struct ti_ohci {
 	int nb_iso_xmit_ctx;
 	unsigned long it_ctx_usage; /* use test_and_set_bit() for atomicity */
 
-	/* iso transmit (legacy API) */
-	//~ struct dma_asyn_xmit it_legacy_context;
-	//~ struct ohci1394_iso_tasklet it_legacy_tasklet;
-
         u64 ISO_channel_usage;
 
         /* IEEE-1394 part follows */
@@ -403,6 +396,8 @@ struct ti_ohci {
 	
 	/** device id **/
 	int id;
+	
+	rtos_irq_t irq_handle;
 };
 
 static inline int cross_bound(unsigned long addr, unsigned int size)

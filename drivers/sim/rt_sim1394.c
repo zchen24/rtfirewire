@@ -48,9 +48,8 @@
 #endif
 	
 	{
-		rtos_time_t probe;
-		rtos_get_time(&probe);
-		packet->xmit_time = rtos_time_to_nanosecs(&probe);
+
+		packet->xmit_time = rtos_get_time();
 		
 		///hack
 		switch(packet->node_id){

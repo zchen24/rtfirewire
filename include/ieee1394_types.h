@@ -17,19 +17,14 @@
 /* Transaction Label handling */
 struct hpsb_tlabel_pool {
 	DECLARE_BITMAP(pool, 64);
-	rtos_spinlock_t lock;
+	spinlock_t lock;
 	u8 next;
 	u32 allocations;
 	//~ rtos_res_lock_t count; //64 tasks can can the "wait" on count without blocking. 
 	atomic_t count;
 };
 
-/**
- * @ingroup trans
- * @anchor HPSB_TPOOL_INIT
- * @todo cross linux version compiling here. 
- */
-#ifdef	CONFIG_KERNEL_26
+
 #define HPSB_TPOOL_INIT(_tp)			\
 do {	\
 	bitmap_zero((_tp)->pool, 64);		\
@@ -38,16 +33,7 @@ do {	\
 	(_tp)->allocations = 0;			\
 	atomic_set(&(_tp)->count, 63); \
 } while (0)
-#else
-#define HPSB_TPOOL_INIT(_tp)			\
-do {	\
-	CLEAR_BITMAP((_tp)->pool, 64);		\
-	rtos_spin_lock_init(&(_tp)->lock);		\
-	(_tp)->next = 0;			\
-	(_tp)->allocations = 0;			\
-	atomic_set(&(_tp)->count, 63); \
-} while (0)
-#endif /*! CONFIG_KERNEL_26 */
+
 
 
 typedef u32 			quadlet_t;

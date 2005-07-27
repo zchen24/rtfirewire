@@ -110,12 +110,12 @@ the acquisition of complete chains is NOT supported (rtpkb_acquire()).
 #ifdef __KERNEL__
 
 #include <linux/skbuff.h>
-#include <rt1394_sys.h>
+#include <rtdm/rtdm_driver.h>
 
 #define RTPKB_ASSERT(expr, func) \
 	if (!(expr))	\
 	{ \
-		rtos_print("Assertion failed! %s:%s:%d:%s\n", \
+		rtdm_printk("Assertion failed! %s:%s:%d:%s\n", \
 		__FILE__, __FUNCTION__, __LINE__, (#expr)); \
 		func \
 	}
@@ -178,7 +178,7 @@ struct rtpkb_queue_base {
 	struct rtpkb	* prev;
 		
 	__u32		qlen;
-	rtos_spinlock_t	lock;
+	spinlock_t	lock;
 };
 
 struct rtpkb_queue {
@@ -187,7 +187,7 @@ struct rtpkb_queue {
 	struct rtpkb	* prev;
 		
 	__u32		qlen;
-	rtos_spinlock_t	lock;
+	spinlock_t	lock;
 	
 	struct rtpkb_pool	 *pool;
 	
@@ -215,7 +215,7 @@ struct rtpkb_pool {
 struct rtpkb_prio_queue {
     unsigned char name[32];
     struct rtpkb_pool	 *pool;		
-    rtos_spinlock_t     lock;
+    spinlock_t     lock;
     unsigned long       usage;  /* bit array encoding non-empty sub-queues */
     struct rtpkb_queue_base  queue[QUEUE_MIN_PRIO+1];
 };
@@ -246,7 +246,7 @@ extern void kfree_rtpkb(struct rtpkb *pkb);
 
 static inline void rtpkb_queue_init(struct rtpkb_queue *list)
 {
-	rtos_spin_lock_init(&list->lock);
+	rtdm_lock_init(&list->lock);
 	list->prev = (struct rtpkb *)list;
 	list->next = (struct rtpkb *)list;
 	list->qlen = 0;
@@ -258,7 +258,7 @@ static inline void rtpkb_queue_init(struct rtpkb_queue *list)
  */
 static inline void rtpkb_prio_queue_init(struct rtpkb_prio_queue *prioqueue)
 {
-    rtos_spin_lock_init(&prioqueue->lock);
+    rtdm_lock_init(&prioqueue->lock);
     int i;
     for(i=0; i<=QUEUE_MIN_PRIO; i++)
     {
@@ -386,9 +386,9 @@ static inline void rtpkb_queue_head(struct rtpkb_queue *list, struct rtpkb *newp
 {
 	unsigned long flags;
 
-	rtos_spin_lock_irqsave(&list->lock, flags);
+	rtdm_lock_get_irqsave(&list->lock, flags);
 	__rtpkb_queue_head(list, newpk);
-	rtos_spin_unlock_irqrestore(&list->lock, flags);
+	rtdm_lock_put_irqrestore(&list->lock, flags);
 	
 }
 
@@ -403,7 +403,7 @@ static inline void __rtpkb_prio_queue_head(struct rtpkb_prio_queue *prioqueue,
 {
     unsigned int prio = pkb->priority & RTSKB_PRIO_MASK;
 
-    RTOS_ASSERT(prio <= 31, prio = 31;);
+    RTPKB_ASSERT(prio <= 31, prio = 31;);
 
     __rtpkb_queue_head((struct rtpkb_queue *)&prioqueue->queue[prio], pkb);
     __set_bit(prio, &prioqueue->usage);
@@ -420,9 +420,9 @@ static inline void rtpkb_prio_queue_head(struct rtpkb_prio_queue *prioqueue,
 {
     unsigned long flags;
 
-    rtos_spin_lock_irqsave(&prioqueue->lock, flags);
+    rtdm_lock_get_irqsave(&prioqueue->lock, flags);
     __rtpkb_prio_queue_head(prioqueue, pkb);
-    rtos_spin_unlock_irqrestore(&prioqueue->lock, flags);
+    rtdm_lock_put_irqrestore(&prioqueue->lock, flags);
 }
 
 
@@ -468,9 +468,9 @@ static inline void rtpkb_queue_tail(struct rtpkb_queue *list, struct rtpkb *newp
 {
 	unsigned long flags;
 	
-	rtos_spin_lock_irqsave(&list->lock, flags);
+	rtdm_lock_get_irqsave(&list->lock, flags);
 	__rtpkb_queue_tail(list, newpk);
-	rtos_spin_unlock_irqrestore(&list->lock, flags);
+	rtdm_lock_put_irqrestore(&list->lock, flags);
 	
 }
 
@@ -485,7 +485,7 @@ static inline void __rtpkb_prio_queue_tail(struct rtpkb_prio_queue *prioqueue,
 {
     unsigned int prio = pkb->priority & RTSKB_PRIO_MASK;
 
-    RTOS_ASSERT(prio <= 31, prio = 31;);
+    RTPKB_ASSERT(prio <= 31, prio = 31;);
 
     __rtpkb_queue_tail((struct rtpkb_queue *)&prioqueue->queue[prio], pkb);
     __set_bit(prio, &prioqueue->usage);
@@ -502,9 +502,9 @@ static inline void rtpkb_prio_queue_tail(struct rtpkb_prio_queue *prioqueue,
 {
     unsigned long flags;
 
-    rtos_spin_lock_irqsave(&prioqueue->lock, flags);
+    rtdm_lock_get_irqsave(&prioqueue->lock, flags);
     __rtpkb_prio_queue_tail(prioqueue, pkb);
-    rtos_spin_unlock_irqrestore(&prioqueue->lock, flags);
+    rtdm_lock_put_irqrestore(&prioqueue->lock, flags);
 }
 
 /**
@@ -549,9 +549,9 @@ static inline struct rtpkb *rtpkb_dequeue(struct rtpkb_queue *list)
 {
 	unsigned long flags;
 	struct rtpkb *result;
-	rtos_spin_lock_irqsave(&list->lock, flags);
+	rtdm_lock_get_irqsave(&list->lock, flags);
 	result = __rtpkb_dequeue(list);
-	rtos_spin_unlock_irqrestore(&list->lock, flags);
+	rtdm_lock_put_irqrestore(&list->lock, flags);
 	return result;
 }
 
@@ -589,9 +589,9 @@ static inline struct rtpkb *
     unsigned long flags;
     struct rtpkb *result;
 
-    rtos_spin_lock_irqsave(&prioqueue->lock, flags);
+    rtdm_lock_get_irqsave(&prioqueue->lock, flags);
     result = __rtpkb_prio_dequeue(prioqueue);
-    rtos_spin_unlock_irqrestore(&prioqueue->lock, flags);
+    rtdm_lock_put_irqrestore(&prioqueue->lock, flags);
 
     return result;
 }
@@ -627,9 +627,9 @@ static inline struct rtpkb *rtpkb_dequeue_chain(struct rtpkb_queue *queue)
     unsigned long flags;
     struct rtpkb *result;
 
-    rtos_spin_lock_irqsave(&queue->lock, flags);
+    rtdm_lock_get_irqsave(&queue->lock, flags);
     result = __rtpkb_dequeue_chain(queue);
-    rtos_spin_unlock_irqrestore(&queue->lock, flags);
+    rtdm_lock_put_irqrestore(&queue->lock, flags);
 
     return result;
 }
@@ -647,7 +647,7 @@ static inline
     struct rtpkb *result = NULL;
     struct rtpkb_queue *sub_queue;
 
-    rtos_spin_lock_irqsave(&prioqueue->lock, flags);
+    rtdm_lock_get_irqsave(&prioqueue->lock, flags);
     if (prioqueue->usage) {
         prio      = ffz(~prioqueue->usage);
         sub_queue = (struct rtpkb_queue *)&prioqueue->queue[prio];
@@ -655,7 +655,7 @@ static inline
         if (rtpkb_queue_empty(sub_queue))
             __change_bit(prio, &prioqueue->usage);
     }
-    rtos_spin_unlock_irqrestore(&prioqueue->lock, flags);
+    rtdm_lock_put_irqrestore(&prioqueue->lock, flags);
 
     return result;
 }
@@ -690,9 +690,9 @@ static inline void rtpkb_insert(struct rtpkb *old, struct rtpkb *newpk)
 {
 	unsigned long flags;
 
-	rtos_spin_lock_irqsave(&old->list->lock, flags);
+	rtdm_lock_get_irqsave(&old->list->lock, flags);
 	__rtpkb_insert(newpk, old->prev, old, old->list);
-	rtos_spin_unlock_irqrestore(&old->list->lock, flags);
+	rtdm_lock_put_irqrestore(&old->list->lock, flags);
 }
 
 /*
@@ -719,9 +719,9 @@ static inline void rtpkb_append(struct rtpkb *old, struct rtpkb *newpk)
 {
 	unsigned long flags;
 
-	rtos_spin_lock_irqsave(&old->list->lock, flags);
+	rtdm_lock_get_irqsave(&old->list->lock, flags);
 	__rtpkb_append(old, newpk);
-	rtos_spin_unlock_irqrestore(&old->list->lock, flags);
+	rtdm_lock_put_irqrestore(&old->list->lock, flags);
 }
 
 /*
@@ -763,10 +763,10 @@ static inline void rtpkb_unlink(struct rtpkb *pkb)
 	if(list) {
 		unsigned long flags;
 
-		rtos_spin_lock_irqsave(&list->lock, flags);
+		rtdm_lock_get_irqsave(&list->lock, flags);
 		if(pkb->list == list)
 			__rtpkb_unlink(pkb, pkb->list);
-		rtos_spin_unlock_irqrestore(&list->lock, flags);
+		rtdm_lock_put_irqrestore(&list->lock, flags);
 	}
 }
 
@@ -802,9 +802,9 @@ static inline struct rtpkb *rtpkb_dequeue_tail(struct rtpkb_queue *list)
 	unsigned long flags;
 	struct rtpkb *result;
 
-	rtos_spin_lock_irqsave(&list->lock, flags);
+	rtdm_lock_get_irqsave(&list->lock, flags);
 	result = __rtpkb_dequeue_tail(list);
-	rtos_spin_unlock_irqrestore(&list->lock, flags);
+	rtdm_lock_put_irqrestore(&list->lock, flags);
 	return result;
 }
 
@@ -867,7 +867,7 @@ static inline unsigned char *rtpkb_push(struct rtpkb *pkb, unsigned int len)
     pkb->data-=len;
     pkb->len+=len;
 
-    RTOS_ASSERT(pkb->data >= pkb->head,
+    RTPKB_ASSERT(pkb->data >= pkb->head,
         rtpkb_under_panic(pkb, len, current_text_addr()););
 
     return pkb->data;
@@ -876,7 +876,7 @@ static inline unsigned char *rtpkb_push(struct rtpkb *pkb, unsigned int len)
 static inline char *__rtpkb_pull(struct rtpkb *pkb, unsigned int len)
 {
     pkb->len-=len;
-    RTOS_ASSERT(pkb->len<0,
+    RTPKB_ASSERT(pkb->len<0,
         rtpkb_under_panic(pkb, len, current_text_addr()););
     return pkb->data+=len;
 }
@@ -932,7 +932,7 @@ static inline void rtpkb_clean(struct rtpkb *pkb)
 	
 static inline struct rtpkb *rtpkb_padto(struct rtpkb *rtpkb, unsigned int len)
 {
-    RTOS_ASSERT(len <= (unsigned int)(rtpkb->end + 1 - rtpkb->data),
+    RTPKB_ASSERT(len <= (unsigned int)(rtpkb->end + 1 - rtpkb->data),
                  return NULL;);
 
     memset(rtpkb->data + rtpkb->len, 0, len - rtpkb->len);
@@ -955,14 +955,14 @@ static inline unsigned int rtpkb_headlen(const struct rtpkb *pkb)
 
 #define rtpkb_pool_release(pool)                            \
     do {                                                    \
-        RTOS_ASSERT((&(pool)->queue)->qlen == (pool)->capc,             \
-                     printk("pool: %s\n", ((pool)->name)););    \
+        RTPKB_ASSERT((&(pool)->queue)->qlen == (pool)->capc,             \
+                     rtdm_printk("pool: %s\n", ((pool)->name)););    \
         __rtpkb_pool_release((pool));                       \
     } while (0)
 #define rtpkb_pool_release_rt(pool)                         \
     do {                                                    \
-        RTOS_ASSERT((&(pool)->queue)->qlen == (pool)->capc,             \
-                     printk("pool: %s\n", ((pool)->name)););    \
+        RTPKB_ASSERT((&(pool)->queue)->qlen == (pool)->capc,             \
+                     rtdm_printk("pool: %s\n", ((pool)->name)););    \
         __rtpkb_pool_release_rt((pool));                    \
     } while (0)
 

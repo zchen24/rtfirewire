@@ -288,11 +288,6 @@ struct hpsb_host *host_alloc(size_t extra)
 	INIT_WORK(&h->delayed_reset, delayed_reset_bus, h);
 #endif
 
-	init_timer(&h->timeout);
-	h->timeout.data = (unsigned long)h;
-	h->timeout.function = abort_timedouts;
-	h->timeout_interval = HZ/20; //50ms by default
-	
 	h->topology_map = h->csr.topology_map + 3;
 	h->speed_map = (u8 *)(h->csr.speed_map + 2);
 	
@@ -435,14 +430,11 @@ int host_register(struct hpsb_host *host)
 		
 	//~ if(host->driver->devctl)
 		//~ host->driver->devctl(host,RESET_BUS, LONG_RESET);
-	
 	set_bit(__LINK_STATE_PRESENT, &host->state);
 	
 	printk("RT-firewire: register %s\n", host->name);
-	
 	/*set up the host buffer pool for static memory allocation */
 	rtpkb_pool_init(&host->pool,device_rtpkbs);
-	
 	strcpy(host->pool.name, host->name);
 
 	/** 

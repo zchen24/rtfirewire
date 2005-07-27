@@ -34,13 +34,12 @@
 #include <linux/wait.h>
 
 #include <rtpc.h>
-#include <rt1394_sys.h>
 #include <rt_serv.h>
 
 
-static rtos_spinlock_t   pending_calls_lock = RTOS_SPIN_LOCK_UNLOCKED;
-static rtos_spinlock_t   processed_calls_lock = RTOS_SPIN_LOCK_UNLOCKED;
-static rtos_nrt_signal_t rtpc_nrt_signal;
+static spinlock_t   pending_calls_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t   processed_calls_lock = SPIN_LOCK_UNLOCKED;
+static rtdm_nrt_signal_t rtpc_nrt_signal;
 struct rt_serv_struct *rtpc_dispatcher;
 	
 LIST_HEAD(pending_calls);
@@ -109,11 +108,10 @@ int rtpc_dispatch_call(rtpc_proc proc, unsigned int timeout,
     atomic_set(&call->ref_count, 2);    /* dispatcher + rt-procedure */
     init_waitqueue_head(&call->call_wq);
 
-    rtos_spin_lock_irqsave(&pending_calls_lock, flags);
+    rtdm_lock_get_irqsave(&pending_calls_lock, flags);
     list_add_tail(&call->list_entry, &pending_calls);
-    rtos_spin_unlock_irqrestore(&pending_calls_lock, flags);
+    rtdm_lock_put_irqrestore(&pending_calls_lock, flags);
 
-    DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
     rt_request_pend(rtpc_dispatcher, 0, 2000000, NULL, 0, NULL); //we make a delay of 2ms
     rt_serv_sync(rtpc_dispatcher);
 	
@@ -148,10 +146,10 @@ static inline struct rt_proc_call *rtpc_dequeue_pending_call(void)
     struct rt_proc_call *call;
 
 
-    rtos_spin_lock_irqsave(&pending_calls_lock, flags);
+    rtdm_lock_get_irqsave(&pending_calls_lock, flags);
     call = (struct rt_proc_call *)pending_calls.next;
     list_del(&call->list_entry);
-    rtos_spin_unlock_irqrestore(&pending_calls_lock, flags);
+    rtdm_lock_put_irqrestore(&pending_calls_lock, flags);
 
     return call;
 }
@@ -163,11 +161,11 @@ static inline void rtpc_queue_processed_call(struct rt_proc_call *call)
     unsigned long flags;
 
 
-    rtos_spin_lock_irqsave(&processed_calls_lock, flags);
+    rtdm_lock_get_irqsave(&processed_calls_lock, flags);
     list_add_tail(&call->list_entry, &processed_calls);
-    rtos_spin_unlock_irqrestore(&processed_calls_lock, flags);
+    rtdm_lock_put_irqrestore(&processed_calls_lock, flags);
 
-    rtos_pend_nrt_signal(&rtpc_nrt_signal);
+    rtdm_nrt_pend_signal(&rtpc_nrt_signal);
 }
 
 
@@ -178,13 +176,13 @@ static inline struct rt_proc_call *rtpc_dequeue_processed_call(void)
     struct rt_proc_call *call;
 
 
-    rtos_spin_lock_irqsave(&processed_calls_lock, flags);
+    rtdm_lock_get_irqsave(&processed_calls_lock, flags);
     if (!list_empty(&processed_calls)) {
         call = (struct rt_proc_call *)processed_calls.next;
         list_del(&call->list_entry);
     } else
         call = NULL;
-    rtos_spin_unlock_irqrestore(&processed_calls_lock, flags);
+    rtdm_lock_put_irqrestore(&processed_calls_lock, flags);
 
     return call;
 }
@@ -193,7 +191,6 @@ static inline struct rt_proc_call *rtpc_dequeue_processed_call(void)
 
 static void rtpc_dispatch_handler(unsigned long arg)
 {
-    DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
 	struct rt_proc_call *call;
     int                 ret;
 	
@@ -208,7 +205,7 @@ static void rtpc_dispatch_handler(unsigned long arg)
 
 
 
-static void rtpc_signal_handler(void)
+static void rtpc_signal_handler(rtdm_nrt_signal_t sig)
 {
     struct rt_proc_call *call;
 
@@ -252,15 +249,15 @@ int __init rtpc_init(void)
 {
     int ret;
     unsigned char name[16];
-	
-    ret = rtos_nrt_signal_init(&rtpc_nrt_signal, rtpc_signal_handler);
-    if (ret < 0)
-        return ret;
+    
+    ret = rtdm_nrt_signal_init(&rtpc_nrt_signal, rtpc_signal_handler);
+    if(ret < 0)
+	    return ret;
    
     sprintf(name, "rtpc");
-    rtpc_dispatcher = rt_serv_init(name, 500, -1, -1, rtpc_dispatch_handler); 
+    rtpc_dispatcher = rt_serv_init(name, 500, rtpc_dispatch_handler); 
     if(!rtpc_dispatcher){
-	    rtos_nrt_signal_delete(&rtpc_nrt_signal);
+	    rtdm_nrt_signal_destroy(&rtpc_nrt_signal);
 	    return -ENOMEM;
     }
     
@@ -272,7 +269,7 @@ int __init rtpc_init(void)
 void rtpc_cleanup(void)
 {
     rt_serv_delete(rtpc_dispatcher);	
-    rtos_nrt_signal_delete(&rtpc_nrt_signal);
+    rtdm_nrt_signal_destroy(&rtpc_nrt_signal);
 }
 
 module_init(rtpc_init);

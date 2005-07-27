@@ -1,30 +1,14 @@
-/* rtfirewire/stack/ieee1394_core.c
+/**
+ * @file 
  * Implementation of RT-FireWire kernel
- * adapted from Linux 1394subsystem kernel
- *			
- * Copyright (C) 2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * adapted from Linux FireWire stack.
+ * 
+ * @note Copyright 2005 Zhang Yuchen <yuchen623@gmail.com>
  */
  
 /**
  * @ingroup kernel
  * @file 
- * 
- * Implementation of RT-FireWire kernel 
- * 
  */
  
  /**
@@ -33,11 +17,8 @@
   * RT-FireWire kernel processing:
   * - hpsb_packet allocation and management
   * - asynchronous transaction layer implementation
-  * - 
-  *
-  * For more details, see @ref "Overview of Real-Time FireWire Stack". 
   */
- 
+
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -122,8 +103,6 @@ struct rt_serv_struct *rt_req_server;
 struct rt_serv_struct *nrt_req_server;
 struct rt_serv_struct *timeout_server;
 
-/** this is used for probing internal operation latency **/
-rtos_time_t	probe;
 
 /* Some globals used */
 const char *hpsb_speedto_str[] = { "S100", "S200", "S400", "S800", "S1600", "S3200" };
@@ -139,9 +118,9 @@ static void queue_packet_complete(struct hpsb_packet *packet);
  * Set the callback function of the  request packet.
  *
  *
- * @param packet - the packet in concern
- * @param routine - callback function
- * @param data - data (if any) to pass to the callback function
+ * @param[in] packet - the packet in concern
+ * @param[in] routine - callback function
+ * @param[in] data - data (if any) to pass to the callback function
  */
 void hpsb_set_packet_complete_task(struct hpsb_packet *packet,
 				   void (*routine)(struct hpsb_packet *, void *), void *data)
@@ -659,8 +638,7 @@ int hpsb_send_packet(struct hpsb_packet *packet)
 	if (packet->node_id == host->node_id) {
 		HPSB_NOTICE("sending to local....\n");
 		
-		rtos_get_time(&probe);
-		packet->xmit_time = rtos_time_to_nanosecs(&probe);
+		packet->xmit_time = rtos_get_time();
 		
 		struct hpsb_packet *recvpkt;
 		
@@ -746,7 +724,7 @@ int hpsb_send_packet_and_wait(struct hpsb_packet *packet)
 	retval = hpsb_send_packet(packet);
 	if (retval == 0)
 		//~ retval = wait_event_interruptible(packet->waitq, packet->processed);
-		rtos_event_wait(&sem);
+		rtos_event_wait(&sem, 0);
 	
 	return retval;
 }
@@ -1196,7 +1174,7 @@ void hpsb_packet_received(struct hpsb_packet *packet)
                 break;
 
         case TCODE_CYCLE_START:
-		HPSB_NOTICE("cycle start!\n");
+		HPSB_NOTICE("cycle start message received\n");
                 /* simply ignore this packet if it is passed on */
                 break;
 
@@ -1244,13 +1222,7 @@ void abort_requests(struct hpsb_host *host)
 	}
 }
 	
-/**
- * Routine for the timeout server
- * @param data is the pointer to the request packet which has expired
- * This function dequeues the expired request packet from pending 
- * queue, changes its state, add ack code (ACKX_TIMEOUT) and queue it
- * to complete queue, i.e. handover the packet to response server. 
- */
+/* Internal proc for timeout server */
 void abort_timedouts(unsigned long data)
 {
 	struct hpsb_packet *packet = (struct hpsb_packet *)data;
@@ -1275,19 +1247,15 @@ void abort_timedouts(unsigned long data)
 }
 
 
-/**
- * @ingroup kernel
- * @anchor queue_packet_complete
- * This function queues the packet that is completed to the queue of
- * kernel thread @khpsbpkt, which serves the various completion routines 
- * of packets
- * 
- * @note only asynchronous packet goes in this routine. 
- * @todo this routine stays in the task handover between pending packets and 
- * completing packets, therefore the classical real-time/non-real-time switching 
- * problem exists here. How to ditiguish process context and choose afterward routines 
- * should be sloved in todo. 
- */
+/*!
+  * @brief Queue complete transaction packet 
+  * 
+  * @param[in] packet Packet of which the transaction has completed
+  *
+  * This function queues the completed packet to the queue of resp_worker.
+  *  The order is according to the priority.
+  * If the packet has no waiter, it is just freed. 
+  */
 static void queue_packet_complete(struct hpsb_packet *packet)
 {
 	if (packet->no_waiter) {
@@ -1302,23 +1270,13 @@ static void queue_packet_complete(struct hpsb_packet *packet)
 						0, NULL); // NO callback data, and NO name
 		//dont forget to sync the server
 		rt_serv_sync(resp_server);
-		//resp_worker(0);
 	}
 	return;
 }
 
 
 
-/**
- * @ingroup kernel
- * @anchor hpsbpkt_thread
- * The routine for kernel thread for postprocessing
- * of finished packet
- * 
- * @param __hi - unused 
- * @note the synchronization between this kernel thread and 
- * stack is done via semaphore; @khpsbpkt_sig. 
- */
+/* Internal proc for response handling */
 void resp_worker(unsigned long dummy)
 {
 	
@@ -1327,15 +1285,12 @@ void resp_worker(unsigned long dummy)
 	struct hpsb_packet *packet;
 	void (*complete_routine)(struct hpsb_packet *, void*);
 	void *complete_data;
-	rtos_time_t		time;
 	
 	if ((pkb = rtpkb_prio_dequeue(list)) != NULL) {
 			packet = (struct hpsb_packet *)pkb;
-			
-			//get the time of receiving response
-			rtos_get_time(&time);
+
 			//calculate and log the time elapsecd between request and response
-			packet->xmit_time = rtos_time_to_nanosecs(&time) - packet->xmit_time;
+			packet->xmit_time = rtos_get_time() - packet->xmit_time;
 			HPSB_NOTICE("%s:req2resp latency is %d ns\n", __FUNCTION__, (int)packet->xmit_time);
 				
 			complete_routine = packet->complete_routine;
@@ -1384,7 +1339,7 @@ int ieee1394_core_init(void)
 	
 	rtpkb_prio_queue_init(&resp_list);
 	name = "resp1394";
-	resp_server = rt_serv_init(name, 10, -1, -1, resp_worker);
+	resp_server = rt_serv_init(name, 10, resp_worker);
 	if(!resp_server){
 		HPSB_ERR("response server initialization failed\n");
 		ret = -ENOMEM;
@@ -1395,7 +1350,7 @@ int ieee1394_core_init(void)
 	rtpkb_pool_init(&bis_req_pool, 16);
 	bis_req_list.pool = &bis_req_pool;
 	name = "bis1394";
-	bis_req_server = rt_serv_init(name, 20, -1, -1, req_worker);
+	bis_req_server = rt_serv_init(name, 20, req_worker);
 	if(!bis_req_server){
 		HPSB_ERR("Bus internal request server initialization failed\n");
 		ret = -ENOMEM;
@@ -1406,7 +1361,7 @@ int ieee1394_core_init(void)
 	rtpkb_pool_init(&rt_req_pool, 16);
 	rt_req_list.pool = &rt_req_pool;
 	name = "rt1394";
-	rt_req_server = rt_serv_init(name, 30, -1, -1, req_worker);
+	rt_req_server = rt_serv_init(name, 30,  req_worker);
 	if(!rt_req_server){
 		HPSB_ERR("Real-Time request server initialization failed\n");
 		ret = -ENOMEM;
@@ -1417,7 +1372,7 @@ int ieee1394_core_init(void)
 	rtpkb_pool_init(&nrt_req_pool, 16);
 	nrt_req_list.pool = &nrt_req_pool;
 	name = "nrt1394";
-	nrt_req_server = rt_serv_init(name, -1, -1, -1, req_worker);//we are in linux
+	nrt_req_server = rt_serv_init(name, -1,  req_worker);//we are in linux
 	if(!nrt_req_server){
 		HPSB_ERR("Non Real-Time request server initialization failed\n");
 		ret = -ENOMEM;
@@ -1425,7 +1380,7 @@ int ieee1394_core_init(void)
 	}
 	
 	name = "timeout";
-	timeout_server = rt_serv_init(name, 5, -1, -1,abort_timedouts);
+	timeout_server = rt_serv_init(name, 5, abort_timedouts);
 	if(!timeout_server){
 		HPSB_ERR("Timeout server initialization failed\n");
 		ret = -ENOMEM;
