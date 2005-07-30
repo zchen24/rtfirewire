@@ -255,7 +255,7 @@ int __init rtpc_init(void)
 	    return ret;
    
     sprintf(name, "rtpc");
-    rtpc_dispatcher = rt_serv_init(name, 500, rtpc_dispatch_handler); 
+    rtpc_dispatcher = rt_serv_init(name, 90, rtpc_dispatch_handler); 
     if(!rtpc_dispatcher){
 	    rtdm_nrt_signal_destroy(&rtpc_nrt_signal);
 	    return -ENOMEM;

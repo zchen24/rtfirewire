@@ -160,8 +160,9 @@ struct hpsb_packet *hpsb_alloc_packet(size_t data_size,struct rtpkb_pool *pool, 
 	pkb = alloc_rtpkb(length, pool);
 	if(pkb == NULL)
 		return NULL;
-	
 	packet = (struct hpsb_packet *)pkb;
+	memset((u8 *)packet + sizeof(packet->base), 0, sizeof(*packet) - sizeof(packet->base));	
+	
 	packet->header=(quadlet_t *)pkb->data;
 	packet->data = (quadlet_t *)(pkb->data + IEEE1394_HEADER_SIZE);
 	packet->pri = priority;
@@ -528,12 +529,12 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
 
         rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
 	
-	nanosecs_t  timeout = 3000*MICRO_SEC; //for real-time application
+	nanosecs_t  timeout = 30000*MICRO_SEC; //for real-time application
 	
 	if(packet->pri==IEEE1394_PRIORITY_HIGHEST) //for bus internal service
-		timeout = 2000*MICRO_SEC;
+		timeout = 20000*MICRO_SEC;
 	if(packet->pri==IEEE1394_PRIORITY_LOWEST) //for non real-time application
-		timeout = 5000*MICRO_SEC;
+		timeout = 50000*MICRO_SEC;
 
 	//here we add new timeout to our timeout server
 	packet->misc = (unsigned long ) rt_request_pend(timeout_server, (unsigned long)packet, //the parameter passed to server
@@ -767,6 +768,7 @@ void handle_packet_response(struct hpsb_packet *resp)
 	
 	rtpkb_queue_walk(&host->pending_packet_queue, pkb) {
 		packet = (struct hpsb_packet *)pkb;
+
 		if ((packet->tlabel == tlabel)
 			&& (packet->node_id == (resp->header[1] >> 16))){
 				break;
@@ -774,7 +776,7 @@ void handle_packet_response(struct hpsb_packet *resp)
 		
 		packet = NULL;
 	}
-	
+
 	if (packet == NULL) {
 		HPSB_DEBUG("unsolicited response packet received \
 					or packet has been dequeued due to timeout \
@@ -786,7 +788,12 @@ void handle_packet_response(struct hpsb_packet *resp)
 	}
 	
 	//we first cancel the timeout setting in timeout server
-	rt_request_delete(timeout_server, (struct rt_request_struct *)packet->misc);
+	if(packet->misc)
+		rt_request_delete(timeout_server, (struct rt_request_struct *)packet->misc);
+	else {
+		hpsb_free_packet(resp);
+		return;
+	}
 
 	switch(packet->tcode){
 		case TCODE_WRITEQ:
@@ -822,6 +829,8 @@ void handle_packet_response(struct hpsb_packet *resp)
 	
 	__rtpkb_unlink(pkb, pkb->list);
 	
+	rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
+	
 	
 	if (packet->state == hpsb_queued) {
 		resp->ack_code = ACK_PENDING;
@@ -835,8 +844,6 @@ void handle_packet_response(struct hpsb_packet *resp)
 	resp->no_waiter = packet->no_waiter;
 	resp->complete_routine = packet->complete_routine;
 	resp->complete_data = packet->complete_data;
-	
-	rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
 	
 	struct rtpkb_pool *pool = pkb->pool;
 	hpsb_free_tlabel(packet);
@@ -1183,6 +1190,7 @@ void hpsb_packet_received(struct hpsb_packet *packet)
                             packet->tcode);
                 break;
         }
+	
 	if(broker){
 		//ok, we need to pend the request to server, and sync it. 
 		rt_request_pend(broker, (unsigned long)packet->pri, //the parameter passed to server
@@ -1218,6 +1226,7 @@ void abort_requests(struct hpsb_host *host)
 			
 		packet->state = hpsb_complete;
 		packet->ack_code = ACKX_ABORTED;
+		hpsb_free_tlabel(packet);
 		queue_packet_complete(packet);
 	}
 }
@@ -1241,6 +1250,9 @@ void abort_timedouts(unsigned long data)
 	//assign the state and ack code and queue it to complete queue
 	packet->state = hpsb_complete;
 	packet->ack_code = ACKX_TIMEOUT;
+	
+	//we need to free the tlabel here!
+	hpsb_free_tlabel(packet);
 	queue_packet_complete(packet);
 	
 	rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);

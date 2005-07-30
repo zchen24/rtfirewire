@@ -811,7 +811,7 @@ static inline struct rtpkb *rtpkb_dequeue_tail(struct rtpkb_queue *list)
 
 #define rtpkb_queue_walk(queue,pkb) \
 		for (pkb = (queue)->next; \
-			prefetch(pkb->next), (pkb != (struct rtpkb *)(queue)); \
+			(pkb != (struct rtpkb *)(queue)); \
 			pkb = pkb->next)
 
 /***

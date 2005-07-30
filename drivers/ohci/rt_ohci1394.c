@@ -611,8 +611,8 @@ static void insert_packet(struct ti_ohci *ohci,
 	u32 cycleTimer;
 	int idx = d->prg_ind;
 
-	OHCI_NOTICE("Inserting packet for node " NODE_BUS_FMT
-	       ", tlabel=%d, tcode=0x%x, speed=%d\n",
+	OHCI_NOTICE("Inserting packet to context %s for node " NODE_BUS_FMT
+	       ", tlabel=%d, tcode=0x%x, speed=%d\n", d->name,
 	       NODE_BUS_ARGS(ohci->host, packet->node_id), packet->tlabel,
 	       packet->tcode, packet->speed_code);
 
@@ -702,6 +702,7 @@ static void insert_packet(struct ti_ohci *ohci,
                         if (d->branchAddrPtr)
                                 *(d->branchAddrPtr) =
 					cpu_to_le32(d->prg_bus[idx] | 0x3);
+
                         d->branchAddrPtr =
                                 &(d->prg_cpu[idx]->end.branchAddress);
                 } else { /* quadlet transmit */
@@ -727,7 +728,7 @@ static void insert_packet(struct ti_ohci *ohci,
                                 &(d->prg_cpu[idx]->begin.branchAddress);
                 }
 
-        } else { /* async stream packet */
+        } else { /* iso stream packet */
                 d->prg_cpu[idx]->data[0] = packet->speed_code<<16 |
                         (packet->header[0] & 0xFFFF);
                 d->prg_cpu[idx]->data[1] = packet->header[0] & 0xFFFF0000;
@@ -2475,6 +2476,8 @@ static __inline__ int packet_length(struct dma_asyn_recv *d, int idx, quadlet_t 
 /* Tasklet that processes dma receive buffers */
 static void dma_rcv_routine (unsigned long data)
 {
+	DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	
 	struct dma_asyn_recv *d = (struct dma_asyn_recv*)data;
 	struct ti_ohci *ohci = d->ohci;
 	unsigned int split_left, idx, offset, rescount;
@@ -2528,6 +2531,7 @@ static void dma_rcv_routine (unsigned long data)
 				d->buf_ind = idx;
 				d->buf_offset = offset;
 				rtos_spin_unlock_irqrestore(&d->lock, flags);
+				hpsb_free_packet(pkt);
 				return;
 			}
 
@@ -2598,27 +2602,29 @@ static void dma_rcv_routine (unsigned long data)
 			pkt->write_acked = (((cond_le32_to_cpu(pkt->data[length/4-1], ohci->no_swap_incoming)>>16)&0x1f)
 				== 0x11) ? 1 : 0;
 			pkt->pri = cond_le32_to_cpu(d->spb[0], ohci->no_swap_incoming)&0xf;
-			pkt->data_size = length-4;
 			pkt->host = ohci->host;
 			pkt->tcode = tcode;
 			/* according to tcode, seperate the header from data */
 			pkt->header_size = hdr_sizes[tcode] * sizeof(quadlet_t);
 			pkt->header = pkt->data;
 			pkt->data = (quadlet_t *)((u8 *)pkt->data+pkt->header_size);
+			pkt->data_size = length - 4 - pkt->header_size;
 			
 		#ifdef CONFIG_OHCI1394_DEBUG
 			int i;
 			quadlet_t *data_p = pkt->header;
-			for(i=0; i<hdr_sizes[tcode]; i++){
-				rtos_print("%08X ", data_p[i]);
-				rtos_print("\n");
-			}
 			
-			data_p = pkt->data;
-			for(i=0; i<pkt->data_size; i++){
+			rtos_print("\n=========data dump (header size:%d  data size:%d)==========\n", pkt->header_size, pkt->data_size);
+			for(i=0; i < (pkt->header_size/4); i++){
 				rtos_print("%08X ", data_p[i]);
 			}
 			rtos_print("\n");
+			
+			data_p = pkt->data;
+			for(i=0; i < (pkt->data_size/4); i++){
+				rtos_print("%08X ", data_p[i]);
+			}
+			rtos_print("\n\n");
 		#endif
 
 			hpsb_packet_received(pkt);
@@ -2989,8 +2995,7 @@ alloc_dma_asyn_xmit(struct ti_ohci *ohci, struct dma_asyn_xmit *d,
 			sprintf(pool_name, "aresp_trm%d", cards_found);
 
 	d->prg_pool = pci_pool_create(pool_name, ohci->dev,
-				sizeof(struct dma_cmd), 4, 0);
-
+				sizeof(struct at_dma_prg), 4, 0);
 				
 	if (d->prg_pool == NULL) {
 		OHCI_ERR( "pci_pool_create failed for %s", pool_name);
@@ -3022,6 +3027,8 @@ alloc_dma_asyn_xmit(struct ti_ohci *ohci, struct dma_asyn_xmit *d,
 	d->cmdPtr = context_base + OHCI1394_ContextCommandPtr;
 
 	rt_event_init(&d->event, pool_name, dma_trm_routine, (unsigned long)d);
+	
+	sprintf(d->name, pool_name);
 
 	return 0;
 }

@@ -61,14 +61,14 @@ typedef u16 			arm_length_t;
 #define NODE_BUS_ARGS(__host, __nodeid)	\
 	__host->ifindex, NODEID_TO_NODE(__nodeid), NODEID_TO_BUS(__nodeid)
 
-#define HPSB_PRINT(level, fmt, args...) printk(level "%s[%s]: " fmt "\n" , __FILE__, __FUNCTION__,## args)
-#define HPSB_ERR(fmt, args...) HPSB_PRINT(KERN_ERR, fmt , ## args)
+#define HPSB_PRINT(fmt, args...) rtos_print("%s[%s]: " fmt "\n" , __FILE__, __FUNCTION__,## args)
+#define HPSB_ERR(fmt, args...) HPSB_PRINT(fmt , ## args)
 
 #ifdef CONFIG_IEEE1394_DEBUG
-#define HPSB_DEBUG(fmt, args...) HPSB_PRINT(KERN_DEBUG, fmt , ## args)
-#define HPSB_INFO(fmt, args...) HPSB_PRINT(KERN_INFO, fmt , ## args)
-#define HPSB_NOTICE(fmt, args...) HPSB_PRINT(KERN_NOTICE, fmt , ## args)
-#define HPSB_WARN(fmt, args...) HPSB_PRINT(KERN_WARNING, fmt , ## args)
+#define HPSB_DEBUG(fmt, args...) HPSB_PRINT(fmt , ## args)
+#define HPSB_INFO(fmt, args...) HPSB_PRINT(fmt , ## args)
+#define HPSB_NOTICE(fmt, args...) HPSB_PRINT(fmt , ## args)
+#define HPSB_WARN(fmt, args...) HPSB_PRINT(fmt , ## args)
 #else
 #define HPSB_DEBUG(fmt, args...) 
 #define HPSB_INFO(fmt, args...) 

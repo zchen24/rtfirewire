@@ -199,7 +199,7 @@ int hpsb_get_tlabel(struct hpsb_packet *packet)
 	//~ }
 	//~ rtos_res_lock(&tp->count); //64 tasks can call here without blocking
 	if(atomic_read(&tp->count)<0) {
-		HPSB_PRINT(KERN_ERR, "run out of tlabel\n");
+		HPSB_ERR("run out of tlabel\n");
 		return 1;
 	}
 	atomic_dec(&tp->count);

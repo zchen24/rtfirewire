@@ -877,7 +877,19 @@ dnl		generate output
 dnl ======================================================================
 AC_MSG_NOTICE([generating output])
 
-AC_CONFIG_FILES([GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile])
+AC_CONFIG_FILES([GNUmakefile \
+		include/GNUmakefile \
+		highlevel/GNUmakefile \
+		highlevel/bis1394/GNUmakefile \
+		drivers/GNUmakefile \
+		drivers/ohci/GNUmakefile \
+		drivers/sim/GNUmakefile \
+		rtpkbuff/GNUmakefile \
+		rtpc/GNUmakefile \
+		rt_serv/GNUmakefile \
+		stack/GNUmakefile \
+		tools/GNUmakefile \
+		])
    
 AC_OUTPUT
 

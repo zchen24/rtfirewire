@@ -15,16 +15,6 @@
 #ifndef 	RT_SERVER_H
 #define 	RT_SERVER_H
 
-#define	RTSERV_ERR(fmt, args...) \
-	rtdm_printk("RT_SERV:"fmt, ## args)
-
-#ifdef	CONFIG_RTSERV_DEBUG
-#define	RTSERV_NOTICE(fmt, args...)\
-	rtdm_printk("RT_SERV:"fmt, ## args)
-#else
-#define	RTSERV_NOTICE(fmt,args...)
-#endif
-
 #include <linux/list.h>
 
 #include <rtdm/rtdm_driver.h>
@@ -76,7 +66,8 @@ struct rt_serv_struct {
 	
 };
 
-/*Internal structure of interrupt event*/
+/*Internal structure of interrupt event,
+ the event is queued to irq bh broker in top half of isr*/
 struct rt_event_struct {
 	char name[32];
 	struct list_head hook;

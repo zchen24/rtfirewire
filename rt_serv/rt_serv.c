@@ -18,11 +18,23 @@
  
  #include <rt_serv.h>
  
+ #define	RTSERV_ERR(fmt, args...) \
+	rtdm_printk("RT_SERV:"fmt, ## args)
+	
+//~ #define CONFIG_RTSERV_DEBUG 1
+
+#ifdef	CONFIG_RTSERV_DEBUG
+#define	RTSERV_NOTICE(fmt, args...)\
+	rtdm_printk("RT_SERV:"fmt, ## args)
+#else
+#define	RTSERV_NOTICE(fmt,args...)
+#endif
+ 
  /*!
    *@anchor irq_broker_pri @name irq_broker_pri
    * Priority of Interrupt Service Broker
    */
- #define IRQ_BROKER_PRI 	RTDM_TASK_HIGHEST_PRIORITY+2
+ #define IRQ_BROKER_PRI 	RTDM_TASK_HIGHEST_PRIORITY-2
  
  #define RTOS_LINUX_PRIORITY	0xFFFF
  
@@ -34,8 +46,6 @@
  
  static rwlock_t servers_list_lock = RW_LOCK_UNLOCKED;
  //~ static int nrt_serv_srq;
-
- rtdm_event_t irq_brk_sync;
 
  spinlock_t event_list_lock = SPIN_LOCK_UNLOCKED;
  rtdm_task_t irq_brk;
@@ -49,11 +59,7 @@
 		
 	RTSERV_NOTICE("irq broker started\n");
 	while(1){
-		int ret = rtdm_event_wait(&irq_brk_sync, 0);
-		if(ret < 0){
-			RTSERV_ERR("interrupt broker encountered err: %d\n", ret);
-			return;
-		}
+		rtdm_task_sleep_until(RTOS_TIME_LIMIT);
 			
 		rtdm_lock_get_irqsave(&event_list_lock, flags);
 		list_for_each_safe(lh, tmp, &event_list){
@@ -118,7 +124,9 @@
    */
  void rt_irq_broker_sync(void)
  {
-	rtdm_event_signal(&irq_brk_sync);
+	int err = rtdm_task_unblock(&irq_brk);
+		if(!err)
+			RTSERV_ERR("unblocking irq_brk failed:%d\n",err);
  } 
 
 /*!
@@ -443,7 +451,7 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 		list_add_tail(&srv->entry, &rt_servers_list);
 		spin_unlock(&servers_list_lock);
 	
-		if(rtdm_task_init(&srv->task, name, rt_serv_worker, (void *)srv, srv->priority + RTDM_TASK_HIGHEST_PRIORITY,0)) {
+		if(rtdm_task_init(&srv->task, name, rt_serv_worker, (void *)srv, IRQ_BROKER_PRI - srv->priority, 0)) {
 			RTSERV_ERR("failed to initialize server %s!!\n", srv->name);
 			rt_serv_delete(srv);
 			return NULL;
@@ -513,11 +521,8 @@ int serv_module_init(void)
 {
 	struct proc_dir_entry *proc_entry;
 
-	rtdm_event_init(&irq_brk_sync, 0);
-	
 	if(rtdm_task_init(&irq_brk, "irqbroker", irqbrk_worker, 0, IRQ_BROKER_PRI, 0)){
 		RTSERV_ERR("failed to init irq broker task\n");
-		rtdm_event_destroy(&irq_brk_sync);
 		return -ENOMEM;
 	}
 	
@@ -561,7 +566,6 @@ void serv_module_exit(void)
 	remove_proc_entry("servers",0);
 	//~ rt_free_srq(nrt_serv_srq);
 	rtdm_task_destroy(&irq_brk);
-	rtdm_event_destroy(&irq_brk_sync);
 	
 	if (unclean)
 		RTSERV_NOTICE("%d Servers were not cleaned,\
