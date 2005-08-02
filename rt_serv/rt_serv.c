@@ -79,12 +79,8 @@ struct rt_serv_struct *irq_brk;
 	 if(srv->priority==RTOS_LINUX_PRIORITY){
 		 RTSERV_NOTICE("non real-time server in Linux not supported yet\n");
 		//~ rt_pend_linux_srq(nrt_serv_srq);
-	}else{
-		int err = rtdm_task_unblock(&srv->task);
-		if(!err)
-			RTSERV_ERR("unblocking server %s returned %d\n",
-						srv->name, err);
-	}
+	}else
+		rtdm_task_unblock(&srv->task);
 }
 
 /*!

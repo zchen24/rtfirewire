@@ -45,15 +45,15 @@
 
 #define AR_REQ_NUM_DESC		4		/* number of AR req descriptors */
 #define AR_REQ_BUF_SIZE		1024	/* size of AR req buffers */
-#define AR_REQ_SPLIT_BUF_SIZE	1024	/* split packet buffer */
+#define AR_REQ_SPLIT_BUF_SIZE	AR_REQ_BUF_SIZE	/* split packet buffer */
 
 #define AR_RESP_NUM_DESC	4		/* number of AR resp descriptors */
 #define AR_RESP_BUF_SIZE	1024	/* size of AR resp buffers */
-#define AR_RESP_SPLIT_BUF_SIZE	1024	/* split packet buffer */
+#define AR_RESP_SPLIT_BUF_SIZE	AR_RESP_BUF_SIZE	/* split packet buffer */
 
 #define IR_NUM_DESC		16		/* number of IR descriptors */
 #define IR_BUF_SIZE		1024	/* 4096 bytes/buffer */
-#define IR_SPLIT_BUF_SIZE	1024	/* split packet buffer */
+#define IR_SPLIT_BUF_SIZE	IR_BUF_SIZE	/* split packet buffer */
 
 #define IT_NUM_DESC		16	/* number of IT descriptors */
 
