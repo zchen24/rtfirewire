@@ -19,11 +19,6 @@
 
 #include <rtdm/rtdm_driver.h>
 
-/*!
-  * @anchor max_req  @name max_req
-  * Max number of requests that can pend on one server. 
-  */
-#define MAX_REQ 10	
 
 /*Internal structure of request*/
 struct rt_request_struct {
@@ -61,21 +56,20 @@ struct rt_serv_struct {
 	unsigned char name[32];
 	
 	struct rt_request_struct reqobj_pool_head;
+	int max_req;
 		
 	__s64 	firing_time;
 	
 };
 
-/*Internal structure of interrupt event,
- the event is queued to irq bh broker in top half of isr*/
+/*Internal structure of interrupt event*/
 struct rt_event_struct {
 	char name[32];
-	struct list_head hook;
 	void (*proc)(unsigned long);
 	unsigned long data;
 };
 		
-extern struct rt_serv_struct *rt_serv_init( unsigned char *name, int priority, void (*proc)(unsigned long));
+extern struct rt_serv_struct *rt_serv_init( unsigned char *name, int priority, void (*proc)(unsigned long), int max_req);
 extern void rt_serv_delete(struct rt_serv_struct *srv);
 
 extern struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned long data, 
@@ -90,7 +84,6 @@ extern void rt_event_init(struct rt_event_struct *evt, char *name,
 					void (*proc)(unsigned long), 
 					unsigned long data);
 extern void rt_event_pend(struct rt_event_struct *evt);
-extern void rt_event_delete(struct rt_event_struct *evt);
 	
 extern void rt_irq_broker_sync(void);
 

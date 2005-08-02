@@ -25,11 +25,7 @@
 //#define CONFIG_IEEE1394_DEBUG	1
 //~ #define CONFIG_IEEE1394_VERBOSEDEBUG	1
 
-<<<<<<< .mine
-#define CONFIG_OHCI1394_DEBUG	1
-=======
 //#define CONFIG_OHCI1394_DEBUG	1
->>>>>>> .r182
 
 //~ #define CONFIG_DEBUG_PRINT	1
 
@@ -51,12 +47,6 @@ rtos_print(fmt "\n" , ## args)
 #define	CONFIG_KERNEL_26
 #endif
 
-/*Internal priorities of each transaction server, 
-relative to the base priority of server module*/
-#define RESP_SERVER_PRI	10
-#define BIS_SERVER_PRI		20
-#define RT1394_SERVER_PRI	30
-#define TIMEOUT_SERVER_PRI	5
 
 #endif /*__IN_RTFW__ */
 

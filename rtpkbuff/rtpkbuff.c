@@ -351,6 +351,7 @@ int rtpkb_acquire(struct rtpkb *rtpkb, struct rtpkb_pool *comp_pool)
         return -ENOMEM;
 
     comp_rtpkb->pool = rtpkb->pool;//do the hack here
+    mb(); //This is possibly needed, since the compiler may change the order of hacking and freeing. 
     kfree_rtpkb(comp_rtpkb);
 
     rtpkb->pool = comp_pool;

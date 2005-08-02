@@ -31,6 +31,12 @@
 #endif
  
  /*!
+  * @anchor max_req  @name max_req
+  * Max number of requests that can pend on one server. 
+  */
+#define MAX_REQ 10	
+
+ /*!
    *@anchor irq_broker_pri @name irq_broker_pri
    * Priority of Interrupt Service Broker
    */
@@ -42,92 +48,12 @@
   
  LIST_HEAD(rt_servers_list);
  LIST_HEAD(nrt_servers_list);
- LIST_HEAD(event_list);
  
  static rwlock_t servers_list_lock = RW_LOCK_UNLOCKED;
  //~ static int nrt_serv_srq;
 
- spinlock_t event_list_lock = SPIN_LOCK_UNLOCKED;
- rtdm_task_t irq_brk;
+struct rt_serv_struct *irq_brk;
  
- /* Internal Proc of irq broker */
- void irqbrk_worker(void *data)
- {
-	struct list_head *lh, *tmp;
-	struct rt_event_struct *evt;
-	unsigned long flags;
-		
-	RTSERV_NOTICE("irq broker started\n");
-	while(1){
-		rtdm_task_sleep_until(RTOS_TIME_LIMIT);
-			
-		rtdm_lock_get_irqsave(&event_list_lock, flags);
-		list_for_each_safe(lh, tmp, &event_list){
-			evt = list_entry(lh, struct rt_event_struct, hook);
-
-			RTSERV_NOTICE("interrupt event %s is being handled\n", evt->name);
-
-			if(evt->proc)
-				evt->proc(evt->data);
-			else
-				RTSERV_ERR("interrupt event has no routine!!!\n");
-		}
-		INIT_LIST_HEAD(&event_list);
-		rtdm_lock_put_irqrestore(&event_list_lock,flags);
-	}
- } 
-
- /*!
-   * @brief Initialize interrupt event.
-   * 
-   * @param[in, out] evt Address of event structure.
-   * @param[in] name. Name of the event, normally indicating the interruptting device. 
-   * @param[in] proc. BottomHalf Interrupt handler
-   * @param[in] data. Parameter to pass to the BottomHalf handler.
-   */
- void rt_event_init(struct rt_event_struct *evt, char *name, 
-					void (*proc)(unsigned long), 
-					unsigned long data)
- {
-	INIT_LIST_HEAD(&evt->hook);
-	evt->data = data;
-	evt->proc = proc;
-	strncpy(evt->name, name, 32);
- }
-
-/*!
-   * @brief Pend a new interrupt event.
-   *
-   * @param[in] evt. Address of the event strucutre.
-   */ 
- void rt_event_pend(struct rt_event_struct *evt)
- {
-	rtdm_lock_get(&event_list_lock);
-	list_add_tail(&evt->hook, &event_list);
-	rtdm_lock_put(&event_list_lock);
- }
-
- /*!
-   * @brief Delete an interrupt event.
-   *
-   * @param[in] evt. Address of the event strucutre.
-   */ 
- void rt_event_delete(struct rt_event_struct *evt)
- {
-	rtdm_lock_get(&event_list_lock);
-	list_del(&evt->hook);
-	rtdm_lock_put(&event_list_lock);
- }
-	
- /*!
-   * @brief Synchronize the irq broker.
-   */
- void rt_irq_broker_sync(void)
- {
-	int err = rtdm_task_unblock(&irq_brk);
-		if(!err)
-			RTSERV_ERR("unblocking irq_brk failed:%d\n",err);
- } 
 
 /*!
   *@brief Synchronize the server.
@@ -156,7 +82,7 @@
 	}else{
 		int err = rtdm_task_unblock(&srv->task);
 		if(!err)
-			RTSERV_ERR("unblocking server %s failed:%d\n",
+			RTSERV_ERR("unblocking server %s returned %d\n",
 						srv->name, err);
 	}
 }
@@ -195,14 +121,18 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 					unsigned char *name)
 {
 	int id = atomic_read(&srv->pending_req);
-	if(id == MAX_REQ){
+	if(id == srv->max_req){
 		RTSERV_ERR("server[%s] reaches max request number\n", srv->name);
 		return NULL;
 	}
 	
+	unsigned long flags;
+	
+	rtdm_lock_get_irqsave(&srv->requests_list_lock,flags);
 	struct rt_request_struct *req = srv->reqobj_pool_head.next;
 	req->prev->next = req->next;
 	req->next->prev = req->prev;
+	rtdm_lock_put_irqrestore(&srv->requests_list_lock, flags);
 	
 	if(delay_time > 0){
 		req->firing_time = rtdm_clock_read() + delay_time;
@@ -216,17 +146,12 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 	if(name)
 		strncpy(req->name, name, 32);
 	
-	unsigned long flags;
+	rtdm_lock_get_irqsave(&srv->requests_list_lock,flags);
 	if(srv->priority == RTOS_LINUX_PRIORITY){
-		rtdm_lock_get_irqsave(&srv->requests_list_lock,flags);
 		req->next = &srv->requests_list;
 		req->prev = srv->requests_list.prev;
 		req->prev->next = req->next->prev = req;
-		rtdm_lock_put_irqrestore(&srv->requests_list_lock,flags);
-		atomic_inc(&srv->pending_req);
 	}else{
-		rtdm_lock_get_irqsave(&srv->requests_list_lock,flags);
-		
 		struct rt_request_struct *tmpreq = srv->requests_list.next;
 		
 		//find the previous request which requires just later service
@@ -242,10 +167,9 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 		req->next = tmpreq;
 		req->prev = tmpreq->prev;
 		req->prev->next = req->next->prev = req;
-		
-		rtdm_lock_put_irqrestore(&srv->requests_list_lock,flags);
-		atomic_inc(&srv->pending_req);
 	}
+	rtdm_lock_put_irqrestore(&srv->requests_list_lock,flags);
+	atomic_inc(&srv->pending_req);
 	
 	return req;				
 }
@@ -295,6 +219,60 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 }
 
 
+
+
+
+/* Internal Proc of irq broker */
+ void irqbrk_worker(unsigned long data)
+ {
+	struct rt_event_struct *evt = (struct rt_event_struct *)data;
+	
+	RTSERV_NOTICE("interrupt event %s is being handled\n", evt->name);
+	
+	if(evt->proc)
+		evt->proc(evt->data);
+	else
+		RTSERV_ERR("interrupt event has no routine!!!\n");
+} 
+
+ /*!
+   * @brief Initialize interrupt event.
+   * 
+   * @param[in, out] evt Address of event structure.
+   * @param[in] name. Name of the event, normally indicating the interruptting device. 
+   * @param[in] proc. BottomHalf Interrupt handler
+   * @param[in] data. Parameter to pass to the BottomHalf handler.
+   */
+ void rt_event_init(struct rt_event_struct *evt, char *name, 
+					void (*proc)(unsigned long), 
+					unsigned long data)
+ {
+	evt->data = data;
+	evt->proc = proc;
+	strncpy(evt->name, name, 32);
+ }
+
+/*!
+   * @brief Pend a new interrupt event.
+   *
+   * @param[in] evt. Address of the event strucutre.
+   */ 
+ void rt_event_pend(struct rt_event_struct *evt)
+ {
+	rt_request_pend(irq_brk, (unsigned long)evt, 0, NULL, 0, NULL);
+ }
+
+   /*!
+   * @brief Synchronize the irq broker.
+   */
+void rt_irq_broker_sync(void)
+{
+	rt_serv_sync(irq_brk);
+} 
+
+
+
+
 /*Internal working routine of real-time Servers*/
  void rt_serv_worker(void *data)
  {
@@ -306,6 +284,7 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 
 		while(1){
 					struct rt_request_struct *req = srv->requests_list.next;
+					unsigned long flags;
 							
 					if(req->firing_time > rtdm_clock_read()){
 						srv->firing_time = req->firing_time;
@@ -313,8 +292,10 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 					}
 					
 					//get request out of pending queue	 
+					rtdm_lock_get_irqsave(&srv->requests_list_lock, flags);
 					req->prev->next = req->next;
 					req->next->prev = req->prev;
+					rtdm_lock_put_irqrestore(&srv->requests_list_lock, flags);
 								
 					if(srv->proc)
 						srv->proc(req->data);
@@ -326,9 +307,11 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 						req->callback(req, req->callback_data);
 			
 					//return object to pool
+					rtdm_lock_get_irqsave(&srv->requests_list_lock, flags);
 					req->next = &srv->reqobj_pool_head;
 					req->prev = srv->reqobj_pool_head.prev;
 					req->next->prev = req->prev->next = req;
+					rtdm_lock_put_irqrestore(&srv->requests_list_lock, flags);
 		
 					atomic_dec(&srv->pending_req);
 								
@@ -399,10 +382,12 @@ void rt_serv_delete(struct rt_serv_struct *srv)
   * @param[in] name. Name of the Server.
   * @param[in] priority. Priority of ther Server task
   * @param[in] proc. Process routine of ther Server.
+  * @param[in] max_req. Max number of pending requests. 
+  * This is the number of pre-allocated request objects in the pool. 
   *
   * @return Address of new Server on Success; otherwise NULL. 
   */
-struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*proc)(unsigned long))
+struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*proc)(unsigned long), int max_req)
 {
 	if(priority<-1){
 		RTSERV_ERR("illegal priority %d\n", priority);
@@ -421,6 +406,7 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 					&srv->reqobj_pool_head;
 	
 	srv->priority = (priority==-1) ? RTOS_LINUX_PRIORITY : priority;
+	srv->max_req = (max_req==-1) ? MAX_REQ : max_req;
 	
 	srv->proc = proc;
 	
@@ -433,7 +419,7 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 	
 	int i;
 	struct rt_request_struct *req;
-	for(i=0; i<MAX_REQ; i++){
+	for(i=0; i<srv->max_req; i++){
 		req=kmalloc(sizeof(*req), GFP_KERNEL);
 		req->next = &srv->reqobj_pool_head;
 		req->prev = srv->reqobj_pool_head.prev;
@@ -451,7 +437,7 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 		list_add_tail(&srv->entry, &rt_servers_list);
 		spin_unlock(&servers_list_lock);
 	
-		if(rtdm_task_init(&srv->task, name, rt_serv_worker, (void *)srv, IRQ_BROKER_PRI - srv->priority, 0)) {
+		if(rtdm_task_init(&srv->task, name, rt_serv_worker, (void *)srv, srv->priority, 0)) {
 			RTSERV_ERR("failed to initialize server %s!!\n", srv->name);
 			rt_serv_delete(srv);
 			return NULL;
@@ -521,11 +507,6 @@ int serv_module_init(void)
 {
 	struct proc_dir_entry *proc_entry;
 
-	if(rtdm_task_init(&irq_brk, "irqbroker", irqbrk_worker, 0, IRQ_BROKER_PRI, 0)){
-		RTSERV_ERR("failed to init irq broker task\n");
-		return -ENOMEM;
-	}
-	
 	//srq for server in LInux
 	//~ if((nrt_serv_srq = rt_request_srq(0, nrt_serv_worker, 0))<0){
 		//~ RTSERV_ERR("no srq available in rtai\n");
@@ -540,7 +521,14 @@ int serv_module_init(void)
 	}
 	proc_entry->read_proc = serv_read_proc;
 	
-	RTSERV_NOTICE("real-Time Server Module Initialized!\n");
+	RTSERV_NOTICE("module loaded\n");
+	
+	irq_brk = rt_serv_init("irq_brk", IRQ_BROKER_PRI, irqbrk_worker, 100);
+	if(irq_brk == NULL){
+		remove_proc_entry("servers",0);
+		return -ENOMEM;
+	}
+	RTSERV_NOTICE("real-Time irq broker started\n");	
 
 	return 0;
 }
@@ -550,6 +538,9 @@ void serv_module_exit(void)
 	struct list_head *lh;
 	struct rt_serv_struct *srv;
 	int unclean=0;
+	
+	rt_serv_delete(irq_brk);
+	RTSERV_NOTICE("real-Time irq broker stopped\n");
 	
 	list_for_each(lh, &rt_servers_list){
 	    srv = list_entry(lh, struct rt_serv_struct, entry);
@@ -565,13 +556,12 @@ void serv_module_exit(void)
 	
 	remove_proc_entry("servers",0);
 	//~ rt_free_srq(nrt_serv_srq);
-	rtdm_task_destroy(&irq_brk);
 	
 	if (unclean)
 		RTSERV_NOTICE("%d Servers were not cleaned,\
 					system reboot required!!!\n", unclean);
 	else
-		RTSERV_NOTICE("real-Time Server Module unmounted\n");
+		RTSERV_NOTICE("module unloaded\n");
 }
 
 module_init(serv_module_init);

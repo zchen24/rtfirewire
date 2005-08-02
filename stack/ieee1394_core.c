@@ -48,6 +48,13 @@
 
 #define MICRO_SEC	1000 //in ns
 
+/*Internal priorities of each transaction server, 
+relative to the base priority of server module*/
+#define RESP_SERVER_PRI	90
+#define BIS_SERVER_PRI		85
+#define RT1394_SERVER_PRI	80
+#define TIMEOUT_SERVER_PRI	95
+
 #ifdef CONFIG_IEEE1394_DEBUG
 static void dump_packet(const char *text, quadlet_t *data, int size)
 {
@@ -1351,7 +1358,7 @@ int ieee1394_core_init(void)
 	
 	rtpkb_prio_queue_init(&resp_list);
 	name = "resp1394";
-	resp_server = rt_serv_init(name, 10, resp_worker);
+	resp_server = rt_serv_init(name, RESP_SERVER_PRI,  resp_worker, -1);
 	if(!resp_server){
 		HPSB_ERR("response server initialization failed\n");
 		ret = -ENOMEM;
@@ -1362,7 +1369,7 @@ int ieee1394_core_init(void)
 	rtpkb_pool_init(&bis_req_pool, 16);
 	bis_req_list.pool = &bis_req_pool;
 	name = "bis1394";
-	bis_req_server = rt_serv_init(name, 20, req_worker);
+	bis_req_server = rt_serv_init(name, BIS_SERVER_PRI, req_worker, -1);
 	if(!bis_req_server){
 		HPSB_ERR("Bus internal request server initialization failed\n");
 		ret = -ENOMEM;
@@ -1373,7 +1380,7 @@ int ieee1394_core_init(void)
 	rtpkb_pool_init(&rt_req_pool, 16);
 	rt_req_list.pool = &rt_req_pool;
 	name = "rt1394";
-	rt_req_server = rt_serv_init(name, 30,  req_worker);
+	rt_req_server = rt_serv_init(name, RT1394_SERVER_PRI,  req_worker, -1);
 	if(!rt_req_server){
 		HPSB_ERR("Real-Time request server initialization failed\n");
 		ret = -ENOMEM;
@@ -1384,7 +1391,7 @@ int ieee1394_core_init(void)
 	rtpkb_pool_init(&nrt_req_pool, 16);
 	nrt_req_list.pool = &nrt_req_pool;
 	name = "nrt1394";
-	nrt_req_server = rt_serv_init(name, -1,  req_worker);//we are in linux
+	nrt_req_server = rt_serv_init(name, -1,  req_worker, -1);//we are in linux
 	if(!nrt_req_server){
 		HPSB_ERR("Non Real-Time request server initialization failed\n");
 		ret = -ENOMEM;
@@ -1392,7 +1399,7 @@ int ieee1394_core_init(void)
 	}
 	
 	name = "timeout";
-	timeout_server = rt_serv_init(name, 5, abort_timedouts);
+	timeout_server = rt_serv_init(name, TIMEOUT_SERVER_PRI, abort_timedouts, -1);
 	if(!timeout_server){
 		HPSB_ERR("Timeout server initialization failed\n");
 		ret = -ENOMEM;
