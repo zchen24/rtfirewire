@@ -39,7 +39,7 @@
 
 static spinlock_t   pending_calls_lock = SPIN_LOCK_UNLOCKED;
 static spinlock_t   processed_calls_lock = SPIN_LOCK_UNLOCKED;
-static rtdm_nrt_signal_t rtpc_nrt_signal;
+static rtdm_nrtsig_t rtpc_nrt_signal;
 struct rt_serv_struct *rtpc_dispatcher;
 	
 LIST_HEAD(pending_calls);
@@ -165,7 +165,7 @@ static inline void rtpc_queue_processed_call(struct rt_proc_call *call)
     list_add_tail(&call->list_entry, &processed_calls);
     rtdm_lock_put_irqrestore(&processed_calls_lock, flags);
 
-    rtdm_nrt_pend_signal(&rtpc_nrt_signal);
+    rtdm_nrtsig_pend(&rtpc_nrt_signal);
 }
 
 
@@ -205,7 +205,7 @@ static void rtpc_dispatch_handler(unsigned long arg)
 
 
 
-static void rtpc_signal_handler(rtdm_nrt_signal_t sig)
+static void rtpc_signal_handler(rtdm_nrtsig_t sig)
 {
     struct rt_proc_call *call;
 
@@ -250,14 +250,14 @@ int __init rtpc_init(void)
     int ret;
     unsigned char name[16];
     
-    ret = rtdm_nrt_signal_init(&rtpc_nrt_signal, rtpc_signal_handler);
+    ret = rtdm_nrtsig_init(&rtpc_nrt_signal, rtpc_signal_handler);
     if(ret < 0)
 	    return ret;
    
     sprintf(name, "rtpc");
     rtpc_dispatcher = rt_serv_init(name, 1, rtpc_dispatch_handler, -1); 
     if(!rtpc_dispatcher){
-	    rtdm_nrt_signal_destroy(&rtpc_nrt_signal);
+	    rtdm_nrtsig_destroy(&rtpc_nrt_signal);
 	    return -ENOMEM;
     }
     
@@ -269,7 +269,7 @@ int __init rtpc_init(void)
 void rtpc_cleanup(void)
 {
     rt_serv_delete(rtpc_dispatcher);	
-    rtdm_nrt_signal_destroy(&rtpc_nrt_signal);
+    rtdm_nrtsig_destroy(&rtpc_nrt_signal);
 }
 
 module_init(rtpc_init);

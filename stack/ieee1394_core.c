@@ -732,7 +732,7 @@ int hpsb_send_packet_and_wait(struct hpsb_packet *packet)
 	retval = hpsb_send_packet(packet);
 	if (retval == 0)
 		//~ retval = wait_event_interruptible(packet->waitq, packet->processed);
-		rtos_event_wait(&sem, 0);
+		rtos_event_wait(&sem);
 	
 	return retval;
 }

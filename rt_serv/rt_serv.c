@@ -50,7 +50,7 @@
  LIST_HEAD(nrt_servers_list);
  
  static rwlock_t servers_list_lock = RW_LOCK_UNLOCKED;
- //~ static int nrt_serv_srq;
+ static rtdm_nrt_signal_t nrt_serv_srq;
 
 struct rt_serv_struct *irq_brk;
  
@@ -77,8 +77,7 @@ struct rt_serv_struct *irq_brk;
 	
 	RTSERV_NOTICE("sync server %s\n", srv->name);
 	 if(srv->priority==RTOS_LINUX_PRIORITY){
-		 RTSERV_NOTICE("non real-time server in Linux not supported yet\n");
-		//~ rt_pend_linux_srq(nrt_serv_srq);
+		rtdm_nrt_pend_signal(&nrt_serv_srq);
 	}else
 		rtdm_task_unblock(&srv->task);
 }
@@ -273,22 +272,21 @@ void rt_irq_broker_sync(void)
  void rt_serv_worker(void *data)
  {
 	struct rt_serv_struct *srv = (struct rt_serv_struct*)data;
+	unsigned long flags;
 
 	while(1){	
 		if(srv->firing_time > rtdm_clock_read())
 					rtdm_task_sleep_until(srv->firing_time);
 
 		while(1){
+					rtdm_lock_get_irqsave(&srv->requests_list_lock, flags);
 					struct rt_request_struct *req = srv->requests_list.next;
-					unsigned long flags;
-							
 					if(req->firing_time > rtdm_clock_read()){
 						srv->firing_time = req->firing_time;
 						break;
 					}
 					
 					//get request out of pending queue	 
-					rtdm_lock_get_irqsave(&srv->requests_list_lock, flags);
 					req->prev->next = req->next;
 					req->next->prev = req->prev;
 					rtdm_lock_put_irqrestore(&srv->requests_list_lock, flags);
@@ -503,12 +501,6 @@ int serv_module_init(void)
 {
 	struct proc_dir_entry *proc_entry;
 
-	//srq for server in LInux
-	//~ if((nrt_serv_srq = rt_request_srq(0, nrt_serv_worker, 0))<0){
-		//~ RTSERV_ERR("no srq available in rtai\n");
-		//~ return -ENOMEM;
-	//~ }
-	
 	proc_entry = create_proc_entry("servers", S_IFREG | S_IRUGO | S_IWUSR, 0);
 	if(!proc_entry) {
 		RTSERV_ERR("failed to create proc entry!\n");
@@ -525,6 +517,16 @@ int serv_module_init(void)
 		return -ENOMEM;
 	}
 	RTSERV_NOTICE("real-Time irq broker started\n");	
+	
+	//srq for server in LInux
+	if(( rtdm_nrt_signal_init(&nrt_serv_srq, (rtdm_nrt_sig_handler_t)nrt_serv_worker))<0){
+		RTSERV_ERR("no srq available in rtai\n");
+		return -ENOMEM;
+	}
+	RTSERV_NOTICE("non real-time broker in Linux started\n");
+	
+	
+	
 
 	return 0;
 }

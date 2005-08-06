@@ -493,7 +493,7 @@ typedef rtdm_task_t                 rtos_task_t;
 typedef rtdm_event_t                rtos_event_t;
 typedef rtdm_sem_t                  rtos_sem_t;
 typedef rtdm_mutex_t                rtos_res_lock_t;
-typedef rtdm_nrt_signal_t           rtos_nrt_signal_t;
+typedef rtdm_nrtsig_t               rtos_nrt_signal_t;
 typedef rtdm_irq_t                  rtos_irq_t;
 typedef rtdm_irq_handler_t          rtos_irq_handler_t;
 
@@ -586,7 +586,7 @@ static inline void rtos_timer_stop(void)
 #define rtos_event_delete(event)            rtdm_event_destroy(event)
 #define rtos_event_broadcast(event)         rtdm_event_pulse(event)
 #define rtos_event_signal(event)            rtdm_event_signal(event)
-#define rtos_event_wait(event, timeout)     rtdm_event_wait(event, timeout)
+#define rtos_event_wait(event)              rtdm_event_wait(event)
 
 
 /* semaphores */
@@ -605,9 +605,9 @@ static inline void rtos_timer_stop(void)
 
 /* non-RT signals */
 #define rtos_nrt_signal_init(nrt_sig, handler)  \
-    rtdm_nrt_signal_init(nrt_sig, (rtdm_nrt_sig_handler_t)handler)
-#define rtos_nrt_signal_delete(nrt_sig)     rtdm_nrt_signal_destroy(nrt_sig)
-#define rtos_nrt_pend_signal(nrt_sig)       rtdm_nrt_pend_signal(nrt_sig)
+    rtdm_nrtsig_init(nrt_sig, (rtdm_nrtsig_handler_t)handler)
+#define rtos_nrt_signal_delete(nrt_sig)     rtdm_nrtsig_destroy(nrt_sig)
+#define rtos_nrt_pend_signal(nrt_sig)       rtdm_nrtsig_pend(nrt_sig)
 
 
 /* RT memory management */

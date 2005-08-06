@@ -724,7 +724,7 @@ int hpsb_iso_xmit_sync(struct hpsb_iso *iso)
 	iso->callback = hpsb_iso_xmit_callback;
 	iso->arg = (void *)&sem;
 	
-	rtos_event_wait(&sem,0);
+	rtos_event_wait(&sem);
 	
 	rtos_event_delete(&sem);
 	
