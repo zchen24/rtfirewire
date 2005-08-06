@@ -3,7 +3,21 @@
  * Implementation of Real-Time Server Module
  *
  * @note Copyright (C) 2005 Zhang Yuchen <yuchen623@gmail.com>
- * 
+ *  *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
  * @ingroup rtserver
  */
 
@@ -14,18 +28,18 @@
  #include <linux/proc_fs.h>
  #include <linux/spinlock.h>
  
- #include <rtdm/rtdm_driver.h>
+ #include <rt1394_sys.h>
  
  #include <rt_serv.h>
  
  #define	RTSERV_ERR(fmt, args...) \
-	rtdm_printk("RT_SERV:"fmt, ## args)
+	rtos_print("RT_SERV:"fmt, ## args)
 	
 //~ #define CONFIG_RTSERV_DEBUG 1
 
 #ifdef	CONFIG_RTSERV_DEBUG
 #define	RTSERV_NOTICE(fmt, args...)\
-	rtdm_printk("RT_SERV:"fmt, ## args)
+	rtos_print("RT_SERV:"fmt, ## args)
 #else
 #define	RTSERV_NOTICE(fmt,args...)
 #endif
@@ -50,7 +64,7 @@
  LIST_HEAD(nrt_servers_list);
  
  static rwlock_t servers_list_lock = RW_LOCK_UNLOCKED;
- static rtdm_nrt_signal_t nrt_serv_srq;
+ static rtos_nrt_signal_t nrt_serv_srq;
 
 struct rt_serv_struct *irq_brk;
  
@@ -77,9 +91,15 @@ struct rt_serv_struct *irq_brk;
 	
 	RTSERV_NOTICE("sync server %s\n", srv->name);
 	 if(srv->priority==RTOS_LINUX_PRIORITY){
-		rtdm_nrt_pend_signal(&nrt_serv_srq);
+		rtos_nrt_signal_pend(&nrt_serv_srq);
 	}else
+#if defined(CONFIG_FUSION_090)
 		rtdm_task_unblock(&srv->task);
+#else
+		rem_timed_task(&srv->task);
+		enq_ready_task(&srv->task);
+		rt_schedule();
+#endif
 }
 
 /*!
@@ -110,7 +130,7 @@ struct rt_serv_struct *irq_brk;
   * Rescheduling: never.
   */
 struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned long data, 
-					__s64	delay_time,
+					__u64	delay_time,
 					void (*callback)(struct rt_request_struct *, unsigned long),
 					unsigned long callback_data,
 					unsigned char *name)
@@ -123,16 +143,16 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 	
 	unsigned long flags;
 	
-	rtdm_lock_get_irqsave(&srv->requests_list_lock,flags);
+	rtos_spin_lock_irqsave(&srv->requests_list_lock,flags);
 	struct rt_request_struct *req = srv->reqobj_pool_head.next;
 	req->prev->next = req->next;
 	req->next->prev = req->prev;
-	rtdm_lock_put_irqrestore(&srv->requests_list_lock, flags);
+	rtos_spin_unlock_irqrestore(&srv->requests_list_lock, flags);
 	
 	if(delay_time > 0){
-		req->firing_time = rtdm_clock_read() + delay_time;
+		req->firing_time = rtos_get_time() + delay_time;
 	}else{
-		req->firing_time = rtdm_clock_read();
+		req->firing_time = rtos_get_time();
 	}
 	
 	req->data = data;
@@ -141,7 +161,7 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 	if(name)
 		strncpy(req->name, name, 32);
 	
-	rtdm_lock_get_irqsave(&srv->requests_list_lock,flags);
+	rtos_spin_lock_irqsave(&srv->requests_list_lock,flags);
 	if(srv->priority == RTOS_LINUX_PRIORITY){
 		req->next = &srv->requests_list;
 		req->prev = srv->requests_list.prev;
@@ -163,7 +183,7 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 		req->prev = tmpreq->prev;
 		req->prev->next = req->next->prev = req;
 	}
-	rtdm_lock_put_irqrestore(&srv->requests_list_lock,flags);
+	rtos_spin_unlock_irqrestore(&srv->requests_list_lock,flags);
 	atomic_inc(&srv->pending_req);
 	
 	return req;				
@@ -196,15 +216,20 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 {
 	unsigned long flags;
 	
-	rtdm_lock_get_irqsave(&srv->requests_list_lock,flags);
+	rtos_spin_lock_irqsave(&srv->requests_list_lock,flags);
 	//get request out of the pending queue	 
 	req->prev->next = req->next;
 	req->next->prev = req->prev;
 	atomic_dec(&srv->pending_req);
-	rtdm_lock_put_irqrestore(&srv->requests_list_lock,flags);
+	rtos_spin_unlock_irqrestore(&srv->requests_list_lock,flags);
 	
 	if(srv->priority != RTOS_LINUX_PRIORITY && req->prev == &srv->requests_list) {
+#if defined(CONFIG_FUSION_090)
 		rtdm_task_unblock(&srv->task);
+#else
+		rem_timed_task(&srv->task);
+		enq_ready_task(&srv->task);
+#endif
 	}
 	
 	//finally, queue the req object back to our free object pool
@@ -276,10 +301,10 @@ void rt_irq_broker_sync(void)
 
 	while(1){	
 		if(srv->firing_time > rtdm_clock_read())
-					rtdm_task_sleep_until(srv->firing_time);
+					rtos_task_sleep_until(srv->firing_time);
 
 		while(1){
-					rtdm_lock_get_irqsave(&srv->requests_list_lock, flags);
+					rtos_spin_lock_irqsave(&srv->requests_list_lock, flags);
 					struct rt_request_struct *req = srv->requests_list.next;
 					if(req->firing_time > rtdm_clock_read()){
 						srv->firing_time = req->firing_time;
@@ -289,7 +314,7 @@ void rt_irq_broker_sync(void)
 					//get request out of pending queue	 
 					req->prev->next = req->next;
 					req->next->prev = req->prev;
-					rtdm_lock_put_irqrestore(&srv->requests_list_lock, flags);
+					rtos_spin_unlock_irqrestore(&srv->requests_list_lock, flags);
 								
 					if(srv->proc)
 						srv->proc(req->data);
@@ -301,11 +326,11 @@ void rt_irq_broker_sync(void)
 						req->callback(req, req->callback_data);
 			
 					//return object to pool
-					rtdm_lock_get_irqsave(&srv->requests_list_lock, flags);
+					rtos_spin_lock_irqsave(&srv->requests_list_lock, flags);
 					req->next = &srv->reqobj_pool_head;
 					req->prev = srv->reqobj_pool_head.prev;
 					req->next->prev = req->prev->next = req;
-					rtdm_lock_put_irqrestore(&srv->requests_list_lock, flags);
+					rtos_spin_unlock_irqrestore(&srv->requests_list_lock, flags);
 		
 					atomic_dec(&srv->pending_req);
 								
@@ -361,7 +386,7 @@ void rt_serv_delete(struct rt_serv_struct *srv)
 			RTSERV_ERR("server %s still has %d requests unanswered!\n", srv->name, 
 							atomic_read(&srv->pending_req));
 		if(srv->priority !=RTOS_LINUX_PRIORITY)
-			rtdm_task_destroy(&srv->task);
+			rtos_task_delete(&srv->task);
 		list_del(&srv->entry);
 		RTSERV_NOTICE("server %s removed\n", srv->name);
 		kfree(srv);
@@ -430,8 +455,12 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 		spin_lock(&servers_list_lock);
 		list_add_tail(&srv->entry, &rt_servers_list);
 		spin_unlock(&servers_list_lock);
-	
-		if(rtdm_task_init(&srv->task, name, rt_serv_worker, (void *)srv, srv->priority, 0)) {
+
+#if defined(CONFIG_FUSION_090)	
+		if(rtos_task_init(&srv->task, name, rt_serv_worker, (void *)srv, srv->priority, 0)) {
+#else
+		if(rtos_task_init(&srv->task, rt_serv_worker, (void *)srv, srv->priority)) {
+#endif
 			RTSERV_ERR("failed to initialize server %s!!\n", srv->name);
 			rt_serv_delete(srv);
 			return NULL;
@@ -500,7 +529,7 @@ done_proc:
 int serv_module_init(void)
 {
 	struct proc_dir_entry *proc_entry;
-
+	
 	proc_entry = create_proc_entry("servers", S_IFREG | S_IRUGO | S_IWUSR, 0);
 	if(!proc_entry) {
 		RTSERV_ERR("failed to create proc entry!\n");
@@ -519,14 +548,11 @@ int serv_module_init(void)
 	RTSERV_NOTICE("real-Time irq broker started\n");	
 	
 	//srq for server in LInux
-	if(( rtdm_nrt_signal_init(&nrt_serv_srq, (rtdm_nrt_sig_handler_t)nrt_serv_worker))<0){
+	if((rtos_nrt_signal_init(&nrt_serv_srq, nrt_serv_worker))<0){
 		RTSERV_ERR("no srq available in rtai\n");
 		return -ENOMEM;
 	}
 	RTSERV_NOTICE("non real-time broker in Linux started\n");
-	
-	
-	
 
 	return 0;
 }
@@ -536,6 +562,9 @@ void serv_module_exit(void)
 	struct list_head *lh;
 	struct rt_serv_struct *srv;
 	int unclean=0;
+	
+	rtos_nrt_signal_delete(&nrt_serv_srq);
+	RTSERV_NOTICE("non real-time broker in Linux stopped\n");
 	
 	rt_serv_delete(irq_brk);
 	RTSERV_NOTICE("real-Time irq broker stopped\n");

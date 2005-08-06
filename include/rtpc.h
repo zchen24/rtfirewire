@@ -52,15 +52,18 @@ struct rt_proc_call {
 #define CALL_PENDING    1000 /* result value for blocked calls */
 
 
-int rtpc_dispatch_call(rtpc_proc rt_proc, unsigned int timeout,
+int rtfw_rtpc_dispatch_call(rtpc_proc rt_proc, unsigned int timeout,
                        void *priv_data, size_t priv_data_size,
                        rtpc_copy_back_proc copy_back_handler,
                        rtpc_cleanup_proc cleanup_handler);
 
 
-void rtpc_complete_call(struct rt_proc_call *call, int result);
-void rtpc_complete_call_nrt(struct rt_proc_call *call, int result);
-
+void rtfw_rtpc_complete_call(struct rt_proc_call *call, int result);
+void rtfw_rtpc_complete_call_nrt(struct rt_proc_call *call, int result);
+	
+#define rtpc_dispatch_call rtfw_rtpc_dispatch_call
+#define rtpc_complete_call rtfw_rtpc_complete_call
+#define rtpc_complete_call_nrt rtfw_rtpc_complete_call_nrt
 #define rtpc_get_priv(call, type)           (type *)(call->priv_data)
 #define rtpc_get_result(call)               call->result
 #define rtpc_set_result(call, new_result)   call->result = new_result

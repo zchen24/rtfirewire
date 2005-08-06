@@ -1,6 +1,5 @@
 /* rtfirewire/include/rtos_primitives.h
  * Header file for primitives from underlying rtos. 
- * NOTE: dont include this file explicitly, use rt1394_sys.h instead.
  *
  *  Copyright (C) 2005 Zhang Yuchen
  *
@@ -68,9 +67,6 @@ typedef __u64 nanosecs_t; /*used for time calculations and I/O */
 /**
  * @addtogroup 
  *@{*/
-typedef struct {
-    RTIME          val;               /* high precision time */
-} rtos_time_t;
 typedef spinlock_t rtos_spinlock_t;   /* spin locks with hard IRQ locks */
 typedef RT_TASK    rtos_task_t;       /* hard real-time task */
 typedef SEM        rtos_event_t;      /* to signal events (non-storing) */
@@ -93,47 +89,21 @@ typedef void       (*rtos_irq_handler_t)(unsigned int irq, void *arg);
 
 
 /* time handling */
-static inline void rtos_get_time(rtos_time_t *time)
+static inline RTIME rtos_get_time()
 {
-    time->val = rt_get_time();
+   return rt_get_time();
 }
 
 
-static inline void rtos_nanosecs_to_time(nanosecs_t nano, rtos_time_t *time)
+static inline RTIME rtos_nanosecs_to_time(nanosecs_t nano)
 {
-    time->val = nano2count(nano);
+     return nano2count(nano);
 }
 
-static inline nanosecs_t rtos_time_to_nanosecs(rtos_time_t *time)
+static inline nanosecs_t rtos_time_to_nanosecs(RTIME time)
 {
-    return (nanosecs_t)count2nano(time->val);
+    return (nanosecs_t)count2nano(time);
 }
-
-
-static inline void rtos_time_to_timeval(rtos_time_t *time,
-                                        struct timeval *tval)
-{
-    count2timeval(time->val, tval);
-}
-
-
-static inline void rtos_time_sum(rtos_time_t *result,
-                                 rtos_time_t *a, rtos_time_t *b)
-{
-    result->val = a->val + b->val;
-}
-
-
-static inline void rtos_time_diff(rtos_time_t *result,
-                                  rtos_time_t *a, rtos_time_t *b)
-{
-    result->val = a->val - b->val;
-}
-
-#define RTOS_TIME_IS_ZERO(time)     ((time) == 0)
-#define RTOS_TIME_IS_BEFORE(a, b)   ((a) < (b))
-#define RTOS_TIME_EQUALS(a, b)      ((a) == (b))
-
 
 
 /* real-time spin locks */
@@ -390,7 +360,7 @@ static inline void rtos_nrt_signal_delete(rtos_nrt_signal_t *nrt_sig)
 }
 
 
-static inline void rtos_pend_nrt_signal(rtos_nrt_signal_t *nrt_sig)
+static inline void rtos_nrt_signal_pend(rtos_nrt_signal_t *nrt_sig)
 {
     rt_pend_linux_srq(*nrt_sig);
 }
@@ -481,7 +451,7 @@ static inline void rtos_irq_reacquire_lock(void)
 #endif /* CONFIG_RTAI_24) || defined(CONFIG_RTAI_30) || (CONFIG_RTAI_31) || defined(CONFIG_RTAI_32)*/
 
 
-#if defined(CONFIG_FUSION_072) || defined(CONFIG_FUSION_074)
+#if defined(CONFIG_FUSION_090)
 
 #include <nucleus/pod.h>
 #include <rtdm/rtdm_driver.h>
@@ -542,10 +512,10 @@ static inline void rtos_ns_to_timeval(__u64 time, struct timeval *tval)
 #define RTOS_RAISE_PRIORITY         (+1)
 #define RTOS_LOWER_PRIORITY         (-1)
 
-static inline int rtos_task_init(rtos_task_t *task, void (*task_proc)(void *),
-                                 void *arg, int priority)
+static inline int rtos_task_init(rtos_task_t *task, unsigned char *name, void (*task_proc)(void *),
+                                 void *arg, int priority, int arb)
 {
-    return rtdm_task_init(task, NULL, task_proc, arg, priority, 0);
+    return rtdm_task_init(task, name, task_proc, arg, priority, 0);
 }
 
 static inline int rtos_task_init_periodic(rtos_task_t *task,
@@ -607,7 +577,7 @@ static inline void rtos_timer_stop(void)
 #define rtos_nrt_signal_init(nrt_sig, handler)  \
     rtdm_nrtsig_init(nrt_sig, (rtdm_nrtsig_handler_t)handler)
 #define rtos_nrt_signal_delete(nrt_sig)     rtdm_nrtsig_destroy(nrt_sig)
-#define rtos_nrt_pend_signal(nrt_sig)       rtdm_nrtsig_pend(nrt_sig)
+#define rtos_nrt_signal_pend(nrt_sig)       rtdm_nrtsig_pend(nrt_sig)
 
 
 /* RT memory management */

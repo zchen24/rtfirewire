@@ -6,17 +6,8 @@
 /* we are building for powerpc */
 #undef CONFIG_ARCH_PPC
 
-/* We build for fusion 0.7.2/0.7.3 */
-#undef CONFIG_FUSION_072
-
-/* We build for fusion 0.7.4 or better */
-#undef CONFIG_FUSION_074
-
-/* RTAI LXRT */
-#undef CONFIG_NEWLXRT
-
-/* We build for rtai 24.1.x */
-#undef CONFIG_RTAI_24
+/* We build for fusion 0.9.x */
+#undef CONFIG_FUSION_090
 
 /* We build for rtai 3.0rx */
 #undef CONFIG_RTAI_30
@@ -37,6 +28,9 @@
 #undef CONFIG_RTFW_HOST_STRING
 
 #ifdef __IN_RTFW__
+
+/* RTAI LXRT */
+#undef CONFIG_RTNET_LXRT
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #undef HAVE_ARPA_INET_H
@@ -68,14 +62,8 @@
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
 
-/* Define to 1 if you have the <rtai_declare.h> header file. */
-#undef HAVE_RTAI_DECLARE_H
-
 /* Define to 1 if you have the <rtai_fifos.h> header file. */
 #undef HAVE_RTAI_FIFOS_H
-
-/* Define to 1 if you have the <rtai_lxrt_user.h> header file. */
-#undef HAVE_RTAI_LXRT_USER_H
 
 /* Define to 1 if you have the <rtai_malloc.h> header file. */
 #undef HAVE_RTAI_MALLOC_H
@@ -88,6 +76,12 @@
 
 /* Define to 1 if you have the <rtai_sem.h> header file. */
 #undef HAVE_RTAI_SEM_H
+
+/* Define to 1 if you have the <rtdm/rtdm_driver.h> header file. */
+#undef HAVE_RTDM_RTDM_DRIVER_H
+
+/* Define to 1 if you have the <rtdm/rtdm.h> header file. */
+#undef HAVE_RTDM_RTDM_H
 
 /* Define to 1 if you have the `socket' function. */
 #undef HAVE_SOCKET

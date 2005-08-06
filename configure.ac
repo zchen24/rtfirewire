@@ -293,15 +293,8 @@ dnl ===========	end of rtai 24.1.x detection =============================
 dnl ======================================================================
 dnl =========== try to find rtai-3 =======================================
 dnl ======================================================================
-#
-# try to find rtai-3 or newer but don't look for them, if...
-# ...we've already found rtai-24.1.x
-#
-if test x"$CONFIG_RTFW_RTAI_24" \!= x"n"; then
-    CONFIG_RTFW_RTAI_3=n
-else
-    unset CONFIG_RTFW_RTAI_3
-fi
+
+unset CONFIG_RTFW_RTAI_3
 
 #
 # the presence of rtai-config is a good indication for rtai >= 3
@@ -309,8 +302,8 @@ fi
 if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
     AC_MSG_CHECKING([for RTAI 3 installation])
     RTAI_CONFIG="${with_rtai}/bin/rtai-config"
-    if test -x ${RTAI_CONFIG}; then
-        RTAI_DIR="`echo ${with_rtai} | sed -e s,[/]*$,,`"	# strip trailing slashes
+    if test -x "${RTAI_CONFIG}"; then
+        RTAI_DIR="`cd ${with_rtai} && pwd`"	# let the shell normalize the path
 	AC_MSG_RESULT([${RTAI_DIR}])
     else
 	CONFIG_RTFW_RTAI_3=n
@@ -329,12 +322,12 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
 # e.g.: 'make DESTDIR=/foo install'
 #
     AC_MSG_CHECKING([for RTAI DESTDIR])
-    RTFW_RTAI_PREFIX="`${RTAI_CONFIG} --prefix | sed -e s,[/]*$,,`"		# strip trailing slashes
+    RTFW_RTAI_PREFIX="`cd \`${RTAI_CONFIG} --prefix\` && pwd`"			# let the shell normalize the path
     if test "${RTFW_RTAI_PREFIX}" \!= "${RTAI_DIR}"; then
-	RTFW_RTAI_DESTDIR="`echo ${RTAI_DIR} | sed -e s,${RTFW_RTAI_PREFIX}$,,`"
+	RTFW_RTAI_DESTDIR="`cd \`echo ${RTAI_DIR} | sed -e s,${RTFW_RTAI_PREFIX}$,,\` && pwd`"
 	export DESTDIR="${RTFW_RTAI_DESTDIR}"
 
-	RTFW_RTAI_PREFIX="`${RTAI_CONFIG} --prefix | sed -e s,[/]*$,,`"	# strip trailing slashes
+	RTFW_RTAI_PREFIX="`cd \`${RTAI_CONFIG} --prefix\` && pwd`"		# let the shell normalize the path
 	if test "${RTFW_RTAI_PREFIX}" = "${RTAI_DIR}"; then
 	    AC_MSG_RESULT([${DESTDIR}])
 	else
@@ -357,14 +350,8 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
     3.2*)
 	CONFIG_RTFW_RTAI_VERSION=32
 	;;
-    0.6.6-fusion)
-	CONFIG_RTFW_RTAI_VERSION=066
-	;;
-    0.7.2-fusion | 0.7.3-fusion)
-	CONFIG_RTFW_RTAI_VERSION=fusion-072
-	;;
-    0.7.4-fusion | 0.7.5-fusion | 0.8*-fusion)
-	CONFIG_RTFW_RTAI_VERSION=fusion-074
+    0.8.99-fusion | 0.9*-fusion)
+	CONFIG_RTFW_RTAI_VERSION=fusion-090
 	;;
     *)
 	AC_MSG_ERROR([*** Unsupported RTAI version $CONFIG_RTFW_RTAI_3_VERSION in $RTAI_DIR])
@@ -386,7 +373,7 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
     . ${CONFIG_RTFW_RTAI_CONFIG_FILE}
 
     case "$CONFIG_RTFW_RTAI_VERSION" in
-        30 | 31 |32)	# ---> RTAI 3.x <---
+        30 | 31 | 32)	# ---> RTAI 3.x <---
 
 	    # check for semas, needed by RTFW
 	    AC_MSG_CHECKING([for RTAI semaphores])
@@ -411,13 +398,13 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
 
 	    ;;
 
-	fusion-07*)	# ---> FUSION <---
+	fusion-090)	# ---> FUSION <---
 
 	    # check for native RTAI skin, needed by RTFW
-	    AC_MSG_CHECKING([for RTAI native skin])
-	    case "${CONFIG_RTAI_SKIN_NATIVE}" in
-	        y) AC_MSG_RESULT([${CONFIG_RTAI_SKIN_NATIVE}]) ;;
-		*) AC_MSG_ERROR([*** Please enable native RTAI skin]) ;;
+	    AC_MSG_CHECKING([for RTAI RTDM skin])
+	    case "${CONFIG_RTAI_SKIN_RTDM}" in
+	        y) AC_MSG_RESULT([${CONFIG_RTAI_SKIN_RTDM}]) ;;
+		*) AC_MSG_ERROR([*** Please enable RTDM skin]) ;;
 	    esac
 
 	    # check for semas, needed by RTFW
@@ -427,7 +414,7 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
 		*) AC_MSG_ERROR([*** Please enable semaphores in RTAI]) ;;
 	    esac
 
-	    # malloc support is built-in for RTAI 4
+	    # malloc support is built-in for RTAI/fusion
 
 	    # check for pipes, needed by RTFW
 	    AC_MSG_CHECKING([for RTAI pipes])
@@ -453,22 +440,33 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
 # get linux kernel tree and version
     AC_MSG_CHECKING([for Linux source tree])
     RTAI_LINUX_DIR="`${RTAI_CONFIG} --linux-dir`"
-    RTAI_LINUX_VERSION="`${RTAI_CONFIG} --linux-version`"
+    case "$CONFIG_RTFW_RTAI_3_VERSION" in
+        3.0 | 3.0r1 | 3.0r2)
+
+            eval linux_`grep '^EXTRAVERSION =' $RTAI_LINUX_DIR/Makefile | sed -e 's, ,,g'`
+            eval linux_`grep '^PATCHLEVEL =' $RTAI_LINUX_DIR/Makefile | sed -e 's, ,,g'`
+            eval linux_`grep '^SUBLEVEL =' $RTAI_LINUX_DIR/Makefile | sed -e 's, ,,g'`
+            eval linux_`grep '^VERSION =' $RTAI_LINUX_DIR/Makefile | sed -e 's, ,,g'`
+            RTAI_LINUX_VERSION="$linux_VERSION.$linux_PATCHLEVEL.$linux_SUBLEVEL.$linux_EXTRAVERSION"
+            ;;
+        *)
+            RTAI_LINUX_VERSION="`${RTAI_CONFIG} --linux-version`"
+            ;;
+    esac
+
+#source (load) the kernel configuration
+    . ${RTAI_LINUX_DIR}/.config
 
     AC_MSG_RESULT([$RTAI_LINUX_DIR (kernel ${RTAI_LINUX_VERSION}${CONFIG_SMP:+-SMP})])
 fi
 
 dnl ===========	end of rtai 3 detection ==================================
 
-
 #
-# now let's see wich version of rtai we've found
+# now let's see which version of rtai we've found
 # exit with error if there isn't any version
 #
 case "$CONFIG_RTFW_RTAI_VERSION" in
-    24)
-	AC_DEFINE(CONFIG_RTAI_24, 1, [We build for rtai 24.1.x])
-	;;
     30)
 	AC_DEFINE(CONFIG_RTAI_30, 1, [We build for rtai 3.0rx])
 	;;
@@ -478,16 +476,15 @@ case "$CONFIG_RTFW_RTAI_VERSION" in
     32)
 	AC_DEFINE(CONFIG_RTAI_32, 1, [We build for rtai 3.2rx])
 	;;
-    fusion-072)
-	AC_DEFINE(CONFIG_FUSION_072, 1, [We build for fusion 0.7.2/0.7.3])
-	;;
-    fusion-074)
-	AC_DEFINE(CONFIG_FUSION_074, 1, [We build for fusion 0.7.4 or better])
+    fusion-090)
+	AC_DEFINE(CONFIG_FUSION_090, 1, [We build for fusion 0.9.x])
 	;;
     *)
 	AC_MSG_ERROR([*** No RTAI found in $with_rtai])
 	;;
 esac
+
+AM_CONDITIONAL(CONFIG_FUSION,[test "$CONFIG_RTFW_RTAI_VERSION" = fusion-090])
 
 
 dnl ======================================================================
@@ -528,17 +525,14 @@ AM_CONDITIONAL(CONFIG_KBUILD,[test "$CONFIG_KBUILD" = y])
 
 # common stuff
 case "${CONFIG_RTFW_RTAI_VERSION}" in
-    24)
-	RTAI_USER_CFLAGS="-I$RTAI_DIR/include -I$RTAI_DIR/lxrt/include"
-	CONFIG_RTFW_RTAI_ARCH="`sed -n -e "s/^ARCH=\(.*\)/\1/p" $RTAI_DIR/.buildvars`"
-	;;
     30 | 31 | 32)
 	RTAI_USER_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
 	CONFIG_RTFW_RTAI_ARCH="`${RTAI_CONFIG} --arch`"
 	;;
-    fusion-07*)
+    fusion-090)
 	RTAI_USER_CFLAGS="`${RTAI_CONFIG} --fusion-cflags`"
 	CONFIG_RTFW_RTAI_ARCH="`${RTAI_CONFIG} --arch`"
+	RTAI_LIBRARIES="`${RTAI_CONFIG} --library-dir`"
 	;;
     *)
 	AC_MSG_ERROR([*** internal error])
@@ -546,15 +540,16 @@ case "${CONFIG_RTFW_RTAI_VERSION}" in
 esac
 
 
+
 if test "$CONFIG_KBUILD" = "y"; then
     case "${CONFIG_RTFW_RTAI_VERSION}" in
-	24 | 30)
+	30)
 	    AC_MSG_ERROR([*** internal error])
 	    ;;
 	31 | 32)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
 	    ;;
-	fusion-07*)
+	fusion-090)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --fusion-cflags`"
 	    ;;
 	*)
@@ -563,13 +558,10 @@ if test "$CONFIG_KBUILD" = "y"; then
     esac
 else
     case "${CONFIG_RTFW_RTAI_VERSION}" in
-	24)
-	    RTAI_KMOD_CFLAGS="`sed -n -e "s/^CFLAGS=\(.*\)/\1/p" $RTAI_DIR/.buildvars` -I$RTAI_DIR/include -DEXPORT_SYMTAB -Wall"
-	    ;;
 	30 | 31 | 32)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --module-cflags`"
 	    ;;
-	fusion-07*)
+	fusion-090)
 	    AC_MSG_ERROR([*** internal error])
 	    ;;
 	*)
@@ -600,9 +592,9 @@ case "${CONFIG_RTFW_RTAI_ARCH}" in
     ppc)
 	AC_DEFINE(CONFIG_ARCH_PPC, 1, [we are building for powerpc])
 	;;
-#    arm)
-#	AC_DEFINE(CONFIG_ARCH_ARM, 1, [we are trying to build for arm])
-#	;;
+    arm)
+	AC_DEFINE(CONFIG_ARCH_ARM, 1, [we are building for arm])
+	;;
 #    cris)
 #	AC_DEFINE(CONFIG_ARCH_CRIS, 1, [we are trying to build for cris])
 #	;;
@@ -719,19 +711,19 @@ CPPFLAGS="${ac_save_CPPFLAGS} ${RTAI_KMOD_CFLAGS}"
 # identified. (rpm)
 if test "${CONFIG_KBUILD}" = "y"; then	# building against linux-2.6
     case "${CONFIG_RTFW_RTAI_VERSION}" in
-        24 | 30)
+        30)
 	    AC_MSG_ERROR([*** internal error])
 	    ;;
 	31 | 32)
-		AC_CHECK_HEADERS([rtai_sem.h rtai_malloc.h rtai_fifos.h],
+	    BS_CHECK_KHEADERS([rtai_sem.h rtai_malloc.h rtai_fifos.h],
 		[],
 		[AC_MSG_ERROR([*** header not found or working, please check RTAI installation])],
 		[
 #include <linux/kernel.h>
 		])
             ;;
-	fusion-07*)
-	    AC_CHECK_HEADERS([rtai/sem.h rtai/mutex.h rtai/pipe.h],
+	fusion-090)
+	    BS_CHECK_KHEADERS([rtai/sem.h rtai/mutex.h rtai/pipe.h rtdm/rtdm.h rtdm/rtdm_driver.h],
 		[],
 		[AC_MSG_ERROR([*** header not found or working, please check RTAI installation])],
 		[
@@ -744,14 +736,6 @@ if test "${CONFIG_KBUILD}" = "y"; then	# building against linux-2.6
     esac
 else					# building against linux-2.4
     case "${CONFIG_RTFW_RTAI_VERSION}" in
-        24)		# mandatory RTAI-24 headers
-	    AC_CHECK_HEADERS([rtai_lxrt_user.h rtai_declare.h],
-	    [],
-	    [AC_MSG_ERROR([*** header not found or working, please check RTAI installation])],
-            [
-#include <linux/kernel.h>
-            ])
-	    ;;
 	30 | 31 | 32)	# mandatory RTAI-3 headers
 	    AC_CHECK_HEADERS([rtai_sem.h rtai_malloc.h],
 	    [],
@@ -760,7 +744,7 @@ else					# building against linux-2.4
 #include <linux/kernel.h>
             ])
 	    ;;
-	fusion-07*)
+	fusion-090)
 	    AC_MSG_ERROR([*** internal error])
 	    ;;
 	*)
@@ -791,32 +775,42 @@ AC_SUBST(RTFW_MODULE_DIR)
 
 
 dnl ======================================================================
-dnl		check for NEWLXRT
+dnl		check for LXRT
 dnl ======================================================================
-AC_MSG_CHECKING([for RTAI NEWLXRT enabled])
+AC_MSG_CHECKING([for RTAI 3.x LXRT enabled])
 case "${CONFIG_RTFW_RTAI_VERSION}" in
-    24)
-	case "$CONFIG_RTAI_NEWLXRT" in
-	    y | m) CONFIG_NEWLXRT=yes ;;
-	    *) CONFIG_NEWLXRT=no ;;
-	esac
-	;;
     30 | 31 | 32)
 	case "${CONFIG_RTAI_SCHED_LXRT}" in
-	    y | m) CONFIG_NEWLXRT=yes ;;
-	    *) CONFIG_NEWLXRT=no ;;
+	    y | m) CONFIG_RTFW_LXRT=yes ;;
+	    *) CONFIG_RTFW_LXRT=no ;;
 	esac
 	;;
-    fusion-07*) CONFIG_NEWLXRT=no
+    fusion-090) CONFIG_RTFW_LXRT=no
 	;;
     *)
 	AC_MSG_ERROR([*** internal error])
 	;;
 esac
-AC_MSG_RESULT([${CONFIG_NEWLXRT}])
-AM_CONDITIONAL(CONFIG_NEWLXRT,[test "$CONFIG_NEWLXRT" = "yes"])
-if test "$CONFIG_NEWLXRT" = "yes"; then
-   AC_DEFINE(CONFIG_NEWLXRT, 1, [RTAI LXRT])
+AC_MSG_RESULT([${CONFIG_RTFW_LXRT}])
+
+AC_MSG_CHECKING([for CONFIG_REGPARM activated in Linux Kernel])
+if test "${CONFIG_RTFW_LXRT}" = "yes" -a "${CONFIG_REGPARM}" = "y"; then
+    AC_MSG_WARN([
+
+*** LXRT interface for RTFW disabled ***
+Please unset CONFIG_RTFW_LXRT for
+${RTAI_LINUX_DIR}
+and rebuild your kernel in order to build LXRT interface for RTFW
+
+])
+    CONFIG_RTFW_LXRT=no
+else
+    AC_MSG_RESULT([${CONFIG_REGPARM:-no}])
+fi
+
+AM_CONDITIONAL(CONFIG_RTFW_LXRT,[test "$CONFIG_RTFW_LXRT" = "yes"])
+if test "$CONFIG_RTFW_LXRT" = "yes"; then
+   AC_DEFINE(CONFIG_RTFW_LXRT, 1, [RTAI LXRT])
 fi
 
 dnl ======================================================================

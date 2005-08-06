@@ -23,7 +23,7 @@ channel and certain bandwidth.
 2.	Modules after compiling
 After running configure --with-rtai=/your rtai-installed location, make, and make install. 
 You can find all the modules in /usr/local/rt-firewire/modules by default setting, or the place your specified. 
-The modules are: rtpkbuff, rt_serv, rtpc, rt_ohci1394, rt_ieee1394, bis1394. You must insmod the first 3 modules
+The modules are: rtskbuff, rt_serv, rtpc, rt_ohci1394, rt_ieee1394, bis1394. You must insmod the first 3 modules
 first, becasue they are offering basic real-time services to other three modules, which is FireWire specific. 
 
 3.	Creating Char device

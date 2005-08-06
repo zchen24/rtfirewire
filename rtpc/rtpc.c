@@ -39,7 +39,7 @@
 
 static spinlock_t   pending_calls_lock = SPIN_LOCK_UNLOCKED;
 static spinlock_t   processed_calls_lock = SPIN_LOCK_UNLOCKED;
-static rtdm_nrtsig_t rtpc_nrt_signal;
+static rtos_nrt_signal_t rtpc_nrt_signal;
 struct rt_serv_struct *rtpc_dispatcher;
 	
 LIST_HEAD(pending_calls);
@@ -83,7 +83,7 @@ do {                                                                        \
 
 
 
-int rtpc_dispatch_call(rtpc_proc proc, unsigned int timeout,
+int rtfw_rtpc_dispatch_call(rtpc_proc proc, unsigned int timeout,
                        void* priv_data, size_t priv_data_size,
                        rtpc_copy_back_proc copy_back_handler,
                        rtpc_cleanup_proc cleanup_handler)
@@ -108,9 +108,9 @@ int rtpc_dispatch_call(rtpc_proc proc, unsigned int timeout,
     atomic_set(&call->ref_count, 2);    /* dispatcher + rt-procedure */
     init_waitqueue_head(&call->call_wq);
 
-    rtdm_lock_get_irqsave(&pending_calls_lock, flags);
+    rtos_spin_lock_irqsave(&pending_calls_lock, flags);
     list_add_tail(&call->list_entry, &pending_calls);
-    rtdm_lock_put_irqrestore(&pending_calls_lock, flags);
+    rtos_spin_unlock_irqrestore(&pending_calls_lock, flags);
 
     rt_request_pend(rtpc_dispatcher, 0, 2000000, NULL, 0, NULL); //we make a delay of 2ms
     rt_serv_sync(rtpc_dispatcher);
@@ -146,10 +146,10 @@ static inline struct rt_proc_call *rtpc_dequeue_pending_call(void)
     struct rt_proc_call *call;
 
 
-    rtdm_lock_get_irqsave(&pending_calls_lock, flags);
+    rtos_spin_lock_irqsave(&pending_calls_lock, flags);
     call = (struct rt_proc_call *)pending_calls.next;
     list_del(&call->list_entry);
-    rtdm_lock_put_irqrestore(&pending_calls_lock, flags);
+    rtos_spin_unlock_irqrestore(&pending_calls_lock, flags);
 
     return call;
 }
@@ -161,11 +161,11 @@ static inline void rtpc_queue_processed_call(struct rt_proc_call *call)
     unsigned long flags;
 
 
-    rtdm_lock_get_irqsave(&processed_calls_lock, flags);
+    rtos_spin_lock_irqsave(&processed_calls_lock, flags);
     list_add_tail(&call->list_entry, &processed_calls);
-    rtdm_lock_put_irqrestore(&processed_calls_lock, flags);
+    rtos_spin_unlock_irqrestore(&processed_calls_lock, flags);
 
-    rtdm_nrtsig_pend(&rtpc_nrt_signal);
+    rtos_nrt_signal_pend(&rtpc_nrt_signal);
 }
 
 
@@ -176,13 +176,13 @@ static inline struct rt_proc_call *rtpc_dequeue_processed_call(void)
     struct rt_proc_call *call;
 
 
-    rtdm_lock_get_irqsave(&processed_calls_lock, flags);
+    rtos_spin_lock_irqsave(&processed_calls_lock, flags);
     if (!list_empty(&processed_calls)) {
         call = (struct rt_proc_call *)processed_calls.next;
         list_del(&call->list_entry);
     } else
         call = NULL;
-    rtdm_lock_put_irqrestore(&processed_calls_lock, flags);
+    rtos_spin_unlock_irqrestore(&processed_calls_lock, flags);
 
     return call;
 }
@@ -224,7 +224,7 @@ static void rtpc_signal_handler(rtdm_nrtsig_t sig)
 
 
 
-void rtpc_complete_call(struct rt_proc_call *call, int result)
+void rtfw_rtpc_complete_call(struct rt_proc_call *call, int result)
 {
     call->result = result;
     rtpc_queue_processed_call(call);
@@ -232,7 +232,7 @@ void rtpc_complete_call(struct rt_proc_call *call, int result)
 
 
 
-void rtpc_complete_call_nrt(struct rt_proc_call *call, int result)
+void rtfw_rtpc_complete_call_nrt(struct rt_proc_call *call, int result)
 {
     call->processed = 1;
     wake_up(&call->call_wq);
@@ -250,7 +250,7 @@ int __init rtpc_init(void)
     int ret;
     unsigned char name[16];
     
-    ret = rtdm_nrtsig_init(&rtpc_nrt_signal, rtpc_signal_handler);
+    ret = rtos_nrt_signal_init(&rtpc_nrt_signal, rtpc_signal_handler);
     if(ret < 0)
 	    return ret;
    
@@ -269,16 +269,16 @@ int __init rtpc_init(void)
 void rtpc_cleanup(void)
 {
     rt_serv_delete(rtpc_dispatcher);	
-    rtdm_nrtsig_destroy(&rtpc_nrt_signal);
+    rtos_nrt_signal_delete(&rtpc_nrt_signal);
 }
 
 module_init(rtpc_init);
 module_exit(rtpc_cleanup);
 MODULE_LICENSE("GPL");
 
-EXPORT_SYMBOL(rtpc_dispatch_call);
-EXPORT_SYMBOL(rtpc_complete_call);
-EXPORT_SYMBOL(rtpc_complete_call_nrt);
+EXPORT_SYMBOL(rtfw_rtpc_dispatch_call);
+EXPORT_SYMBOL(rtfw_rtpc_complete_call);
+EXPORT_SYMBOL(rtfw_rtpc_complete_call_nrt);
 
 
 

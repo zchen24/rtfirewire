@@ -16,9 +16,7 @@
 #define 	RT_SERVER_H
 
 #include <linux/list.h>
-
-#include <rtdm/rtdm_driver.h>
-
+#include <rt1394_sys.h>
 
 /*Internal structure of request*/
 struct rt_request_struct {
@@ -29,7 +27,7 @@ struct rt_request_struct {
 	unsigned long data;
 	
 	//when this reqeust should be answered
-	__s64	firing_time;
+	__u64	firing_time;
 	
 	//callback proc and data after service
 	void (*callback)(struct rt_request_struct *, unsigned long);
@@ -45,20 +43,20 @@ struct rt_serv_struct {
 	struct list_head entry;
 	
 	atomic_t	pending_req;
-		
-	rtdm_task_t task;
+
+	rtos_task_t task;
 	int priority;
 	
 	void (*proc)(unsigned long);
 	struct rt_request_struct requests_list;
-	rtdm_lock_t	requests_list_lock;
+	rtos_spinlock_t	requests_list_lock;
 	
 	unsigned char name[32];
 	
 	struct rt_request_struct reqobj_pool_head;
 	int max_req;
 		
-	__s64 	firing_time;
+	__u64 	firing_time;
 	
 };
 
@@ -73,7 +71,7 @@ extern struct rt_serv_struct *rt_serv_init( unsigned char *name, int priority, v
 extern void rt_serv_delete(struct rt_serv_struct *srv);
 
 extern struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned long data, 
-					__s64	delay_time,
+					__u64	delay_time,
 					void (*callback)(struct rt_request_struct *, unsigned long),
 					unsigned long callback_data, unsigned char *name);
 

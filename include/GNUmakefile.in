@@ -50,12 +50,14 @@ CCAS = @CCAS@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CONFIG_FUSION_FALSE = @CONFIG_FUSION_FALSE@
+CONFIG_FUSION_TRUE = @CONFIG_FUSION_TRUE@
 CONFIG_KBUILD_FALSE = @CONFIG_KBUILD_FALSE@
 CONFIG_KBUILD_TRUE = @CONFIG_KBUILD_TRUE@
 CONFIG_NCURSES_FALSE = @CONFIG_NCURSES_FALSE@
 CONFIG_NCURSES_TRUE = @CONFIG_NCURSES_TRUE@
-CONFIG_NEWLXRT_FALSE = @CONFIG_NEWLXRT_FALSE@
-CONFIG_NEWLXRT_TRUE = @CONFIG_NEWLXRT_TRUE@
+CONFIG_RTFW_LXRT_FALSE = @CONFIG_RTFW_LXRT_FALSE@
+CONFIG_RTFW_LXRT_TRUE = @CONFIG_RTFW_LXRT_TRUE@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CROSS_COMPILE = @CROSS_COMPILE@
@@ -151,28 +153,22 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-nobase_include_HEADERS = 
-
-noinst_HEADERS = \
+nobase_include_HEADERS = \
 	csr1212.h \
 	ieee1394.h \
 	ieee1394_types.h \
-	dma.h \
 	ieee1394_chrdev.h \
 	iso.h \
 	config_roms.h \
 	highlevel.h \
 	ieee1394_core.h \
 	hosts.h \
-	ieee1394_hotplug.h \
 	csr.h \
-	ieee1394-ioctl.h \
 	ieee1394_transactions.h \
-	rtos_primitives.h \
 	bis1394.h
 
 
-EXTRA_DIST = INCLUDE.policy
+noinst_HEADERS = 
 
 DISTCLEANFILES = rt-firewire_config.h
 subdir = include

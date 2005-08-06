@@ -50,12 +50,14 @@ CCAS = @CCAS@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CONFIG_FUSION_FALSE = @CONFIG_FUSION_FALSE@
+CONFIG_FUSION_TRUE = @CONFIG_FUSION_TRUE@
 CONFIG_KBUILD_FALSE = @CONFIG_KBUILD_FALSE@
 CONFIG_KBUILD_TRUE = @CONFIG_KBUILD_TRUE@
 CONFIG_NCURSES_FALSE = @CONFIG_NCURSES_FALSE@
 CONFIG_NCURSES_TRUE = @CONFIG_NCURSES_TRUE@
-CONFIG_NEWLXRT_FALSE = @CONFIG_NEWLXRT_FALSE@
-CONFIG_NEWLXRT_TRUE = @CONFIG_NEWLXRT_TRUE@
+CONFIG_RTFW_LXRT_FALSE = @CONFIG_RTFW_LXRT_FALSE@
+CONFIG_RTFW_LXRT_TRUE = @CONFIG_RTFW_LXRT_TRUE@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CROSS_COMPILE = @CROSS_COMPILE@
@@ -169,8 +171,8 @@ RECURSIVE_TARGETS = info-recursive dvi-recursive pdf-recursive \
 	installdirs-recursive install-recursive uninstall-recursive \
 	check-recursive installcheck-recursive
 DIST_COMMON = $(srcdir)/GNUmakefile.in $(srcdir)/configure \
-	./config/rt-firewire_config_pre.h.in GNUmakefile.am aclocal.m4 \
-	config/autoconf/compile config/autoconf/config.guess \
+	./config/rt-firewire_config_pre.h.in COPYING GNUmakefile.am \
+	aclocal.m4 config/autoconf/compile config/autoconf/config.guess \
 	config/autoconf/config.sub config/autoconf/depcomp \
 	config/autoconf/install-sh config/autoconf/ltmain.sh \
 	config/autoconf/missing config/autoconf/mkinstalldirs configure \

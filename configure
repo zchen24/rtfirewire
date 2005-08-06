@@ -466,7 +466,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS build build_cpu build_vendor build_os host host_cpu host_vendor host_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO AMTAR install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM AWK SET_MAKE am__leading_dot MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LD CONFIG_NCURSES_TRUE CONFIG_NCURSES_FALSE NCURSES_LIBS LIBOBJS CONFIG_KBUILD_TRUE CONFIG_KBUILD_FALSE RTFW_TARGET_ARCH CROSS_COMPILE RTFW_MODULE_EXT RTFW_KBUILD_ENV RTFW_KBUILD_CMD RTFW_KBUILD_CLEAN RTFW_MODULE_DIR CONFIG_NEWLXRT_TRUE CONFIG_NEWLXRT_FALSE RTAI_KMOD_CFLAGS RTAI_USER_CFLAGS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS build build_cpu build_vendor build_os host host_cpu host_vendor host_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO AMTAR install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM AWK SET_MAKE am__leading_dot MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LD CONFIG_NCURSES_TRUE CONFIG_NCURSES_FALSE NCURSES_LIBS LIBOBJS CONFIG_FUSION_TRUE CONFIG_FUSION_FALSE CONFIG_KBUILD_TRUE CONFIG_KBUILD_FALSE RTFW_TARGET_ARCH CROSS_COMPILE RTFW_MODULE_EXT RTFW_KBUILD_ENV RTFW_KBUILD_CMD RTFW_KBUILD_CLEAN RTFW_MODULE_DIR CONFIG_RTFW_LXRT_TRUE CONFIG_RTFW_LXRT_FALSE RTAI_KMOD_CFLAGS RTAI_USER_CFLAGS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -20526,15 +20526,8 @@ fi
 
 
 
-#
-# try to find rtai-3 or newer but don't look for them, if...
-# ...we've already found rtai-24.1.x
-#
-if test x"$CONFIG_RTFW_RTAI_24" \!= x"n"; then
-    CONFIG_RTFW_RTAI_3=n
-else
-    unset CONFIG_RTFW_RTAI_3
-fi
+
+unset CONFIG_RTFW_RTAI_3
 
 #
 # the presence of rtai-config is a good indication for rtai >= 3
@@ -20543,8 +20536,8 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
     echo "$as_me:$LINENO: checking for RTAI 3 installation" >&5
 echo $ECHO_N "checking for RTAI 3 installation... $ECHO_C" >&6
     RTAI_CONFIG="${with_rtai}/bin/rtai-config"
-    if test -x ${RTAI_CONFIG}; then
-        RTAI_DIR="`echo ${with_rtai} | sed -e s,/*$,,`"	# strip trailing slashes
+    if test -x "${RTAI_CONFIG}"; then
+        RTAI_DIR="`cd ${with_rtai} && pwd`"	# let the shell normalize the path
 	echo "$as_me:$LINENO: result: ${RTAI_DIR}" >&5
 echo "${ECHO_T}${RTAI_DIR}" >&6
     else
@@ -20566,12 +20559,12 @@ if test x"$CONFIG_RTFW_RTAI_3" \!= x"n"; then
 #
     echo "$as_me:$LINENO: checking for RTAI DESTDIR" >&5
 echo $ECHO_N "checking for RTAI DESTDIR... $ECHO_C" >&6
-    RTFW_RTAI_PREFIX="`${RTAI_CONFIG} --prefix | sed -e s,/*$,,`"		# strip trailing slashes
+    RTFW_RTAI_PREFIX="`cd \`${RTAI_CONFIG} --prefix\` && pwd`"			# let the shell normalize the path
     if test "${RTFW_RTAI_PREFIX}" \!= "${RTAI_DIR}"; then
-	RTFW_RTAI_DESTDIR="`echo ${RTAI_DIR} | sed -e s,${RTFW_RTAI_PREFIX}$,,`"
+	RTFW_RTAI_DESTDIR="`cd \`echo ${RTAI_DIR} | sed -e s,${RTFW_RTAI_PREFIX}$,,\` && pwd`"
 	export DESTDIR="${RTFW_RTAI_DESTDIR}"
 
-	RTFW_RTAI_PREFIX="`${RTAI_CONFIG} --prefix | sed -e s,/*$,,`"	# strip trailing slashes
+	RTFW_RTAI_PREFIX="`cd \`${RTAI_CONFIG} --prefix\` && pwd`"		# let the shell normalize the path
 	if test "${RTFW_RTAI_PREFIX}" = "${RTAI_DIR}"; then
 	    echo "$as_me:$LINENO: result: ${DESTDIR}" >&5
 echo "${ECHO_T}${DESTDIR}" >&6
@@ -20599,14 +20592,8 @@ echo $ECHO_N "checking for RTAI version... $ECHO_C" >&6
     3.2*)
 	CONFIG_RTFW_RTAI_VERSION=32
 	;;
-    0.6.6-fusion)
-	CONFIG_RTFW_RTAI_VERSION=066
-	;;
-    0.7.2-fusion | 0.7.3-fusion)
-	CONFIG_RTFW_RTAI_VERSION=fusion-072
-	;;
-    0.7.4-fusion | 0.7.5-fusion | 0.8*-fusion)
-	CONFIG_RTFW_RTAI_VERSION=fusion-074
+    0.8.99-fusion | 0.9*-fusion)
+	CONFIG_RTFW_RTAI_VERSION=fusion-090
 	;;
     *)
 	{ { echo "$as_me:$LINENO: error: *** Unsupported RTAI version $CONFIG_RTFW_RTAI_3_VERSION in $RTAI_DIR" >&5
@@ -20635,7 +20622,7 @@ echo "${ECHO_T}${CONFIG_RTFW_RTAI_CONFIG_FILE}" >&6
     . ${CONFIG_RTFW_RTAI_CONFIG_FILE}
 
     case "$CONFIG_RTFW_RTAI_VERSION" in
-        30 | 31 |32)	# ---> RTAI 3.x <---
+        30 | 31 | 32)	# ---> RTAI 3.x <---
 
 	    # check for semas, needed by RTFW
 	    echo "$as_me:$LINENO: checking for RTAI semaphores" >&5
@@ -20672,16 +20659,16 @@ echo "$as_me: error: *** Please enable fifos in RTAI" >&2;}
 
 	    ;;
 
-	fusion-07*)	# ---> FUSION <---
+	fusion-090)	# ---> FUSION <---
 
 	    # check for native RTAI skin, needed by RTFW
-	    echo "$as_me:$LINENO: checking for RTAI native skin" >&5
-echo $ECHO_N "checking for RTAI native skin... $ECHO_C" >&6
-	    case "${CONFIG_RTAI_SKIN_NATIVE}" in
-	        y) echo "$as_me:$LINENO: result: ${CONFIG_RTAI_SKIN_NATIVE}" >&5
-echo "${ECHO_T}${CONFIG_RTAI_SKIN_NATIVE}" >&6 ;;
-		*) { { echo "$as_me:$LINENO: error: *** Please enable native RTAI skin" >&5
-echo "$as_me: error: *** Please enable native RTAI skin" >&2;}
+	    echo "$as_me:$LINENO: checking for RTAI RTDM skin" >&5
+echo $ECHO_N "checking for RTAI RTDM skin... $ECHO_C" >&6
+	    case "${CONFIG_RTAI_SKIN_RTDM}" in
+	        y) echo "$as_me:$LINENO: result: ${CONFIG_RTAI_SKIN_RTDM}" >&5
+echo "${ECHO_T}${CONFIG_RTAI_SKIN_RTDM}" >&6 ;;
+		*) { { echo "$as_me:$LINENO: error: *** Please enable RTDM skin" >&5
+echo "$as_me: error: *** Please enable RTDM skin" >&2;}
    { (exit 1); exit 1; }; } ;;
 	    esac
 
@@ -20696,7 +20683,7 @@ echo "$as_me: error: *** Please enable semaphores in RTAI" >&2;}
    { (exit 1); exit 1; }; } ;;
 	    esac
 
-	    # malloc support is built-in for RTAI 4
+	    # malloc support is built-in for RTAI/fusion
 
 	    # check for pipes, needed by RTFW
 	    echo "$as_me:$LINENO: checking for RTAI pipes" >&5
@@ -20733,26 +20720,33 @@ echo "$as_me: error: *** internal error" >&2;}
     echo "$as_me:$LINENO: checking for Linux source tree" >&5
 echo $ECHO_N "checking for Linux source tree... $ECHO_C" >&6
     RTAI_LINUX_DIR="`${RTAI_CONFIG} --linux-dir`"
-    RTAI_LINUX_VERSION="`${RTAI_CONFIG} --linux-version`"
+    case "$CONFIG_RTFW_RTAI_3_VERSION" in
+        3.0 | 3.0r1 | 3.0r2)
+
+            eval linux_`grep '^EXTRAVERSION =' $RTAI_LINUX_DIR/Makefile | sed -e 's, ,,g'`
+            eval linux_`grep '^PATCHLEVEL =' $RTAI_LINUX_DIR/Makefile | sed -e 's, ,,g'`
+            eval linux_`grep '^SUBLEVEL =' $RTAI_LINUX_DIR/Makefile | sed -e 's, ,,g'`
+            eval linux_`grep '^VERSION =' $RTAI_LINUX_DIR/Makefile | sed -e 's, ,,g'`
+            RTAI_LINUX_VERSION="$linux_VERSION.$linux_PATCHLEVEL.$linux_SUBLEVEL.$linux_EXTRAVERSION"
+            ;;
+        *)
+            RTAI_LINUX_VERSION="`${RTAI_CONFIG} --linux-version`"
+            ;;
+    esac
+
+#source (load) the kernel configuration
+    . ${RTAI_LINUX_DIR}/.config
 
     echo "$as_me:$LINENO: result: $RTAI_LINUX_DIR (kernel ${RTAI_LINUX_VERSION}${CONFIG_SMP:+-SMP})" >&5
 echo "${ECHO_T}$RTAI_LINUX_DIR (kernel ${RTAI_LINUX_VERSION}${CONFIG_SMP:+-SMP})" >&6
 fi
 
 
-
 #
-# now let's see wich version of rtai we've found
+# now let's see which version of rtai we've found
 # exit with error if there isn't any version
 #
 case "$CONFIG_RTFW_RTAI_VERSION" in
-    24)
-
-cat >>confdefs.h <<\_ACEOF
-#define CONFIG_RTAI_24 1
-_ACEOF
-
-	;;
     30)
 
 cat >>confdefs.h <<\_ACEOF
@@ -20774,17 +20768,10 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 	;;
-    fusion-072)
+    fusion-090)
 
 cat >>confdefs.h <<\_ACEOF
-#define CONFIG_FUSION_072 1
-_ACEOF
-
-	;;
-    fusion-074)
-
-cat >>confdefs.h <<\_ACEOF
-#define CONFIG_FUSION_074 1
+#define CONFIG_FUSION_090 1
 _ACEOF
 
 	;;
@@ -20794,6 +20781,17 @@ echo "$as_me: error: *** No RTAI found in $with_rtai" >&2;}
    { (exit 1); exit 1; }; }
 	;;
 esac
+
+
+
+if test "$CONFIG_RTFW_RTAI_VERSION" = fusion-090; then
+  CONFIG_FUSION_TRUE=
+  CONFIG_FUSION_FALSE='#'
+else
+  CONFIG_FUSION_TRUE='#'
+  CONFIG_FUSION_FALSE=
+fi
+
 
 
 
@@ -20843,17 +20841,14 @@ fi
 
 # common stuff
 case "${CONFIG_RTFW_RTAI_VERSION}" in
-    24)
-	RTAI_USER_CFLAGS="-I$RTAI_DIR/include -I$RTAI_DIR/lxrt/include"
-	CONFIG_RTFW_RTAI_ARCH="`sed -n -e "s/^ARCH=\(.*\)/\1/p" $RTAI_DIR/.buildvars`"
-	;;
     30 | 31 | 32)
 	RTAI_USER_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
 	CONFIG_RTFW_RTAI_ARCH="`${RTAI_CONFIG} --arch`"
 	;;
-    fusion-07*)
+    fusion-090)
 	RTAI_USER_CFLAGS="`${RTAI_CONFIG} --fusion-cflags`"
 	CONFIG_RTFW_RTAI_ARCH="`${RTAI_CONFIG} --arch`"
+	RTAI_LIBRARIES="`${RTAI_CONFIG} --library-dir`"
 	;;
     *)
 	{ { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -20863,9 +20858,10 @@ echo "$as_me: error: *** internal error" >&2;}
 esac
 
 
+
 if test "$CONFIG_KBUILD" = "y"; then
     case "${CONFIG_RTFW_RTAI_VERSION}" in
-	24 | 30)
+	30)
 	    { { echo "$as_me:$LINENO: error: *** internal error" >&5
 echo "$as_me: error: *** internal error" >&2;}
    { (exit 1); exit 1; }; }
@@ -20873,7 +20869,7 @@ echo "$as_me: error: *** internal error" >&2;}
 	31 | 32)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
 	    ;;
-	fusion-07*)
+	fusion-090)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --fusion-cflags`"
 	    ;;
 	*)
@@ -20884,13 +20880,10 @@ echo "$as_me: error: *** internal error" >&2;}
     esac
 else
     case "${CONFIG_RTFW_RTAI_VERSION}" in
-	24)
-	    RTAI_KMOD_CFLAGS="`sed -n -e "s/^CFLAGS=\(.*\)/\1/p" $RTAI_DIR/.buildvars` -I$RTAI_DIR/include -DEXPORT_SYMTAB -Wall"
-	    ;;
 	30 | 31 | 32)
 	    RTAI_KMOD_CFLAGS="`${RTAI_CONFIG} --module-cflags`"
 	    ;;
-	fusion-07*)
+	fusion-090)
 	    { { echo "$as_me:$LINENO: error: *** internal error" >&5
 echo "$as_me: error: *** internal error" >&2;}
    { (exit 1); exit 1; }; }
@@ -20936,9 +20929,13 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 	;;
-#    arm)
-#	AC_DEFINE(CONFIG_ARCH_ARM, 1, [we are trying to build for arm])
-#	;;
+    arm)
+
+cat >>confdefs.h <<\_ACEOF
+#define CONFIG_ARCH_ARM 1
+_ACEOF
+
+	;;
 #    cris)
 #	AC_DEFINE(CONFIG_ARCH_CRIS, 1, [we are trying to build for cris])
 #	;;
@@ -21054,7 +21051,7 @@ CPPFLAGS="${ac_save_CPPFLAGS} ${RTAI_KMOD_CFLAGS}"
 # identified. (rpm)
 if test "${CONFIG_KBUILD}" = "y"; then	# building against linux-2.6
     case "${CONFIG_RTFW_RTAI_VERSION}" in
-        24 | 30)
+        30)
 	    { { echo "$as_me:$LINENO: error: *** internal error" >&5
 echo "$as_me: error: *** internal error" >&2;}
    { (exit 1); exit 1; }; }
@@ -21083,27 +21080,21 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 #include <$ac_header>
 _ACEOF
-rm -f conftest.$ac_objext
-if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
-  (eval $ac_compile) 2>conftest.er1
+rm -f Makefile
+cat >Makefile <<_ACEOF
+EXTRA_CFLAGS += ${CFLAGS}
+EXTRA_CFLAGS += ${CPPFLAGS}
+obj-m += conftest.o
+_ACEOF
+rm -f conftest.$bs_kmodext conftest.o
+if { (eval echo "$as_me:$LINENO: \"$bs_kcompile > /dev/null\"") >&5
+  (eval $bs_kcompile > /dev/null) 2>conftest.er1
   ac_status=$?
   grep -v '^ *+' conftest.er1 >conftest.err
   rm -f conftest.er1
   cat conftest.err >&5
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } &&
-	 { ac_try='test -s conftest.$ac_objext'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
+  (exit $ac_status); }; then
   eval "$as_ac_Header=yes"
 else
   echo "$as_me: failed program was:" >&5
@@ -21111,7 +21102,7 @@ sed 's/^/| /' conftest.$ac_ext >&5
 
 eval "$as_ac_Header=no"
 fi
-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+rm -f conftest.err conftest.$bs_kmodext conftest.o .conftest.o.d .conftest.o.cmd .conftest.ko.cmd .conftest.mod.o.cmd .tmp_versions/conftest.mod Makefile conftest.$ac_ext; rmdir .tmp_versions
 fi
 echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
 echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
@@ -21125,15 +21116,16 @@ else
 echo "$as_me: error: *** header not found or working, please check RTAI installation" >&2;}
    { (exit 1); exit 1; }; }
 fi
-
 done
 
             ;;
-	fusion-07*)
+	fusion-090)
 
 
 
-for ac_header in rtai/sem.h rtai/mutex.h rtai/pipe.h
+
+
+for ac_header in rtai/sem.h rtai/mutex.h rtai/pipe.h rtdm/rtdm.h rtdm/rtdm_driver.h
 do
 as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
 echo "$as_me:$LINENO: checking for $ac_header" >&5
@@ -21153,27 +21145,21 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 #include <$ac_header>
 _ACEOF
-rm -f conftest.$ac_objext
-if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
-  (eval $ac_compile) 2>conftest.er1
+rm -f Makefile
+cat >Makefile <<_ACEOF
+EXTRA_CFLAGS += ${CFLAGS}
+EXTRA_CFLAGS += ${CPPFLAGS}
+obj-m += conftest.o
+_ACEOF
+rm -f conftest.$bs_kmodext conftest.o
+if { (eval echo "$as_me:$LINENO: \"$bs_kcompile > /dev/null\"") >&5
+  (eval $bs_kcompile > /dev/null) 2>conftest.er1
   ac_status=$?
   grep -v '^ *+' conftest.er1 >conftest.err
   rm -f conftest.er1
   cat conftest.err >&5
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } &&
-	 { ac_try='test -s conftest.$ac_objext'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
+  (exit $ac_status); }; then
   eval "$as_ac_Header=yes"
 else
   echo "$as_me: failed program was:" >&5
@@ -21181,7 +21167,7 @@ sed 's/^/| /' conftest.$ac_ext >&5
 
 eval "$as_ac_Header=no"
 fi
-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+rm -f conftest.err conftest.$bs_kmodext conftest.o .conftest.o.d .conftest.o.cmd .conftest.ko.cmd .conftest.mod.o.cmd .tmp_versions/conftest.mod Makefile conftest.$ac_ext; rmdir .tmp_versions
 fi
 echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
 echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
@@ -21195,7 +21181,6 @@ else
 echo "$as_me: error: *** header not found or working, please check RTAI installation" >&2;}
    { (exit 1); exit 1; }; }
 fi
-
 done
 
 	    ;;
@@ -21207,75 +21192,6 @@ echo "$as_me: error: *** internal error" >&2;}
     esac
 else					# building against linux-2.4
     case "${CONFIG_RTFW_RTAI_VERSION}" in
-        24)		# mandatory RTAI-24 headers
-
-
-for ac_header in rtai_lxrt_user.h rtai_declare.h
-do
-as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
-echo "$as_me:$LINENO: checking for $ac_header" >&5
-echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
-if eval "test \"\${$as_ac_Header+set}\" = set"; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-#include <linux/kernel.h>
-
-
-#include <$ac_header>
-_ACEOF
-rm -f conftest.$ac_objext
-if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
-  (eval $ac_compile) 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } &&
-	 { ac_try='test -s conftest.$ac_objext'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  eval "$as_ac_Header=yes"
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-eval "$as_ac_Header=no"
-fi
-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
-echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
-if test `eval echo '${'$as_ac_Header'}'` = yes; then
-  cat >>confdefs.h <<_ACEOF
-#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
-_ACEOF
-
-else
-  { { echo "$as_me:$LINENO: error: *** header not found or working, please check RTAI installation" >&5
-echo "$as_me: error: *** header not found or working, please check RTAI installation" >&2;}
-   { (exit 1); exit 1; }; }
-fi
-
-done
-
-	    ;;
 	30 | 31 | 32)	# mandatory RTAI-3 headers
 
 
@@ -21345,7 +21261,7 @@ fi
 done
 
 	    ;;
-	fusion-07*)
+	fusion-090)
 	    { { echo "$as_me:$LINENO: error: *** internal error" >&5
 echo "$as_me: error: *** internal error" >&2;}
    { (exit 1); exit 1; }; }
@@ -21384,22 +21300,16 @@ echo "${ECHO_T}$RTFW_MODULE_DIR" >&6
 
 
 
-echo "$as_me:$LINENO: checking for RTAI NEWLXRT enabled" >&5
-echo $ECHO_N "checking for RTAI NEWLXRT enabled... $ECHO_C" >&6
+echo "$as_me:$LINENO: checking for RTAI 3.x LXRT enabled" >&5
+echo $ECHO_N "checking for RTAI 3.x LXRT enabled... $ECHO_C" >&6
 case "${CONFIG_RTFW_RTAI_VERSION}" in
-    24)
-	case "$CONFIG_RTAI_NEWLXRT" in
-	    y | m) CONFIG_NEWLXRT=yes ;;
-	    *) CONFIG_NEWLXRT=no ;;
-	esac
-	;;
     30 | 31 | 32)
 	case "${CONFIG_RTAI_SCHED_LXRT}" in
-	    y | m) CONFIG_NEWLXRT=yes ;;
-	    *) CONFIG_NEWLXRT=no ;;
+	    y | m) CONFIG_RTFW_LXRT=yes ;;
+	    *) CONFIG_RTFW_LXRT=no ;;
 	esac
 	;;
-    fusion-07*) CONFIG_NEWLXRT=no
+    fusion-090) CONFIG_RTFW_LXRT=no
 	;;
     *)
 	{ { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -21407,22 +21317,48 @@ echo "$as_me: error: *** internal error" >&2;}
    { (exit 1); exit 1; }; }
 	;;
 esac
-echo "$as_me:$LINENO: result: ${CONFIG_NEWLXRT}" >&5
-echo "${ECHO_T}${CONFIG_NEWLXRT}" >&6
+echo "$as_me:$LINENO: result: ${CONFIG_RTFW_LXRT}" >&5
+echo "${ECHO_T}${CONFIG_RTFW_LXRT}" >&6
 
+echo "$as_me:$LINENO: checking for CONFIG_REGPARM activated in Linux Kernel" >&5
+echo $ECHO_N "checking for CONFIG_REGPARM activated in Linux Kernel... $ECHO_C" >&6
+if test "${CONFIG_RTFW_LXRT}" = "yes" -a "${CONFIG_REGPARM}" = "y"; then
+    { echo "$as_me:$LINENO: WARNING:
 
-if test "$CONFIG_NEWLXRT" = "yes"; then
-  CONFIG_NEWLXRT_TRUE=
-  CONFIG_NEWLXRT_FALSE='#'
+*** LXRT interface for RTFW disabled ***
+Please unset CONFIG_RTFW_LXRT for
+${RTAI_LINUX_DIR}
+and rebuild your kernel in order to build LXRT interface for RTFW
+
+" >&5
+echo "$as_me: WARNING:
+
+*** LXRT interface for RTFW disabled ***
+Please unset CONFIG_RTFW_LXRT for
+${RTAI_LINUX_DIR}
+and rebuild your kernel in order to build LXRT interface for RTFW
+
+" >&2;}
+    CONFIG_RTFW_LXRT=no
 else
-  CONFIG_NEWLXRT_TRUE='#'
-  CONFIG_NEWLXRT_FALSE=
+    echo "$as_me:$LINENO: result: ${CONFIG_REGPARM:-no}" >&5
+echo "${ECHO_T}${CONFIG_REGPARM:-no}" >&6
 fi
 
-if test "$CONFIG_NEWLXRT" = "yes"; then
+
+
+if test "$CONFIG_RTFW_LXRT" = "yes"; then
+  CONFIG_RTFW_LXRT_TRUE=
+  CONFIG_RTFW_LXRT_FALSE='#'
+else
+  CONFIG_RTFW_LXRT_TRUE='#'
+  CONFIG_RTFW_LXRT_FALSE=
+fi
+
+if test "$CONFIG_RTFW_LXRT" = "yes"; then
 
 cat >>confdefs.h <<\_ACEOF
-#define CONFIG_NEWLXRT 1
+#define CONFIG_RTFW_LXRT 1
 _ACEOF
 
 fi
@@ -21590,6 +21526,13 @@ echo "$as_me: error: conditional \"CONFIG_NCURSES\" was never defined.
 Usually this means the macro was only invoked conditionally." >&2;}
    { (exit 1); exit 1; }; }
 fi
+if test -z "${CONFIG_FUSION_TRUE}" && test -z "${CONFIG_FUSION_FALSE}"; then
+  { { echo "$as_me:$LINENO: error: conditional \"CONFIG_FUSION\" was never defined.
+Usually this means the macro was only invoked conditionally." >&5
+echo "$as_me: error: conditional \"CONFIG_FUSION\" was never defined.
+Usually this means the macro was only invoked conditionally." >&2;}
+   { (exit 1); exit 1; }; }
+fi
 if test -z "${CONFIG_KBUILD_TRUE}" && test -z "${CONFIG_KBUILD_FALSE}"; then
   { { echo "$as_me:$LINENO: error: conditional \"CONFIG_KBUILD\" was never defined.
 Usually this means the macro was only invoked conditionally." >&5
@@ -21597,10 +21540,10 @@ echo "$as_me: error: conditional \"CONFIG_KBUILD\" was never defined.
 Usually this means the macro was only invoked conditionally." >&2;}
    { (exit 1); exit 1; }; }
 fi
-if test -z "${CONFIG_NEWLXRT_TRUE}" && test -z "${CONFIG_NEWLXRT_FALSE}"; then
-  { { echo "$as_me:$LINENO: error: conditional \"CONFIG_NEWLXRT\" was never defined.
+if test -z "${CONFIG_RTFW_LXRT_TRUE}" && test -z "${CONFIG_RTFW_LXRT_FALSE}"; then
+  { { echo "$as_me:$LINENO: error: conditional \"CONFIG_RTFW_LXRT\" was never defined.
 Usually this means the macro was only invoked conditionally." >&5
-echo "$as_me: error: conditional \"CONFIG_NEWLXRT\" was never defined.
+echo "$as_me: error: conditional \"CONFIG_RTFW_LXRT\" was never defined.
 Usually this means the macro was only invoked conditionally." >&2;}
    { (exit 1); exit 1; }; }
 fi
@@ -22224,6 +22167,8 @@ s,@CONFIG_NCURSES_TRUE@,$CONFIG_NCURSES_TRUE,;t t
 s,@CONFIG_NCURSES_FALSE@,$CONFIG_NCURSES_FALSE,;t t
 s,@NCURSES_LIBS@,$NCURSES_LIBS,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
+s,@CONFIG_FUSION_TRUE@,$CONFIG_FUSION_TRUE,;t t
+s,@CONFIG_FUSION_FALSE@,$CONFIG_FUSION_FALSE,;t t
 s,@CONFIG_KBUILD_TRUE@,$CONFIG_KBUILD_TRUE,;t t
 s,@CONFIG_KBUILD_FALSE@,$CONFIG_KBUILD_FALSE,;t t
 s,@RTFW_TARGET_ARCH@,$RTFW_TARGET_ARCH,;t t
@@ -22233,8 +22178,8 @@ s,@RTFW_KBUILD_ENV@,$RTFW_KBUILD_ENV,;t t
 s,@RTFW_KBUILD_CMD@,$RTFW_KBUILD_CMD,;t t
 s,@RTFW_KBUILD_CLEAN@,$RTFW_KBUILD_CLEAN,;t t
 s,@RTFW_MODULE_DIR@,$RTFW_MODULE_DIR,;t t
-s,@CONFIG_NEWLXRT_TRUE@,$CONFIG_NEWLXRT_TRUE,;t t
-s,@CONFIG_NEWLXRT_FALSE@,$CONFIG_NEWLXRT_FALSE,;t t
+s,@CONFIG_RTFW_LXRT_TRUE@,$CONFIG_RTFW_LXRT_TRUE,;t t
+s,@CONFIG_RTFW_LXRT_FALSE@,$CONFIG_RTFW_LXRT_FALSE,;t t
 s,@RTAI_KMOD_CFLAGS@,$RTAI_KMOD_CFLAGS,;t t
 s,@RTAI_USER_CFLAGS@,$RTAI_USER_CFLAGS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t

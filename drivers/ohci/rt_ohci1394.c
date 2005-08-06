@@ -2921,7 +2921,7 @@ alloc_dma_asyn_recv(struct ti_ohci *ohci, struct dma_asyn_recv *d,
 	/**only one buffer object is needed, 
 	just to temporarily contain the incoming packet
 	**/
-	rtpkb_pool_init(&d->pool,1);
+	rtpkb_pool_init(&d->pool,10);
 	sprintf(d->pool.name, pool_name);
 	
 	d->ctrlSet = context_base + OHCI1394_ContextControlSet;
