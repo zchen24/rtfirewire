@@ -58,7 +58,7 @@ struct rt_serv_struct {
 	struct rt_request_struct reqobj_pool_head;
 	int max_req;
 		
-	__s64 	firing_time;
+	__u64 	firing_time;
 	
 };
 
@@ -74,7 +74,7 @@ extern struct rt_serv_struct *rt_serv_init( unsigned char *name, int priority, v
 extern void rt_serv_delete(struct rt_serv_struct *srv);
 
 extern struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned long data, 
-					__s64	delay_time,
+					__u64	delay_time,
 					void (*callback)(struct rt_request_struct *, unsigned long),
 					unsigned long callback_data, unsigned char *name);
 

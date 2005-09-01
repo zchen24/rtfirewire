@@ -28,6 +28,7 @@
 
 #include <linux/init.h>
 
+#include <rt1394_sys.h>
 #include <rt_serv.h>
 
 
