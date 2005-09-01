@@ -4,22 +4,6 @@ RT-FireWire README
 RT-FireWire is an OpenSource project, being aimed at developing software to use FireWire as
 new generation, yet high performance serial fieldbus in distributed control field. 
 
-FireWire supports two modes of transaction on physical level: asynchronous and isochronous. 
-Isochronous transaction has a guaranteed bandwidth, that is all isochronous transaction must starts
-with allocation of channel and bandwidth. If no channel or bandwidth available, the isochronous transaction 
-simply can not be started. Asynchronous transaction does not have guaranteed bandwidth, that is 
-nodes wishing to transfer data in asynchrnous transaction must first arbitrate for the bus access, only winner
-can access. But the asynchronous arbitration follows a fairness interval, so no one can dominate the bus. 
-
-On the packet level, FireWire supports unicast and multicast. Unicast packet uses 64 unique address to 
-target one node (16-bit) and its internal address(48-bit). Multicast uses channel number to target a group of 
-node, i.e. listener to channel. Unicast packet can only be transmitted in asynchronous mode, while multicast
-can be transmitted in both, i.e. asynchronous stream and isochronous. 
-
-The 2 packet types also represent the way to stack other module/application/protocol on FireWire. Using 
-unicast, one can register a certain range of address on the local node. Using multicast, one can allocate a
-channel and certain bandwidth. 
-
 2.	Modules after compiling
 After running configure --with-rtai=/your rtai-installed location, make, and make install. 
 You can find all the modules in /usr/local/rt-firewire/modules by default setting, or the place your specified. 

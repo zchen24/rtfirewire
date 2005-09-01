@@ -54,7 +54,7 @@
    *@anchor irq_broker_pri @name irq_broker_pri
    * Priority of Interrupt Service Broker
    */
- #define IRQ_BROKER_PRI 	RTDM_TASK_HIGHEST_PRIORITY-2
+ #define IRQ_BROKER_PRI 	RTDM_TASK_HIGHEST_PRIORITY - 2
  
  #define RTOS_LINUX_PRIORITY	0xFFFF
  
@@ -533,7 +533,6 @@ int serv_module_init(void)
 	proc_entry = create_proc_entry("servers", S_IFREG | S_IRUGO | S_IWUSR, 0);
 	if(!proc_entry) {
 		RTSERV_ERR("failed to create proc entry!\n");
-		//~ rt_free_srq(nrt_serv_srq);
 		return -ENOMEM;
 	}
 	proc_entry->read_proc = serv_read_proc;
@@ -582,7 +581,6 @@ void serv_module_exit(void)
 	}
 	
 	remove_proc_entry("servers",0);
-	//~ rt_free_srq(nrt_serv_srq);
 	
 	if (unclean)
 		RTSERV_NOTICE("%d Servers were not cleaned,\

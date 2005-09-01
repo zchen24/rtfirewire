@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sched.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -24,6 +25,7 @@ int             delay    = 1000;
 unsigned int    sent     = 0;
 unsigned int    received = 0;
 float           wc_rtt   = 0;
+int max_count = 10000;
 
 /*==================== for data reduction =======================*/
 #define MAX_BIN 200
@@ -122,6 +124,8 @@ void ping(int signal)
 		    break;
 	    }
     }
+    if(sent == max_count)
+	    goto done;
     
     return;
 done:
@@ -140,6 +144,14 @@ int main(int argc, char *argv[])
     //we need local host name and remote destination id	
     if (argc < 3)
         help();
+    
+    struct sched_param mysched;
+    mysched.sched_priority = sched_get_priority_max(SCHED_FIFO) - 1;
+	if( sched_setscheduler( 0, SCHED_FIFO, &mysched ) == -1 ) {
+		puts("ERROR IN SETTING THE SCHEDULER");
+		perror("errno");
+		exit(1);
+	}
 
     gettimeofday(&time, NULL);
     cmd.args.ping.msg_size = 56;
@@ -159,7 +171,10 @@ int main(int argc, char *argv[])
             cmd.args.ping.msg_size = getintopt(argc, ++i, argv, 0);
             if (cmd.args.ping.msg_size > 4096)
                 cmd.args.ping.msg_size = 4096;
-        } else
+        } 
+	else if(strcmp(argv[i],"-c") ==0){
+		max_count = getintopt(argc, ++i, argv, 0);
+	}else
             help();
     }
 
@@ -180,10 +195,13 @@ int main(int argc, char *argv[])
 						cmd.args.ping.pri);
 
     signal(SIGINT, terminate);
-    signal(SIGALRM, ping);
-    timer.it_interval.tv_sec  = delay / 1000;
-    timer.it_interval.tv_usec = (delay % 1000) * 1000;
-    setitimer(ITIMER_REAL, &timer, NULL);
+    //~ signal(SIGALRM, ping);
+    //~ timer.it_interval.tv_sec  = delay / 1000;
+    //~ timer.it_interval.tv_usec = (delay % 1000) * 1000;
+    //~ setitimer(ITIMER_REAL, &timer, NULL);
+    for(i=0;i<max_count;i++){
+	    ping(0);
+    }
 
     while (1) pause();
 }

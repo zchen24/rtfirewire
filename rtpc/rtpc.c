@@ -254,7 +254,7 @@ int __init rtpc_init(void)
     if(ret < 0)
 	    return ret;
    
-    sprintf(name, "rtpc");
+    sprintf(name, "rtfw_rtpc");
     rtpc_dispatcher = rt_serv_init(name, 1, rtpc_dispatch_handler, -1); 
     if(!rtpc_dispatcher){
 	    rtdm_nrtsig_destroy(&rtpc_nrt_signal);

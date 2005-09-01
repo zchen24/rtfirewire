@@ -48,12 +48,23 @@
 
 #define MICRO_SEC	1000 //in ns
 
+/**=========== Time Probing ============*/
+static int timing_probe = 0;
+MODULE_PARM(timing_probe, "i");
+MODULE_PARM_DESC(timing_probe, "Enable time probing between tophalf and bottomhalf ISR (default = NO(0)).");
+static int pacnt = 0;
+static int pbcnt = 0;
+struct timing_struct{
+	__u64 paval;
+	__u64 pbval;
+} time_pair[10000];
+
 /*Internal priorities of each transaction server, 
 relative to the base priority of server module*/
-#define RESP_SERVER_PRI	90
-#define BIS_SERVER_PRI		85
-#define RT1394_SERVER_PRI	80
-#define TIMEOUT_SERVER_PRI	95
+#define RESP_SERVER_PRI	RTDM_TASK_HIGHEST_PRIORITY - 4
+#define BIS_SERVER_PRI		RTDM_TASK_HIGHEST_PRIORITY - 3
+#define RT1394_SERVER_PRI	RTDM_TASK_HIGHEST_PRIORITY - 5
+#define TIMEOUT_SERVER_PRI	RTDM_TASK_HIGHEST_PRIORITY - 3
 
 #ifdef CONFIG_IEEE1394_DEBUG
 static void dump_packet(const char *text, quadlet_t *data, int size)
@@ -980,6 +991,11 @@ static void fill_async_lock_resp(struct hpsb_packet *packet, int rcode, int extc
 void req_worker(unsigned long arg)
 {
 	
+	if(timing_probe && pbcnt < 10000){
+		time_pair[pbcnt].pbval = rtos_get_time();
+		pbcnt++;
+	}
+	
 	int priority = (int)arg;
 	struct rtpkb *pkb;
 	if(priority == 0)
@@ -1204,6 +1220,10 @@ void hpsb_packet_received(struct hpsb_packet *packet)
 								0, //no delay wanted
 								NULL, //for now, no callback needed from server
 								0, NULL); //no callback data; no name
+		if(timing_probe && pacnt < 10000){
+			time_pair[pacnt].paval=rtos_get_time();
+			pacnt++;
+		}
 		rt_serv_sync(broker);
 	}
 }
@@ -1325,7 +1345,79 @@ void resp_worker(unsigned long dummy)
 }
 		
 	
+#define PUTF(fmt, args...)				\
+do {							\
+	len += sprintf(page + len, fmt, ## args);	\
+	pos = begin + len;				\
+	if (pos < off) {				\
+		len = 0;				\
+		begin = pos;				\
+	}						\
+	if (pos > off + count)				\
+		goto done_proc;				\
+} while (0)
+/*==================== for data reduction =======================*/
+#define MAX_BIN 200
+struct bin {
+	int val;
+	int counter;
+};
 
+struct bin binG[MAX_BIN];
+#define BIN_STEP 1000 //1 microsecond
+
+static int timing_read_proc(char *page, char **start, off_t off, int count,
+					int *eof, void *data)
+{
+	off_t begin=0, pos=0;
+	int len=0;
+	int i;
+	
+	if(timing_probe && pacnt ==10000 && pbcnt == 10000){
+		 for(i=0;i<MAX_BIN;i++){
+			binG[i].val=0;
+			binG[i].counter=0;
+		}
+		while(pacnt >= 0 ){
+			int latency_round = ((int)(time_pair[pbcnt].pbval - time_pair[pacnt].paval)/BIN_STEP) *BIN_STEP;
+			for(i=0;i<MAX_BIN;i++){
+				if(binG[i].val==0)
+					binG[i].val=latency_round;
+				if(binG[i].val==latency_round){
+					binG[i].counter+=1;
+					break;
+				}
+			}
+			time_pair[pbcnt].pbval = time_pair[pacnt].paval =0;
+			pacnt = pbcnt = pacnt - 1;
+		}
+		PUTF("\n\n==============================================\n\n");
+		for(i=0;i<MAX_BIN;i++){
+			if(binG[i].val!=0)
+				PUTF("%d - bin val:%d, bin counter: %d\n", i, binG[i].val, binG[i].counter);
+		}
+		PUTF("\n\n==============================================\n\n");
+
+done_proc:
+		*start = page + (off - begin);
+		len -= (off - begin);
+		if (len > count)
+			len = count;
+		else {
+			*eof = 1;
+			if (len <= 0)
+			return 0;
+		}	
+
+		return len;
+	}
+	else{
+		PUTF("Timing probe not enabled or the measurment not finished yet!\n");
+		return len;
+	}
+		
+}
+#undef PUTF
 
 
 struct proc_dir_entry *rtfw_procfs_entry;
@@ -1339,6 +1431,13 @@ int ieee1394_core_init(void)
 	int ret=0;
 	unsigned char *name;
 	
+	struct proc_dir_entry *proc_entry;
+	proc_entry = create_proc_entry("ieee1394_th_timing", S_IFREG | S_IRUGO | S_IWUSR, 0);
+	if(!proc_entry) {
+		rtos_print("failed to create proc entry!\n");
+		return -ENOMEM;
+	}
+	proc_entry->read_proc = timing_read_proc;
 	/**
 	 * Must be done before we start anything else, since it may be used
 	*/
@@ -1453,5 +1552,6 @@ void ieee1394_core_cleanup(void)
 	
 	hpsb_cleanup_config_roms();
 	remove_proc_entry("rt-firewire",0);
+	remove_proc_entry("ieee1394_th_timing",0);
 }
 

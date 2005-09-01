@@ -160,6 +160,17 @@ static int phys_dma = 1;
 MODULE_PARM(phys_dma, "i");
 MODULE_PARM_DESC(phys_dma, "Enable dma for physical packets (default = 1).");
 
+/**=========== Time Probing ============*/
+static int timing_probe = 0;
+MODULE_PARM(timing_probe, "i");
+MODULE_PARM_DESC(timing_probe, "Enable time probing between tophalf and bottomhalf ISR (default = NO(0)).");
+static int pacnt = 0;
+static int pbcnt = 0;
+struct timing_struct{
+	__u64 paval;
+	__u64 pbval;
+} time_pair[10000];
+
 static unsigned int cards_found;
 
 static void dma_trm_routine(unsigned long data);
@@ -776,6 +787,10 @@ static void insert_packet(struct ti_ohci *ohci,
 	/* queue the packet in the appropriate context queue */
 	list_add_tail(&packet->driver_list, &d->fifo_list);
 	d->prg_ind = (d->prg_ind + 1) % d->num_desc;
+	
+	/*if the xmit_stamp is not NULL, that means some protocol wants the sending time stamp*/
+	if(packet->xmit_stamp)
+		*packet->xmit_stamp = cpu_to_be64(rtos_get_time() + *packet->xmit_stamp);
 }
 
 
@@ -874,6 +889,7 @@ static int ohci_transmit(struct hpsb_host *host, struct hpsb_packet *packet)
 
 	packet->xmit_time = rtos_get_time();
 	
+		
 	
 	dma_trm_flush(ohci, d);
 
@@ -2263,6 +2279,10 @@ static RTOS_IRQ_HANDLER_PROTO(ohci_irq_handler)
 			rt_event_pend(&d->event);
 			tosync = 1;
 		event &= ~OHCI1394_RQPkt;
+		if(timing_probe && pacnt < 10000){
+			time_pair[pacnt].paval=rtos_get_time();
+			pacnt++;
+		}
 	}
 	if (event & OHCI1394_RSPkt) {
 		struct dma_asyn_recv *d = &ohci->ar_resp_context;
@@ -2476,7 +2496,12 @@ static __inline__ int packet_length(struct dma_asyn_recv *d, int idx, quadlet_t 
 /* Tasklet that processes dma receive buffers */
 static void dma_rcv_routine (unsigned long data)
 {
-	DEBUG_PRINT("pointer to %s(%s)%d\n",__FILE__,__FUNCTION__,__LINE__);
+	if(timing_probe && pbcnt < 10000){
+		time_pair[pbcnt].pbval = rtos_get_time();
+		pbcnt++;
+	}
+	
+	nanosecs_t time_stamp = rtos_get_time();
 	
 	struct dma_asyn_recv *d = (struct dma_asyn_recv*)data;
 	struct ti_ohci *ohci = d->ohci;
@@ -2626,7 +2651,8 @@ static void dma_rcv_routine (unsigned long data)
 			}
 			rtos_print("\n\n");
 		#endif
-
+			pkt->time_stamp = time_stamp; /*arrival time*/
+			
 			hpsb_packet_received(pkt);
 		}
 		else{ 
@@ -3592,6 +3618,80 @@ EXPORT_SYMBOL(ohci1394_register_iso_ctx);
 EXPORT_SYMBOL(ohci1394_unregister_iso_ctx);
 
 
+#define PUTF(fmt, args...)				\
+do {							\
+	len += sprintf(page + len, fmt, ## args);	\
+	pos = begin + len;				\
+	if (pos < off) {				\
+		len = 0;				\
+		begin = pos;				\
+	}						\
+	if (pos > off + count)				\
+		goto done_proc;				\
+} while (0)
+/*==================== for data reduction =======================*/
+#define MAX_BIN 200
+struct bin {
+	int val;
+	int counter;
+};
+
+struct bin binG[MAX_BIN];
+#define BIN_STEP 1000 //1 microsecond
+
+static int timing_read_proc(char *page, char **start, off_t off, int count,
+					int *eof, void *data)
+{
+	off_t begin=0, pos=0;
+	int len=0;
+	int i;
+	
+	if(timing_probe && pacnt ==10000 && pbcnt == 10000){
+		 for(i=0;i<MAX_BIN;i++){
+			binG[i].val=0;
+			binG[i].counter=0;
+		}
+		while(pacnt >= 0 ){
+			int latency_round = ((int)(time_pair[pbcnt].pbval - time_pair[pacnt].paval)/BIN_STEP) *BIN_STEP;
+			for(i=0;i<MAX_BIN;i++){
+				if(binG[i].val==0)
+					binG[i].val=latency_round;
+				if(binG[i].val==latency_round){
+					binG[i].counter+=1;
+					break;
+				}
+			}
+			time_pair[pbcnt].pbval = time_pair[pacnt].paval =0;
+			pacnt = pbcnt = pacnt - 1;
+		}
+		PUTF("\n\n==============================================\n\n");
+		for(i=0;i<MAX_BIN;i++){
+			if(binG[i].val!=0)
+				PUTF("%d - bin val:%d, bin counter: %d\n", i, binG[i].val, binG[i].counter);
+		}
+		PUTF("\n\n==============================================\n\n");
+
+done_proc:
+		*start = page + (off - begin);
+		len -= (off - begin);
+		if (len > count)
+			len = count;
+		else {
+			*eof = 1;
+			if (len <= 0)
+			return 0;
+		}	
+
+		return len;
+	}
+	else{
+		PUTF("Timing probe not enabled or the measurment not finished yet!\n");
+		return len;
+	}
+		
+}
+#undef PUTF
+
 /***********************************
  * General module initialization   *
  ***********************************/
@@ -3602,10 +3702,19 @@ MODULE_LICENSE("GPL");
 static void __exit ohci1394_cleanup (void)
 {
 	pci_unregister_driver(&ohci1394_pci_driver);
+	remove_proc_entry("ohci_isr_timing",0);
 }
 
 static int __init ohci1394_init(void)
 {
+	struct proc_dir_entry *proc_entry;
+	proc_entry = create_proc_entry("ohci_isr_timing", S_IFREG | S_IRUGO | S_IWUSR, 0);
+	if(!proc_entry) {
+		rtos_print("failed to create proc entry!\n");
+		return -ENOMEM;
+	}
+	proc_entry->read_proc = timing_read_proc;
+	
 	return pci_module_init(&ohci1394_pci_driver);
 }
 

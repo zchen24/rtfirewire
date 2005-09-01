@@ -111,6 +111,13 @@ struct hpsb_packet {
 	void *complete_data;
 
 	nanosecs_t		xmit_time;
+	nanosecs_t          time_stamp; /* arrival or transmission (RTcap) time */
+	
+	/* address to put the time stamp right before putting the packcet in hardware. 
+	    This pointer is assigned by application protocol who needs the sending time stamp.
+	     Therefore it can be NULL, If NULL, the driver will not put the time stamp on the packet.
+	*/
+	nanosecs_t 	*xmit_stamp;
 
 	unsigned pri :4;
 	int 	write_acked;
