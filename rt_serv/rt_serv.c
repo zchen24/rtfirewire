@@ -29,7 +29,7 @@
  #include <linux/spinlock.h>
  
  #include <rt1394_sys.h>
- #include <rtai/timer.h>
+ #include <native/timer.h>
  
  #include <rt_serv.h>
  
@@ -94,7 +94,7 @@ struct rt_serv_struct *irq_brk;
 	 if(srv->priority==RTOS_LINUX_PRIORITY){
 		rtos_nrt_signal_pend(&nrt_serv_srq);
 	}else
-#if defined(CONFIG_FUSION_090)
+#if defined(CONFIG_XENO_2x)
 		rtdm_task_unblock(&srv->task);
 #else
 		rem_timed_task(&srv->task);
@@ -225,7 +225,7 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 	rtos_spin_unlock_irqrestore(&srv->requests_list_lock,flags);
 	
 	if(srv->priority != RTOS_LINUX_PRIORITY && req->prev == &srv->requests_list) {
-#if defined(CONFIG_FUSION_090)
+#if defined(CONFIG_XENO_2x)
 		rtdm_task_unblock(&srv->task);
 #else
 		rem_timed_task(&srv->task);
@@ -456,7 +456,7 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 		spin_lock(&servers_list_lock);
 		list_add_tail(&srv->entry, &rt_servers_list);
 		spin_unlock(&servers_list_lock);
-#if defined(CONFIG_FUSION_090)	
+#if defined(CONFIG_XENO_2x)	
 		if(rtos_task_init(&srv->task, name, rt_serv_worker, (void *)srv, srv->priority, 0)) {
 #else
 		if(rtos_task_init(&srv->task, rt_serv_worker, (void *)srv, srv->priority)) {

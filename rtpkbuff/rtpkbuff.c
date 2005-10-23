@@ -135,13 +135,13 @@ struct rtpkb *alloc_rtpkb(unsigned int size,struct rtpkb_pool *pool)
  */
 void kfree_rtpkb(struct rtpkb *rt_pkb)
 {
-	RTPKB_ASSERT(pkb != NULL, return;);
-    RTPKB_ASSERT(pkb->pool != NULL, return;);
+	RTPKB_ASSERT(rt_pkb != NULL, return;);
+    RTPKB_ASSERT(rt_pkb->pool != NULL, return;);
     
 	struct rtpkb *pkb;
     if(rt_pkb->comp != NULL){
     	pkb = rt_pkb->comp;
-		rtpkb->comp == NULL;
+		rt_pkb->comp = NULL;
     	//now move the packet to the compensating pool
     	struct rtpkb_pool *temp;
     	temp = rt_pkb->pool;

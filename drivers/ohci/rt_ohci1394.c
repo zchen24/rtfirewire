@@ -1738,7 +1738,7 @@ static int ohci_iso_xmit_init(struct hpsb_iso *iso)
 	prog_size = sizeof(struct iso_xmit_cmd) * iso->buf_packets;
 
 	if (dma_prog_region_alloc(&xmit->prog, prog_size, xmit->ohci->dev))
-		goto err;1
+		goto err;
 
 	ohci1394_init_iso_ctx(base,OHCI_ISO_TRANSMIT,iso);
 
