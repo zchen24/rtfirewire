@@ -23,7 +23,7 @@ AC_ARG_WITH(CC,
 	AC_MSG_ERROR([*** You must supply an argument to --with-cc.]) ;;
     esac
     CC="$withval"])
-# AC_PROG_CC
+AC_PROG_CC
 
 AC_DEFINE_UNQUOTED(CONFIG_RTFW_BUILD_STRING, "$build", [Build system alias])
 RTFW_BUILD_STRING="$build"
