@@ -204,7 +204,7 @@ elif test "$XENO_DIR" \!= ""; then
     XENO_VERSION="`${XENO_CONFIG} --version`"
 
     case "$XENO_VERSION" in
-        1.9.9)
+        1.9.9 | 2.*)
             CONFIG_RTFW_RTEXT_VERSION=xeno-2x
             AC_DEFINE(CONFIG_XENO_2x, 1, [We build for Xenomai 2.x])
             ;;
@@ -413,24 +413,24 @@ dnl ======================================================================
 dnl		crosscompiling
 dnl ======================================================================
 
-# AC_MSG_CHECKING([for CROSS_COMPILE])
-# if test "${CROSS_COMPILE}" = ""; then
-#    CROSS_COMPILE="`echo ${CC} | sed s/gcc//`"
-#
- # if test "${CROSS_COMPILE}gcc" \!= "${CC}"; then
-#	CROSS_COMPILE=""
-#	AC_MSG_RESULT([Cannot identify CROSS_COMPILE - assuming none - set manually if needed])
- # else
-#	if test "${CROSS_COMPILE}" = ""; then
-#		AC_MSG_RESULT([none])
-#	else
-#		AC_MSG_RESULT([${CROSS_COMPILE}])
-#	fi
- #  fi
-# else
-  #  AC_MSG_RESULT([${CROSS_COMPILE}])
-# fi
-# AC_SUBST(CROSS_COMPILE)
+AC_MSG_CHECKING([for CROSS_COMPILE])
+ if test "${CROSS_COMPILE}" = ""; then
+    CROSS_COMPILE="`echo ${CC} | sed s/gcc//`"
+
+ if test "${CROSS_COMPILE}gcc" \!= "${CC}"; then
+	CROSS_COMPILE=""
+	AC_MSG_RESULT([Cannot identify CROSS_COMPILE - assuming none - set manually if needed])
+  else
+	if test "${CROSS_COMPILE}" = ""; then
+		AC_MSG_RESULT([none])
+	else
+		AC_MSG_RESULT([${CROSS_COMPILE}])
+	fi
+  fi
+ else
+    AC_MSG_RESULT([${CROSS_COMPILE}])
+ fi
+AC_SUBST(CROSS_COMPILE)
 
 
 dnl ======================================================================
@@ -451,12 +451,12 @@ else
 		\$(LN_S) \$\$src;									\
 	    fi;												\
 	done;												\
-	\$(MAKE) -C $RTAI_LINUX_DIR									\
+	\$(MAKE) -C $RTEXT_LINUX_DIR									\
 		CROSS_COMPILE=\$(CROSS_COMPILE)								\
 		ARCH=\$(RTFW_TARGET_ARCH)								\
 		M=\"\`pwd\`\"										\
 		V=\$(V)											\
-		rtext_dir=\"${RTFW_RTAI_PREFIX}\"							\
+		rtext_dir=\"${RTFW_RTEXT_PREFIX}\"							\
 		top_srcdir=\"\`cd \$(top_srcdir) && pwd\`\"						\
 		top_builddir=\"\`cd \$(top_builddir) && pwd\`\"						\
 		srcdir=\"\`cd \$(srcdir) && pwd\`\"							\
@@ -479,7 +479,7 @@ dnl === Hack to suppress undefined symbol warnings during MODPOST stage ===
    if test -e $RTEXT_LINUX_DIR/Module.symvers; then
 	mv $RTEXT_LINUX_DIR/Module.symvers $RTEXT_LINUX_DIR/Module.symvers.let_modpost_be_quiet
    fi
-   if test -e $RTAI_LINUX_DIR/vmlinux; then
+   if test -e $RTEXT_LINUX_DIR/vmlinux; then
 	mv $RTEXT_LINUX_DIR/vmlinux $RTFW_LINUX_DIR/vmlinux.let_modpost_be_quiet
    fi
 fi
@@ -643,10 +643,10 @@ dnl Autoconf-generated symbols have been listed.
 AH_BOTTOM([#endif /* __IN_RTFW__ */])
 
 
-RTAI_KMOD_CFLAGS="-D__IN_RTFW__ $RTAI_KMOD_CFLAGS"
-RTAI_USER_CFLAGS="-D__IN_RTFW__ $RTAI_USER_CFLAGS"
-AC_SUBST(RTAI_KMOD_CFLAGS)
-AC_SUBST(RTAI_USER_CFLAGS)
+RTEXT_KMOD_CFLAGS="-D__IN_RTFW__ $RTEXT_KMOD_CFLAGS"
+RTEXT_USER_CFLAGS="-D__IN_RTFW__ $RTEXT_USER_CFLAGS"
+AC_SUBST(RTEXT_KMOD_CFLAGS)
+AC_SUBST(RTEXT_USER_CFLAGS)
 
 dnl ======================================================================
 dnl		create links to Makefiles used by linux-2.6.x
