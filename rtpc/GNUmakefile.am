@@ -6,7 +6,7 @@ EXTRA_LIBRARIES = libkernel_rtpc.a
 libkernel_rtpc_a_CPPFLAGS = \
 	-I$(top_srcdir)/include \
 	-I$(top_builddir)/include \
-	@RTAI_KMOD_CFLAGS@
+	@RTEXT_KMOD_CFLAGS@
 	
 	
 libkernel_rtpc_a_SOURCES = \

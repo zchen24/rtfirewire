@@ -40,8 +40,6 @@
 #define 	QUADLET_SIZE 	32
 #define 	QUADLET_MASK 	(~(QUADLET_SIZE-1))
 #define	QUADLET_ALIGN(val)	(((val)+QUADLET_SIZE-1) & QUADLET_MASK)
-
-int hpsb_iso_res_release(struct hpsb_iso *iso);
 	
 /**
  * @ingroup iso
@@ -65,20 +63,10 @@ void hpsb_iso_stop(struct hpsb_iso *iso)
  */
 void hpsb_iso_shutdown(struct hpsb_iso *iso)
 {
-	if (iso->flags & HPSB_ISO_RES_INIT) {
-		hpsb_iso_stop(iso);
-		iso->host->driver->isoctl(iso, iso->type == HPSB_ISO_XMIT ?
+	hpsb_iso_stop(iso);
+	iso->host->driver->isoctl(iso, iso->type == HPSB_ISO_XMIT ?
 					  XMIT_SHUTDOWN : RECV_SHUTDOWN, 0);
-		iso->flags &= ~HPSB_ISO_RES_INIT;
-	}
-
 	dma_region_free(&iso->data_buf);
-	
-	if(iso->type == HPSB_ISO_XMIT){
-		//we are still owning some bandwidth and channel number, so need to release them here
-		if(hpsb_iso_res_release(iso))
-			HPSB_ERR("failed to release iso %s!!!\n",iso->name);
-	}
 	
 	kfree(iso);
 }
@@ -206,197 +194,6 @@ int hpsb_iso_n_ready(struct hpsb_iso *iso)
 
 /**
  * @ingroup iso
- * @anchor hpsb_iso_res_release
- * release the isochronous resource 
- */
-int hpsb_iso_res_release(struct hpsb_iso *iso)
-{
-	struct hpsb_host *host;
-	int channel, gen;
-	unsigned int bandwidth;
-	nodeid_t irm_id;
-	quadlet_t new, old;
-	u64 ch_addr;
-	
-	host = iso->host;
-	channel = iso->channel;
-	bandwidth = iso->bandwidth;
-	irm_id = host->irm_id;
-	
-	gen = get_hpsb_generation(iso->host);
-	
-	if(!(iso->flags & HPSB_ISO_RES_ALLOC)) {
-		HPSB_ERR("iso %s is not allocated\n", iso->name);
-		return 0;
-	}
-	
-	/**release the channel first**/
-	if(channel>=0 && channel<=31)
-		ch_addr = CSR_CHANNELS_AVAILABLE_LO;
-	else{
-		if(channel>=32 && channel<=63){
-			channel = channel - 32;
-			ch_addr = CSR_CHANNELS_AVAILABLE_HI;
-		}
-		else{
-			HPSB_ERR("out of range channel number %d\n", channel);
-			return -EINVAL;
-		}
-	}
-	
-	if (hpsb_read(host, irm_id, gen,  ch_addr+CSR_REGISTER_BASE, 
-						&old, sizeof(old), IEEE1394_PRIORITY_HIGHEST))
-	{
-		HPSB_ERR("failed to read available channel number\n");
-		return -EAGAIN;
-	}
-	HPSB_NOTICE("%s:%x",ch_addr==CSR_CHANNELS_AVAILABLE_HI \
-								? "channle hi":"channel lo", old); 
-	
-	new = old | (swab32(1UL<<channel)); //not sure if this is correct
-	
-	if(hpsb_lock(host, irm_id, gen, ch_addr+CSR_REGISTER_BASE, 
-					EXTCODE_COMPARE_SWAP, &new, old,IEEE1394_PRIORITY_HIGHEST))
-	{
-		HPSB_ERR("failed to deallocate required channel\n");
-		return -EAGAIN;
-	}
-	
-	iso->channel = -1;
-	HPSB_NOTICE("channel %d deallocated\n",channel);
-	
-	if(bandwidth!=-1){
-		/** deallocate the bandwidth **/
-		if (hpsb_read(host, irm_id, gen,  CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
-						&old, sizeof(old), IEEE1394_PRIORITY_HIGHEST))
-		{
-			HPSB_ERR("failed to read available bandwidth\n");
-			return -EAGAIN;
-		}
-	
-		new = be32_to_cpu(old) + bandwidth; //also include the header size
-		HPSB_NOTICE("new bandwidth: %d\n", new); 
-		new = cpu_to_be32(new);
-	
-		if(hpsb_lock(host, irm_id, gen, CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
-					EXTCODE_COMPARE_SWAP, &new, old,IEEE1394_PRIORITY_HIGHEST))
-		{
-			HPSB_ERR("failed to allocate required bandwidth\n");
-			return -EAGAIN;
-		}
-		iso->bandwidth = -1;
-		
-		iso->flags &= ~HPSB_ISO_RES_ALLOC;
-	
-		HPSB_NOTICE("bandwidth %d units released\n",bandwidth);
-	}
-	
-	return 0;
-}
-
-/**
- * @ingroup iso
- * @anchor hpsb_iso_rec_alloc
- * this function allocates the resource for a certain iso xmit 
- * context
- */
-/*the nubmer of bw units needed to transmit a byte at speed 100Mb/s*/
-#define BASE_UNITS_PERBYTE 5 
-int hpsb_iso_res_alloc(struct hpsb_iso *iso)
-{
-	struct hpsb_host *host;
-	int channel, gen;
-	unsigned int bandwidth;
-	nodeid_t irm_id;
-	quadlet_t new, old;
-	u64 ch_addr;
-	
-	if(!(iso->flags & HPSB_ISO_RES_INIT)){
-		HPSB_ERR("iso %s is not initialized\n", iso->name);
-		return -EINVAL;
-	}
-	
-	if(iso->flags & HPSB_ISO_RES_ALLOC) {
-		HPSB_ERR("iso %s is already allocated\n", iso->name);
-		return 0;
-	}
-	
-	host = iso->host;
-	channel = iso->channel;
-	bandwidth = iso->bandwidth;
-	irm_id = host->irm_id;
-	
-	gen = get_hpsb_generation(iso->host);
-	
-	if(channel>=0 && channel<=31)
-		ch_addr = CSR_CHANNELS_AVAILABLE_LO;
-	else 
-		if(channel>=32 && channel<=63)
-		{
-			channel = channel - 32;
-			ch_addr = CSR_CHANNELS_AVAILABLE_HI;
-		}
-		else{
-			HPSB_ERR("out of range channel number %d\n", channel);
-			return -EINVAL;
-		}
-	
-
-	/*** allocate channel ***/
-	if (hpsb_read(host, irm_id, gen,  ch_addr+CSR_REGISTER_BASE, 
-						&old, sizeof(old), IEEE1394_PRIORITY_HIGHEST))
-	{
-		HPSB_ERR("failed to read available channel\n");
-		return -EAGAIN;
-	}
-	
-	HPSB_NOTICE("old channels: %x\n", be32_to_cpu(old));
-	new = be32_to_cpu(old) & (~(1<<channel)); //not sure if this is correct
-	HPSB_NOTICE("new channels: %x\n", new);
-	new = cpu_to_be32(new);
-	if(new == old) {
-		HPSB_ERR("channle %d already in use\n",channel);
-		return -EBUSY;
-	}
-	
-	if(hpsb_lock(host, irm_id, gen, ch_addr+CSR_REGISTER_BASE, 
-					EXTCODE_COMPARE_SWAP, &new, old,IEEE1394_PRIORITY_HIGHEST))
-	{
-		HPSB_ERR("failed to allocate required channel\n");
-		return -EAGAIN;
-	}
-	
-	HPSB_NOTICE("channel %d allocated\n",channel);
-	
-	
-	/*** allocate bandwidth ***/
-	if (hpsb_read(host, irm_id, gen,  CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
-						&old, sizeof(old), IEEE1394_PRIORITY_HIGHEST))
-	{
-		HPSB_ERR("failed to read available bandwidth\n");
-		return -EAGAIN;
-	}
-
-	new = be32_to_cpu(old) - bandwidth; //also include the header size
-	HPSB_NOTICE("new bandwidth: %d\n", new); 
-	new = cpu_to_be32(new);
-	
-	if(hpsb_lock(host, irm_id, gen, CSR_BANDWIDTH_AVAILABLE+CSR_REGISTER_BASE, 
-					EXTCODE_COMPARE_SWAP, &new, old,IEEE1394_PRIORITY_HIGHEST))
-	{
-		HPSB_ERR("failed to allocate required bandwidth\n");
-		return -EAGAIN;
-	}
-	
-	iso->flags |= HPSB_ISO_RES_ALLOC;
-
-	HPSB_NOTICE("bandwidth %d units allocated\n",iso->bandwidth);
-	
-	return 0;
-}
-
-/**
- * @ingroup iso
  * @anchor hpsb_iso_xmit_init
  * initialize xmit in driver
  * change the iso flags to HPSB_ISO_RES_INIT
@@ -427,23 +224,14 @@ struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 	else
 		return NULL;
 	
-	/** we calculate the bandwidth here **/
-	iso->bandwidth = ((iso->buf_size + 8)*BASE_UNITS_PERBYTE)/speed_val+1;
-	
 	/** also assign the channel number **/
 	iso->channel = channel;
 
 	/* tell the driver to start working */
 	if (host->driver->isoctl(iso, XMIT_INIT, 0))
 		goto err;
-
-	iso->flags |= HPSB_ISO_RES_INIT;
 	
 	HPSB_NOTICE("bandwidth:%d, channel:%d\n", iso->bandwidth, iso->channel);
-	
-	if(hpsb_iso_res_alloc(iso)){
-		goto err;
-	}
 	
 	return iso;
 
@@ -479,8 +267,7 @@ struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
 	/* tell the driver to start working */
 	if (host->driver->isoctl(iso, RECV_INIT, 0))
 		goto err;
-
-	iso->flags |= HPSB_ISO_RES_INIT;
+	
 	return iso;
 
 err:
@@ -705,33 +492,6 @@ out:
 	return rv;
 }
 
-void hpsb_iso_xmit_callback(struct hpsb_iso *iso, void *sem)
-{
-	rtos_event_signal((rtos_event_t *)sem);
-}
-/**
- * @ingroup iso
- * @anchor hpsb_iso_xmit_sync
- */
-int hpsb_iso_xmit_sync(struct hpsb_iso *iso)
-{
-	if (iso->type != HPSB_ISO_XMIT)
-		return -EINVAL;
-	
-	rtos_event_t sem;
-	rtos_event_init(&sem);
-	
-	iso->callback = hpsb_iso_xmit_callback;
-	iso->arg = (void *)&sem;
-	
-	rtos_event_wait(&sem);
-	
-	rtos_event_delete(&sem);
-	
-	return 0;
-	//~ return wait_event_interruptible(iso->waitq, hpsb_iso_n_ready(iso) == iso->buf_packets);
-}
-
 /**
  * @ingroup iso
  * @anchor hpsb_iso_packet_sent
@@ -818,12 +578,10 @@ int hpsb_iso_recv_release_packets(struct hpsb_iso *iso, unsigned int n_packets)
 
 /**
  * @ingroup iso
- * @anchor hpsb_iso_wake
+ * @anchor hpsb_iso_callback
  */
-void hpsb_iso_wake(struct hpsb_iso *iso)
+void hpsb_iso_callback(struct hpsb_iso *iso)
 {
-	//~ wake_up_interruptible(&iso->waitq);
-
 	if (iso->callback)
 		iso->callback(iso, iso->arg);
 	else

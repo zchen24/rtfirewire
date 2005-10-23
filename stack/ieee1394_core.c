@@ -48,17 +48,6 @@
 
 #define MICRO_SEC	1000 //in ns
 
-/**=========== Time Probing ============*/
-static int timing_probe = 0;
-MODULE_PARM(timing_probe, "i");
-MODULE_PARM_DESC(timing_probe, "Enable time probing between tophalf and bottomhalf ISR (default = NO(0)).");
-static int pacnt = 0;
-static int pbcnt = 0;
-struct timing_struct{
-	__u64 paval;
-	__u64 pbval;
-} time_pair[10000];
-
 /*Internal priorities of each transaction server, 
 relative to the base priority of server module*/
 #define RESP_SERVER_PRI	RTDM_TASK_HIGHEST_PRIORITY - 4
@@ -990,12 +979,6 @@ static void fill_async_lock_resp(struct hpsb_packet *packet, int rcode, int extc
  */
 void req_worker(unsigned long arg)
 {
-	
-	if(timing_probe && pbcnt < 10000){
-		time_pair[pbcnt].pbval = rtos_get_time();
-		pbcnt++;
-	}
-	
 	int priority = (int)arg;
 	struct rtpkb *pkb;
 	if(priority == 0)
@@ -1220,10 +1203,6 @@ void hpsb_packet_received(struct hpsb_packet *packet)
 								0, //no delay wanted
 								NULL, //for now, no callback needed from server
 								0, NULL); //no callback data; no name
-		if(timing_probe && pacnt < 10000){
-			time_pair[pacnt].paval=rtos_get_time();
-			pacnt++;
-		}
 		rt_serv_sync(broker);
 	}
 }
@@ -1343,82 +1322,6 @@ void resp_worker(unsigned long dummy)
 			hpsb_free_packet(packet);
 	}
 }
-		
-	
-#define PUTF(fmt, args...)				\
-do {							\
-	len += sprintf(page + len, fmt, ## args);	\
-	pos = begin + len;				\
-	if (pos < off) {				\
-		len = 0;				\
-		begin = pos;				\
-	}						\
-	if (pos > off + count)				\
-		goto done_proc;				\
-} while (0)
-/*==================== for data reduction =======================*/
-#define MAX_BIN 200
-struct bin {
-	int val;
-	int counter;
-};
-
-struct bin binG[MAX_BIN];
-#define BIN_STEP 1000 //1 microsecond
-
-static int timing_read_proc(char *page, char **start, off_t off, int count,
-					int *eof, void *data)
-{
-	off_t begin=0, pos=0;
-	int len=0;
-	int i;
-	
-	if(timing_probe && pacnt ==10000 && pbcnt == 10000){
-		 for(i=0;i<MAX_BIN;i++){
-			binG[i].val=0;
-			binG[i].counter=0;
-		}
-		while(pacnt >= 0 ){
-			int latency_round = ((int)(time_pair[pbcnt].pbval - time_pair[pacnt].paval)/BIN_STEP) *BIN_STEP;
-			for(i=0;i<MAX_BIN;i++){
-				if(binG[i].val==0)
-					binG[i].val=latency_round;
-				if(binG[i].val==latency_round){
-					binG[i].counter+=1;
-					break;
-				}
-			}
-			time_pair[pbcnt].pbval = time_pair[pacnt].paval =0;
-			pacnt = pbcnt = pacnt - 1;
-		}
-		PUTF("\n\n==============================================\n\n");
-		for(i=0;i<MAX_BIN;i++){
-			if(binG[i].val!=0)
-				PUTF("%d - bin val:%d, bin counter: %d\n", i, binG[i].val, binG[i].counter);
-		}
-		PUTF("\n\n==============================================\n\n");
-
-done_proc:
-		*start = page + (off - begin);
-		len -= (off - begin);
-		if (len > count)
-			len = count;
-		else {
-			*eof = 1;
-			if (len <= 0)
-			return 0;
-		}	
-
-		return len;
-	}
-	else{
-		PUTF("Timing probe not enabled or the measurment not finished yet!\n");
-		return len;
-	}
-		
-}
-#undef PUTF
-
 
 struct proc_dir_entry *rtfw_procfs_entry;
 	
@@ -1431,29 +1334,20 @@ int ieee1394_core_init(void)
 	int ret=0;
 	unsigned char *name;
 	
-	struct proc_dir_entry *proc_entry;
-	proc_entry = create_proc_entry("ieee1394_th_timing", S_IFREG | S_IRUGO | S_IWUSR, 0);
-	if(!proc_entry) {
-		rtos_print("failed to create proc entry!\n");
-		return -ENOMEM;
-	}
-	proc_entry->read_proc = timing_read_proc;
 	/**
 	 * Must be done before we start anything else, since it may be used
 	*/
 	rtfw_procfs_entry = proc_mkdir("rt-firewire",0);
 	if(rtfw_procfs_entry==NULL) {
-		HPSB_ERR("unalbe to create /proc/rt-firewire\n");
+		HPSB_ERR("unable to create /proc/rt-firewire\n");
 		return -ENOMEM;
 	}
-	
-	/* non-fatal error */
-	if (hpsb_init_config_roms()) {
-		HPSB_ERR("Failed to initialize some config rom entries.\n");
-		HPSB_ERR("Some features may not be available\n");
-	}
-	
-	
+	if(!proc_mkdir("drv",rtfw_procfs_entry))
+		HPSB_ERR("unable to create /proc/rt-firewire/drv\n");
+	if(!proc_mkdir("tran",rtfw_procfs_entry))
+		HPSB_ERR("unable to create /proc/rt-firewire/tran\n");
+	if(!proc_mkdir("appl",rtfw_procfs_entry))
+		HPSB_ERR("unable to create /proc/rt-firewire/appl\n");
 	
 	rtpkb_prio_queue_init(&resp_list);
 	name = "resp1394";
@@ -1528,7 +1422,9 @@ error_exit_bis_req_server:
 	rtpkb_pool_release(&bis_req_pool);
 	rt_serv_delete(resp_server);
 error_exit_resp_server:
-	hpsb_cleanup_config_roms();
+	remove_proc_entry("appl",rtfw_procfs_entry);
+	remove_proc_entry("tran",rtfw_procfs_entry);
+	remove_proc_entry("drv",rtfw_procfs_entry);
 	remove_proc_entry("rt-firewire",0);
 	return ret;
 }
@@ -1550,8 +1446,9 @@ void ieee1394_core_cleanup(void)
 	rtpkb_pool_release(&nrt_req_pool);
 	rtpkb_pool_release(&rt_req_pool);
 	
-	hpsb_cleanup_config_roms();
+	remove_proc_entry("appl",rtfw_procfs_entry);
+	remove_proc_entry("tran",rtfw_procfs_entry);
+	remove_proc_entry("drv",rtfw_procfs_entry);
 	remove_proc_entry("rt-firewire",0);
-	remove_proc_entry("ieee1394_th_timing",0);
 }
 

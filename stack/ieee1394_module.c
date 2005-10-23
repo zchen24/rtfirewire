@@ -158,7 +158,7 @@ EXPORT_SYMBOL(hpsb_iso_recv_release_packets);
 EXPORT_SYMBOL(hpsb_iso_n_ready);
 EXPORT_SYMBOL(hpsb_iso_packet_sent);
 EXPORT_SYMBOL(hpsb_iso_packet_received);
-EXPORT_SYMBOL(hpsb_iso_wake);
+EXPORT_SYMBOL(hpsb_iso_callback);
 EXPORT_SYMBOL(hpsb_iso_recv_flush);
 
 /** csr1212.c **/

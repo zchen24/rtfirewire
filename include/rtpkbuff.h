@@ -170,6 +170,10 @@ struct rtpkb {
 	/*protocol-specific stuff goes here, size agreed among all exsiting protocols, cant be exceeded!!! */
 	char		specific_stuff[256];
 	
+//used for RTcap
+	struct rtpkb	*comp;			/* the compensating packet */
+	struct rtpkb	*next_cap;		/* the next captured packet */
+	
 };
 
 struct rtpkb_queue_base {

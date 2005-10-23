@@ -29,6 +29,7 @@
  #include <linux/spinlock.h>
  
  #include <rt1394_sys.h>
+ #include <rtai/timer.h>
  
  #include <rt_serv.h>
  
@@ -63,7 +64,7 @@
  LIST_HEAD(rt_servers_list);
  LIST_HEAD(nrt_servers_list);
  
- static rwlock_t servers_list_lock = RW_LOCK_UNLOCKED;
+ static spinlock_t servers_list_lock = SPIN_LOCK_UNLOCKED;
  static rtos_nrt_signal_t nrt_serv_srq;
 
 struct rt_serv_struct *irq_brk;
@@ -304,7 +305,7 @@ void rt_irq_broker_sync(void)
 					rtos_task_sleep_until(srv->firing_time);
 
 		while(1){
-					rtos_spin_lock_irqsave(&srv->requests_list_lock, flags);
+			rtos_spin_lock_irqsave(&srv->requests_list_lock, flags);
 					struct rt_request_struct *req = srv->requests_list.next;
 					if(req->firing_time > rtdm_clock_read()){
 						srv->firing_time = req->firing_time;
@@ -455,7 +456,6 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 		spin_lock(&servers_list_lock);
 		list_add_tail(&srv->entry, &rt_servers_list);
 		spin_unlock(&servers_list_lock);
-
 #if defined(CONFIG_FUSION_090)	
 		if(rtos_task_init(&srv->task, name, rt_serv_worker, (void *)srv, srv->priority, 0)) {
 #else
@@ -495,7 +495,7 @@ static int serv_read_proc(char *page, char **start, off_t off, int count,
 	off_t begin=0, pos=0;
 	int len=0;
 	
-	read_lock(&servers_list_lock);
+	spin_lock(&servers_list_lock);
 
 	PUTF("server name\t\tpriority\tpending_req\n");
 	list_for_each(lh, &rt_servers_list) {
@@ -509,7 +509,7 @@ static int serv_read_proc(char *page, char **start, off_t off, int count,
 	}
 
 done_proc:
-	read_unlock(&servers_list_lock);
+	spin_unlock(&servers_list_lock);
 
 	*start = page + (off - begin);
 	len -= (off - begin);
@@ -528,6 +528,13 @@ done_proc:
 
 int serv_module_init(void)
 {
+	int err;
+	err = rt_timer_start(TM_ONESHOT);
+	if(err){
+	    RTSERV_ERR("failed to start timer!\n");
+	    return 1;
+	}
+	
 	struct proc_dir_entry *proc_entry;
 	
 	proc_entry = create_proc_entry("servers", S_IFREG | S_IRUGO | S_IWUSR, 0);

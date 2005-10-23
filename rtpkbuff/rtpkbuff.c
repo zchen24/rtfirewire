@@ -133,10 +133,23 @@ struct rtpkb *alloc_rtpkb(unsigned int size,struct rtpkb_pool *pool)
  *  kfree_rtpkb
  *  @pkb    rtpkb
  */
-void kfree_rtpkb(struct rtpkb *pkb)
+void kfree_rtpkb(struct rtpkb *rt_pkb)
 {
-    RTPKB_ASSERT(pkb != NULL, return;);
+	RTPKB_ASSERT(pkb != NULL, return;);
     RTPKB_ASSERT(pkb->pool != NULL, return;);
+    
+	struct rtpkb *pkb;
+    if(rt_pkb->comp != NULL){
+    	pkb = rt_pkb->comp;
+		rtpkb->comp == NULL;
+    	//now move the packet to the compensating pool
+    	struct rtpkb_pool *temp;
+    	temp = rt_pkb->pool;
+    	rt_pkb->pool = pkb->pool;
+    	pkb->pool = temp;
+    }else
+    	pkb = rt_pkb;
+    
 	//this is to prevent that the same pkb be returned to pool twice. 
     RTPKB_ASSERT(pkb->list != &(pkb->pool->queue), return;);
 	

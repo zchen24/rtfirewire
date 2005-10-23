@@ -10,7 +10,7 @@ EXTRA_LIBRARIES = libkernel_ieee1394.a
 libkernel_ieee1394_a_CPPFLAGS = \
 	-I$(top_srcdir)/include \
 	-I$(top_builddir)/include \
-	@RTAI_KMOD_CFLAGS@
+	@RTEXT_KMOD_CFLAGS@
 
 libkernel_ieee1394_a_SOURCES = \
     ieee1394_core.c\

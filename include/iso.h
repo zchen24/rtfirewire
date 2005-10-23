@@ -51,18 +51,6 @@ Packet descriptor - the API maintains a ring buffer of these packet
 descriptors in kernel memory (hpsb_iso.infos[]).  
 */
 
-//this structure is delivered by highlevel applications  to kernel as config object
-//~ struct hpsb_iso_config {
-	//~ void *iso_handle; //pointer to the opaque hpsb_iso strucutre
-	//~ unsigned int data_buf_size;
-	//~ unsigned int buf_packets;
-	//~ int channel;
-	//~ int irqinterval;
-	//~ int dma_mode;
-	//~ int pri;
-	//~ void (*callback)(void *, void *); //one arg is iso
-	//~ void *arg; //another arg of callback
-//~ };
 struct hpsb_iso;
 /**
  * @ingroup iso
@@ -177,8 +165,6 @@ struct hpsb_iso {
 	atomic_t overflows;
 
 	/*! private flags to track initialization progress */
-#define HPSB_ISO_RES_INIT	(1<<0)   //resource initialized (channel number and bandwidth)
-#define HPSB_ISO_RES_ALLOC	(1<<1) //resource allocated
 #define HPSB_ISO_STARTED  (1<<2)     //everything has been running. 
 	unsigned int flags;
 
@@ -256,7 +242,7 @@ void hpsb_iso_packet_received(struct hpsb_iso *iso, u32 offset, u16 len,
 			      u16 cycle, u8 channel, u8 tag, u8 sy);
 
 /* call to wake waiting processes after buffer space has opened up. */
-void hpsb_iso_wake(struct hpsb_iso *iso);
+void hpsb_iso_callback(struct hpsb_iso *iso);
 
 #endif /* __KERNEL__ */
 #endif /* IEEE1394_ISO_H */

@@ -1553,7 +1553,7 @@ static void ohci_iso_recv_bufferfill_parse(struct hpsb_iso *iso, struct dma_iso_
 	}
 
 	if (wake)
-		hpsb_iso_wake(iso);
+		hpsb_iso_callback(iso);
 }
 
 
@@ -1689,7 +1689,7 @@ static void ohci_iso_recv_packetperbuf_task(struct hpsb_iso *iso, struct dma_iso
 
 out:
 	if (wake)
-		hpsb_iso_wake(iso);
+		hpsb_iso_callback(iso);
 }
 
 
@@ -1738,7 +1738,7 @@ static int ohci_iso_xmit_init(struct hpsb_iso *iso)
 	prog_size = sizeof(struct iso_xmit_cmd) * iso->buf_packets;
 
 	if (dma_prog_region_alloc(&xmit->prog, prog_size, xmit->ohci->dev))
-		goto err;
+		goto err;1
 
 	ohci1394_init_iso_ctx(base,OHCI_ISO_TRANSMIT,iso);
 
@@ -1840,7 +1840,7 @@ static void ohci_iso_xmit_task(unsigned long data)
 	}
 
 	if (wake)
-		hpsb_iso_wake(iso);
+		hpsb_iso_callback(iso);
 }
 
 
@@ -1996,7 +1996,7 @@ static int ohci_iso_xmit_start(struct hpsb_iso *iso, int cycle)
 
 
 /************************************/
-/*     ISO Control from RT-FireWire 	       */
+/*     ISO Control from RT-FireWire  kernel	       */
 /************************************/
 /**
  * @ingroup ohci

@@ -451,7 +451,9 @@ static inline void rtos_irq_reacquire_lock(void)
 #endif /* CONFIG_RTAI_24) || defined(CONFIG_RTAI_30) || (CONFIG_RTAI_31) || defined(CONFIG_RTAI_32)*/
 
 
-#if defined(CONFIG_FUSION_090)
+//#if defined(CONFIG_FUSION_090)
+#if defined(CONFIG_XENO_2x)
+/*supports Xenomai 2.0 or better */
 
 #include <nucleus/pod.h>
 #include <rtdm/rtdm_driver.h>
@@ -611,7 +613,7 @@ static inline void rtos_irq_reacquire_lock(void)
     xnpod_set_thread_mode(xnpod_current_thread(), XNLOCK, 0);
 }
 
-#endif /*CONFIG_FUSION_072) || defined(CONFIG_FUSION_074*/
+#endif /*CONFIG_XENO_2x*/
 
 #endif /* __RTOS_PRIMITIVES_H_*/
 
