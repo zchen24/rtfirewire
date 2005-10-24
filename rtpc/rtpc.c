@@ -280,5 +280,3 @@ EXPORT_SYMBOL(rtfw_rtpc_dispatch_call);
 EXPORT_SYMBOL(rtfw_rtpc_complete_call);
 EXPORT_SYMBOL(rtfw_rtpc_complete_call_nrt);
 
-
-

@@ -61,5 +61,3 @@ struct bis_cmd {
 
 #endif /* _IEEE1394_BIS_H */
 
-
-	
