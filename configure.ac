@@ -336,7 +336,7 @@ AM_CONDITIONAL(CONFIG_KBUILD,[test "$CONFIG_KBUILD" = y])
 case "${CONFIG_RTFW_RTEXT_VERSION}" in
     rtai-3x)
         RTEXT_USER_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
-        CONFIG_RTNET_RTEXT_ARCH="`${RTAI_CONFIG} --arch`"
+        CONFIG_RTFW_RTEXT_ARCH="`${RTAI_CONFIG} --arch`"
         ;;
     xeno-2x)
         RTEXT_USER_CFLAGS="`${XENO_CONFIG} --xeno-cflags`"
@@ -601,7 +601,7 @@ case "${CONFIG_RTFW_RTEXT_VERSION}" in
             AC_MSG_RESULT([${CONFIG_REGPARM:-n}])
         fi
         ;;
-    xeno-2x) CONFIG_RTNET_LXRT=n
+    xeno-2x) CONFIG_RTFW_LXRT=n
         ;;
     *)
         AC_MSG_ERROR([*** internal error])
@@ -665,6 +665,22 @@ if test x$CONFIG_KBUILD = xy; then
 	    AC_CONFIG_LINKS(${DIR}/Makefile:${DIR}/Makefile.kbuild)
 	done
 fi
+
+dnl ======================================================================
+dnl             create links to Xenomai symbols
+dnl ======================================================================
+
+case "${CONFIG_RTFW_RTEXT_VERSION}" in
+    xeno-2x)
+        if test x$CONFIG_KBUILD = xy; then
+            mkdir -p symbols
+            rm -rf symbols/*
+            for FILE in `ls ${RTFW_RTEXT_SYMBOLS}/*`; do
+                ${LN_S} ${FILE} symbols/$(basename ${FILE})
+            done
+        fi
+        ;;
+esac
 
 dnl ======================================================================
 dnl		generate output

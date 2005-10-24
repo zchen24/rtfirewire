@@ -19623,7 +19623,7 @@ fi
 case "${CONFIG_RTFW_RTEXT_VERSION}" in
     rtai-3x)
         RTEXT_USER_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
-        CONFIG_RTNET_RTEXT_ARCH="`${RTAI_CONFIG} --arch`"
+        CONFIG_RTFW_RTEXT_ARCH="`${RTAI_CONFIG} --arch`"
         ;;
     xeno-2x)
         RTEXT_USER_CFLAGS="`${XENO_CONFIG} --xeno-cflags`"
@@ -20092,7 +20092,7 @@ echo "$as_me: WARNING:
 echo "${ECHO_T}${CONFIG_REGPARM:-n}" >&6
         fi
         ;;
-    xeno-2x) CONFIG_RTNET_LXRT=n
+    xeno-2x) CONFIG_RTFW_LXRT=n
         ;;
     *)
         { { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -20149,6 +20149,19 @@ if test x$CONFIG_KBUILD = xy; then
 
 	done
 fi
+
+
+case "${CONFIG_RTFW_RTEXT_VERSION}" in
+    xeno-2x)
+        if test x$CONFIG_KBUILD = xy; then
+            mkdir -p symbols
+            rm -rf symbols/*
+            for FILE in `ls ${RTFW_RTEXT_SYMBOLS}/*`; do
+                ${LN_S} ${FILE} symbols/$(basename ${FILE})
+            done
+        fi
+        ;;
+esac
 
 { echo "$as_me:$LINENO: generating output" >&5
 echo "$as_me: generating output" >&6;}
