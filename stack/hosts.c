@@ -58,7 +58,7 @@
 DECLARE_MUTEX(hpsb_hosts_lock);
 
 /*! module parameter,Number of additional global realtime packet buffers per network adapter*/
-static unsigned int device_rtpkbs = DEFAULT_DEVICE_RTPKBS;
+unsigned int device_rtpkbs = DEFAULT_DEVICE_RTPKBS;
 MODULE_PARM(device_rtpkbs, "i");
 MODULE_PARM_DESC(device_rtpkbs, "Number of additional global realtime packet "
                  "buffers per network adapter");

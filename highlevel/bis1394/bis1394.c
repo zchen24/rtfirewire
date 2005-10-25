@@ -105,7 +105,7 @@ static void bis_echo_reply(struct hpsb_packet *packet, void *data)
 		goto echo_fail;
 	}	
 		
-	int	ret = 0;
+	int	ret;
 	ret = hpsb_packet_success(packet);
 	if(ret<0){
 		

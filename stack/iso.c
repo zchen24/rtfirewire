@@ -314,7 +314,6 @@ int hpsb_iso_recv_set_channel_mask(struct hpsb_iso *iso, u64 mask)
  */
 int hpsb_iso_recv_flush(struct hpsb_iso *iso)
 {
-	(struct hpsb_iso*)iso=iso;
 	if (iso->type != HPSB_ISO_RECV)
 		return -EINVAL;
 	return iso->host->driver->isoctl(iso, RECV_FLUSH, 0);

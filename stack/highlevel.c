@@ -46,7 +46,7 @@
 #include <highlevel.h>
 #include <ieee1394_chrdev.h>
 
-static LIST_HEAD(hl_drivers);
+LIST_HEAD(hl_drivers);
 static rwlock_t hl_drivers_lock = RW_LOCK_UNLOCKED;
 
 static LIST_HEAD(hl_irqs);
