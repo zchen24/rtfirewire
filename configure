@@ -19778,12 +19778,6 @@ else
 	    rm -rf .tmp_versions;									\
 	fi;												\
 	"
-     if test -e $RTEXT_LINUX_DIR/Module.symvers; then
-	mv $RTEXT_LINUX_DIR/Module.symvers $RTEXT_LINUX_DIR/Module.symvers.let_modpost_be_quiet
-   fi
-   if test -e $RTEXT_LINUX_DIR/vmlinux; then
-	mv $RTEXT_LINUX_DIR/vmlinux $RTFW_LINUX_DIR/vmlinux.let_modpost_be_quiet
-   fi
 fi
 
 echo "$as_me:$LINENO: checking for kernel module extension" >&5
@@ -20165,7 +20159,7 @@ esac
 { echo "$as_me:$LINENO: generating output" >&5
 echo "$as_me: generating output" >&6;}
 
-                                                                                                                        ac_config_files="$ac_config_files GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rtpc/GNUmakefile rt_serv/GNUmakefile stack/GNUmakefile tools/GNUmakefile"
+                                                                                                                        ac_config_files="$ac_config_files GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rt_serv/GNUmakefile rtpc/GNUmakefile stack/GNUmakefile tools/GNUmakefile"
 
 
 cat >confcache <<\_ACEOF
@@ -20777,8 +20771,8 @@ do
   "drivers/ohci/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES drivers/ohci/GNUmakefile" ;;
   "drivers/sim/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES drivers/sim/GNUmakefile" ;;
   "rtpkbuff/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rtpkbuff/GNUmakefile" ;;
-  "rtpc/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rtpc/GNUmakefile" ;;
   "rt_serv/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rt_serv/GNUmakefile" ;;
+  "rtpc/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rtpc/GNUmakefile" ;;
   "stack/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES stack/GNUmakefile" ;;
   "tools/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES tools/GNUmakefile" ;;
   "${DIR}/Makefile" ) CONFIG_LINKS="$CONFIG_LINKS ${DIR}/Makefile:${DIR}/Makefile.kbuild" ;;

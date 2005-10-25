@@ -479,13 +479,6 @@ else
 	    rm -rf .tmp_versions;									\
 	fi;												\
 	"
-  dnl === Hack to suppress undefined symbol warnings during MODPOST stage ===
-   if test -e $RTEXT_LINUX_DIR/Module.symvers; then
-	mv $RTEXT_LINUX_DIR/Module.symvers $RTEXT_LINUX_DIR/Module.symvers.let_modpost_be_quiet
-   fi
-   if test -e $RTEXT_LINUX_DIR/vmlinux; then
-	mv $RTEXT_LINUX_DIR/vmlinux $RTFW_LINUX_DIR/vmlinux.let_modpost_be_quiet
-   fi
 fi
 
 AC_MSG_CHECKING([for kernel module extension])
@@ -695,8 +688,8 @@ AC_CONFIG_FILES([GNUmakefile \
 		drivers/ohci/GNUmakefile \
 		drivers/sim/GNUmakefile \
 		rtpkbuff/GNUmakefile \
-		rtpc/GNUmakefile \
 		rt_serv/GNUmakefile \
+		rtpc/GNUmakefile \
 		stack/GNUmakefile \
 		tools/GNUmakefile \
 		])
