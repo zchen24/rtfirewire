@@ -1,3 +1,7 @@
+dnl===========================================================
+dnl	due to the enormous similarities, most of the script were borrowed from RTnet <www.rtnet.org>
+dnl===========================================================
+
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
@@ -271,7 +275,6 @@ case "$CONFIG_RTFW_RTEXT_VERSION" in
             *) AC_MSG_ERROR([*** Please enable RTDM skin]) ;;
         esac
 
-        # check for pipes, needed by rt-firewire
 #        AC_MSG_CHECKING([for RTAI pipes])
 #        case "${CONFIG_RTAI_OPT_NATIVE_PIPE}" in
 #            y) AC_MSG_RESULT([${CONFIG_RTAI_OPT_NATIVE_PIPE}]) ;;
@@ -462,6 +465,7 @@ else
 		srcdir=\"\`cd \$(srcdir) && pwd\`\"							\
 		build_objs='\$(call src2obj,c,\$^)'							\
 		build_target='\$(basename \$@)'								\
+		MODVERDIR=\"\`cd \$(top_builddir) && pwd\`/symbols\"        \
 		modules											\
 		"
    RTFW_KBUILD_CLEAN="											\
@@ -475,7 +479,7 @@ else
 	    rm -rf .tmp_versions;									\
 	fi;												\
 	"
-dnl === Hack to suppress undefined symbol warnings during MODPOST stage ===
+  dnl === Hack to suppress undefined symbol warnings during MODPOST stage ===
    if test -e $RTEXT_LINUX_DIR/Module.symvers; then
 	mv $RTEXT_LINUX_DIR/Module.symvers $RTEXT_LINUX_DIR/Module.symvers.let_modpost_be_quiet
    fi
@@ -613,14 +617,10 @@ if test "$CONFIG_RTFW_LXRT" = "y"; then
     AC_DEFINE(CONFIG_RTFW_LXRT, 1, [RTAI LXRT])
 fi
 
-dnl ======================================================================
-dnl		hac^H^H^Hfix problem with multible defined symbols problem
-dnl		shamelessly stolen from RTAI-3.1 tnx to Philippe
-dnl ======================================================================
-
+dnl ============================================================
 dnl CAUTION: We need to have the CONFIG_RTFW_XX symbols always defined when
 dnl the configuration header is read, but we want the Autoconf-produced
-dnl symbols to be defined only when compiling RTFW. This way, we won't
+dnl symbols to be defined only when compiling RT-FireWire. This way, we won't
 dnl pollute the namespace with the latter when our configuration header is
 dnl indirectly included by a client application. To achieve this, we ask
 dnl autoheader to produce the following header structure:

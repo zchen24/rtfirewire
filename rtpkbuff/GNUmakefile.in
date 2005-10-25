@@ -174,7 +174,7 @@ OBJS = \
 	  rtpkbuff$(modext) 
 
 
-EXTRA_DIST = Makefile.kbuild1
+EXTRA_DIST = Makefile.kbuild
 
 DISTCLEANFILES = Makefile
 subdir = rtpkbuff

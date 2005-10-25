@@ -1,7 +1,7 @@
 /* rtfirewire/drivers/fake/rt_sim1394.c
  * simulated FireWire adapter for RT-FireWire stack. 
  *
- * Copyright (C) 2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ * Copyright (C) 2005 Zhang Yuchen <yuchen623@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,13 +34,14 @@
  
  static int sim1394_transmit_packet(struct hpsb_host *host, struct hpsb_packet *packet)
 {
-        int i, size;
+        int size;
 	struct hpsb_host *recvhost;
 
 	size= packet->header_size/4;
 	size = (size > 4 ? 4 : size);
 
 #ifdef CONFIG_IEEE1394_VERBOSEDEBUG
+	int i;
 	rtos_print("Sim1394_xmit:");
 	for (i = 0; i < size; i++)
 		rtos_print(" %08x", packet->header[i]);
@@ -148,10 +149,5 @@ static int sim1394_isoctl(struct hpsb_iso *iso, enum isoctl_cmd command, unsigne
  
  module_init(sim1394_init);
  module_exit(sim1394_exit);
- 
  MODULE_LICENSE("GPL");
- 
- 
- 
- 
  

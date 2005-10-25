@@ -19546,7 +19546,6 @@ echo "$as_me: error: *** Please enable RTDM skin" >&2;}
    { (exit 1); exit 1; }; } ;;
         esac
 
-        # check for pipes, needed by rt-firewire
 #        AC_MSG_CHECKING([for RTAI pipes])
 #        case "${CONFIG_RTAI_OPT_NATIVE_PIPE}" in
 #            y) AC_MSG_RESULT([${CONFIG_RTAI_OPT_NATIVE_PIPE}]) ;;
@@ -19765,6 +19764,7 @@ else
 		srcdir=\"\`cd \$(srcdir) && pwd\`\"							\
 		build_objs='\$(call src2obj,c,\$^)'							\
 		build_target='\$(basename \$@)'								\
+		MODVERDIR=\"\`cd \$(top_builddir) && pwd\`/symbols\"        \
 		modules											\
 		"
    RTFW_KBUILD_CLEAN="											\
@@ -19778,7 +19778,7 @@ else
 	    rm -rf .tmp_versions;									\
 	fi;												\
 	"
-   if test -e $RTEXT_LINUX_DIR/Module.symvers; then
+     if test -e $RTEXT_LINUX_DIR/Module.symvers; then
 	mv $RTEXT_LINUX_DIR/Module.symvers $RTEXT_LINUX_DIR/Module.symvers.let_modpost_be_quiet
    fi
    if test -e $RTEXT_LINUX_DIR/vmlinux; then
@@ -20118,7 +20118,6 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 fi
-
 
 
 

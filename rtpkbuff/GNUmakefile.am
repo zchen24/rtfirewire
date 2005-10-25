@@ -32,7 +32,7 @@ clean-local: $(libkernel_rtpkbuff_a_SOURCES)
 	@RTFW_KBUILD_CLEAN@
    
 
-EXTRA_DIST = Makefile.kbuild1
+EXTRA_DIST = Makefile.kbuild
 
 DISTCLEANFILES = Makefile
 
