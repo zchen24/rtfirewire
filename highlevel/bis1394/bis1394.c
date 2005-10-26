@@ -83,6 +83,7 @@ static void bis_echo_reply(struct hpsb_packet *packet, void *data)
 	unsigned long	flags;
 	struct rt_proc_call	*call = NULL;
 	struct bis_cmd	*cmd;
+	int	ret = 0;
 	
 	struct bis_host_info	*hi = (struct bis_host_info *)hpsb_get_hostinfo(&bis_highlevel,packet->host);
 	
@@ -95,22 +96,17 @@ static void bis_echo_reply(struct hpsb_packet *packet, void *data)
 	
 	
 	if(!list_empty(&hi->echo_calls)) {
-		
 		call = (struct rt_proc_call *)(hi->echo_calls.next);
 		list_del(&call->list_entry);
 		rtos_spin_unlock_irqrestore(&hi->echo_calls_lock, flags);
 	}else {
-		
 		rtos_spin_unlock_irqrestore(&hi->echo_calls_lock, flags);
 		goto echo_fail;
 	}	
 		
-	int	ret;
 	ret = hpsb_packet_success(packet);
-	if(ret<0){
-		
+	if(ret<0)
 		goto echo_fail;
-	}
 	
 	cmd = rtpc_get_priv(call, struct bis_cmd);
 	cmd->args.ping.rtt = packet->xmit_time;
@@ -126,15 +122,16 @@ int bis_send_echo(struct hpsb_host *host, nodeid_t node, size_t msg_size,
 {
 	
 	unsigned int generation = atomic_read(&host->generation);
+	struct hpsb_packet *packet;
 	int ret = 0;
+	
 	
 	if(msg_size == 0)
 		return -EINVAL;
 	
 	/** make packet with highest priority **/
-	struct hpsb_packet *packet = hpsb_make_readpacket(host, node, BIS1394_REGION_ADDR_BASE, msg_size,pri);
+	packet = hpsb_make_readpacket(host, node, BIS1394_REGION_ADDR_BASE, msg_size,pri);
 	if(!packet) {
-		
 		return -ENOMEM;
 	}
 	
@@ -143,7 +140,6 @@ int bis_send_echo(struct hpsb_host *host, nodeid_t node, size_t msg_size,
 	hpsb_set_packet_complete_task(packet, bis_echo_reply,0);
 	ret = hpsb_send_packet(packet);
 	if (ret<0) {
-		
 		hpsb_free_tlabel(packet);
 		hpsb_free_packet(packet);
 	}

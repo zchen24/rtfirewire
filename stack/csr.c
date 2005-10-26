@@ -584,6 +584,7 @@ static int read_regs(struct hpsb_host *host, struct hpsb_packet *packet, quadlet
  */
 static int write_regs(struct hpsb_host *host, struct hpsb_packet *packet, size_t length)
 {
+	quadlet_t *data;
 	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
 
 	int csraddr = addr - CSR_REGISTER_BASE;
@@ -592,8 +593,8 @@ static int write_regs(struct hpsb_host *host, struct hpsb_packet *packet, size_t
                 return RCODE_TYPE_ERROR;
 
         length /= 4;
-
-	quadlet_t *data = packet->data;
+	
+	data = packet->data;
         switch (csraddr) {
         case CSR_STATE_CLEAR:
                 /* FIXME FIXME FIXME */
@@ -691,6 +692,8 @@ static int write_regs(struct hpsb_host *host, struct hpsb_packet *packet, size_t
  */
 static int lock_regs(struct hpsb_host *host, struct hpsb_packet *packet, quadlet_t *store)
 {
+	quadlet_t data;
+	quadlet_t arg;
         int extcode = packet->header[3] & 0xffff;
 	u64 addr = (((u64)(packet->header[1] & 0xffff)) << 32) | packet->header[2];
 	int csraddr = addr - CSR_REGISTER_BASE;
@@ -704,8 +707,9 @@ static int lock_regs(struct hpsb_host *host, struct hpsb_packet *packet, quadlet
             || extcode != EXTCODE_COMPARE_SWAP)
                 goto unsupported_lockreq;
 
-        quadlet_t data = be32_to_cpu(packet->header[4]);
-        quadlet_t arg = be32_to_cpu(packet->header[5]);
+        
+	data = be32_to_cpu(packet->header[4]);
+	arg = be32_to_cpu(packet->header[5]);
 
 	/* Is somebody releasing the broadcast_channel on us? */
 	if (csraddr == CSR_CHANNELS_AVAILABLE_HI && (data & 0x1)) {

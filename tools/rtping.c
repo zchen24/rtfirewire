@@ -4,6 +4,8 @@
  *  sends real-time bus internal echo requests
  */
 
+#include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -26,19 +28,6 @@ unsigned int    sent     = 0;
 unsigned int    received = 0;
 float           wc_rtt   = 0;
 int max_count = 10000;
-
-/*==================== for data reduction =======================*/
-#define MAX_BIN 200
-int i;
-
-struct bin {
-	int val;
-	int counter;
-};
-
-struct bin binG[MAX_BIN];
-
-/*=============================================================*/
 
 void help(void)
 {
@@ -77,10 +66,6 @@ void print_statistics()
 		sent, received, 100 - ((received * 100) / sent),
            wc_rtt);
 	
-	 for(i=0;i<MAX_BIN;i++){
-	    if(binG[i].val!=0)
-		    printf("%d - bin val:%d, bin counter: %d\n", i, binG[i].val, binG[i].counter);
-    }
     exit(0);
 }
 
@@ -113,17 +98,9 @@ void ping(int signal)
     rtt = (float)cmd.args.ping.rtt / (float)1000;
     if (rtt > wc_rtt)
         wc_rtt = rtt;
-    //~ printf("%d bytes roundtriping %s and %d: time=%.1f us\n",
-           //~ cmd.args.ping.msg_size, cmd.head.if_name, cmd.args.ping.destid, rtt);
-    int rtt_round = ((int)rtt/5) *5;
-    for(i=0;i<MAX_BIN;i++){
-	    if(binG[i].val==0)
-		    binG[i].val=rtt_round;
-	    if(binG[i].val==rtt_round){
-		    binG[i].counter+=1;
-		    break;
-	    }
-    }
+    printf("%d bytes roundtriping %s and %d: time=%.1f us\n",
+           cmd.args.ping.msg_size, cmd.head.if_name, cmd.args.ping.destid, rtt);
+    
     if(sent == max_count)
 	    goto done;
     
@@ -183,25 +160,16 @@ int main(int argc, char *argv[])
         perror(dev);
         exit(1);
     }
-    
-    for(i=0;i<MAX_BIN;i++){
-	    binG[i].val=0;
-	    binG[i].counter=0;
-    }
-
 
     printf("Real-time PING over FireWire: %s to node_%d %d bytes of data with priority %d.\n",
            cmd.head.if_name, cmd.args.ping.destid, cmd.args.ping.msg_size,
 						cmd.args.ping.pri);
 
     signal(SIGINT, terminate);
-    //~ signal(SIGALRM, ping);
-    //~ timer.it_interval.tv_sec  = delay / 1000;
-    //~ timer.it_interval.tv_usec = (delay % 1000) * 1000;
-    //~ setitimer(ITIMER_REAL, &timer, NULL);
-    for(i=0;i<max_count;i++){
-	    ping(0);
-    }
+    signal(SIGALRM, ping);
+    timer.it_interval.tv_sec  = delay / 1000;
+    timer.it_interval.tv_usec = (delay % 1000) * 1000;
+    setitimer(ITIMER_REAL, &timer, NULL);
 
     while (1) pause();
 }

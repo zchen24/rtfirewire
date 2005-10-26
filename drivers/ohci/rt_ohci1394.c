@@ -179,7 +179,7 @@ static void dma_trm_reset(struct dma_asyn_xmit *d);
 static int alloc_dma_asyn_recv(struct ti_ohci *ohci, struct dma_asyn_recv *d,
 			     enum context_type type, int ctx, int num_desc,
 			     int buf_size,int split_buf_size, int context_base);
-static void stop_dma_asyn_recv(struct dma_asyn_recv *d);
+//static void stop_dma_asyn_recv(struct dma_asyn_recv *d);
 static void free_dma_asyn_recv(struct dma_asyn_recv *d);
 
 static int alloc_dma_asyn_xmit(struct ti_ohci *ohci, struct dma_asyn_xmit *d,
@@ -1029,13 +1029,14 @@ static int ohci_iso_recv_init(struct hpsb_iso *iso)
 	struct dma_iso_recv *recv;
 	struct ti_ohci *ohci = iso->host->hostdata;
 	int ctx;
+	struct dma_base_ctx *base;
 	int ret = -ENOMEM;
 	
 	recv=kmalloc(sizeof(struct dma_iso_recv), GFP_KERNEL);
 	if(recv==NULL)
 		return -ENOMEM;
 	
-	struct dma_base_ctx *base=(struct dma_base_ctx *)recv;
+	base =(struct dma_base_ctx *)recv;
 
 	iso->hostdata = recv;
 	recv->ohci = ohci;
@@ -1722,12 +1723,13 @@ static int ohci_iso_xmit_init(struct hpsb_iso *iso)
 	struct dma_iso_xmit *xmit;
 	unsigned int prog_size;
 	int ctx;
+	struct dma_base_ctx *base;
 	int ret = -ENOMEM;
 
 	xmit=kmalloc(sizeof(struct dma_iso_xmit), GFP_KERNEL);
 	if(xmit==NULL)
 		return -ENOMEM;
-	struct dma_base_ctx *base = (struct dma_base_ctx *)xmit;
+	base = (struct dma_base_ctx *)xmit;
 	
 	iso->hostdata = xmit;
 	xmit->ohci = iso->host->hostdata;
@@ -2496,15 +2498,10 @@ static __inline__ int packet_length(struct dma_asyn_recv *d, int idx, quadlet_t 
 /* Tasklet that processes dma receive buffers */
 static void dma_rcv_routine (unsigned long data)
 {
-	if(timing_probe && pbcnt < 10000){
-		time_pair[pbcnt].pbval = rtos_get_time();
-		pbcnt++;
-	}
-	
-	nanosecs_t time_stamp = rtos_get_time();
-	
-	struct dma_asyn_recv *d = (struct dma_asyn_recv*)data;
-	struct ti_ohci *ohci = d->ohci;
+	struct dma_asyn_recv *d;
+	nanosecs_t time_stamp;
+	struct hpsb_packet *pkt;
+	struct ti_ohci *ohci;
 	unsigned int split_left, idx, offset, rescount;
 	unsigned char tcode;
 	int length, bytes_left;
@@ -2512,10 +2509,18 @@ static void dma_rcv_routine (unsigned long data)
 	quadlet_t *buf_ptr;
 	char *split_ptr;
 	char msg[256];
-
+	
+	if(timing_probe && pbcnt < 10000){
+		time_pair[pbcnt].pbval = rtos_get_time();
+		pbcnt++;
+	}
+	time_stamp = rtos_get_time();
+	
+	d = (struct dma_asyn_recv*)data;
+	ohci = d->ohci;
+	
 	rtos_spin_lock_irqsave(&d->lock, flags);
 
-	struct hpsb_packet *pkt;
 	pkt = hpsb_alloc_packet(0,&d->pool,0);
 	if(!pkt) {
 		rtos_print("%s:out of memory\n", __FUNCTION__);

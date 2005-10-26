@@ -36,6 +36,7 @@
 {
         int size;
 	struct hpsb_host *recvhost;
+	struct hpsb_packet *pkt;
 
 	size= packet->header_size/4;
 	size = (size > 4 ? 4 : size);
@@ -67,7 +68,7 @@
 					return -EINVAL;
 		}
 		
-		struct hpsb_packet *pkt = hpsb_alloc_packet(0, &recvhost->pool, packet->pri);
+		pkt = hpsb_alloc_packet(0, &recvhost->pool, packet->pri);
 		if(!pkt)
 			return -ENOMEM;
 		

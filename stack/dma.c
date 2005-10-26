@@ -159,8 +159,9 @@ static inline int dma_region_find(struct dma_region *dma, unsigned long offset, 
 dma_addr_t dma_region_offset_to_bus(struct dma_region *dma, unsigned long offset)
 {
 	unsigned long rem;
-
-	struct scatterlist *sg = &dma->sglist[dma_region_find(dma, offset, &rem)];
+	struct scatterlist *sg;
+	
+	sg = &dma->sglist[dma_region_find(dma, offset, &rem)];
 	return sg_dma_address(sg) + rem;
 }
 
