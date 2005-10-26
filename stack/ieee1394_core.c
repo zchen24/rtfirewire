@@ -508,7 +508,8 @@ void hpsb_selfid_complete(struct hpsb_host *host, int phyid, int isroot)
 void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet, 
                       int ackcode)
 {
-        unsigned long flags;
+	unsigned long flags;
+	nanosecs_t timeout;
 
 	rtos_spin_lock_irqsave(&host->pending_packet_queue.lock, flags);
 	
@@ -536,7 +537,7 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
 
         rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
 	
-	nanosecs_t  timeout = 30000*MICRO_SEC; //for real-time application
+	timeout = 30000*MICRO_SEC; //for real-time application
 	
 	if(packet->pri==IEEE1394_PRIORITY_HIGHEST) //for bus internal service
 		timeout = 20000*MICRO_SEC;
@@ -644,11 +645,11 @@ int hpsb_send_packet(struct hpsb_packet *packet)
 	
 	HPSB_NOTICE("packet is sent to %d, while host is %d", packet->node_id, host->node_id);
 	if (packet->node_id == host->node_id) {
+		struct hpsb_packet *recvpkt;
+		
 		HPSB_NOTICE("sending to local....\n");
 		
 		packet->xmit_time = rtos_get_time();
-		
-		struct hpsb_packet *recvpkt;
 		
 		recvpkt = hpsb_alloc_packet(packet->data_size, &host->pool, packet->pri);
 		if(!recvpkt)
@@ -711,8 +712,7 @@ static void complete_packet (struct hpsb_packet *packet, void *data)
 {
 	packet->processed = 1;	
 	//~ wake_up(&packet->waitq);
-	rtos_event_t	*sem=(rtos_event_t *)data;
-	rtos_event_signal(sem);
+	rtos_event_signal((rtos_event_t *)data);
 }
 	
 /**
@@ -852,10 +852,9 @@ void handle_packet_response(struct hpsb_packet *resp)
 	resp->complete_routine = packet->complete_routine;
 	resp->complete_data = packet->complete_data;
 	
-	struct rtpkb_pool *pool = pkb->pool;
 	hpsb_free_tlabel(packet);
 	hpsb_free_packet(packet);
-	rtpkb_acquire((struct rtpkb *)resp, pool);
+	rtpkb_acquire((struct rtpkb *)resp, pkb->pool);
 		
 	queue_packet_complete(resp);
 }
@@ -981,6 +980,14 @@ void req_worker(unsigned long arg)
 {
 	int priority = (int)arg;
 	struct rtpkb *pkb;
+	struct hpsb_packet *req;
+	struct hpsb_host *host;
+	char tcode;
+	int write_acked, pri;
+	struct hpsb_packet *packet;
+        int length, rcode, extcode;
+        quadlet_t buffer;
+
 	if(priority == 0)
 		pkb = rtpkb_dequeue(&bis_req_list);
 	else {
@@ -989,17 +996,8 @@ void req_worker(unsigned long arg)
 		else
 			pkb = rtpkb_prio_dequeue(&rt_req_list);
 	}
-	
-	struct hpsb_packet *req;
-	struct hpsb_host *host;
-	char tcode;
-	int write_acked, pri;
-	
-	struct hpsb_packet *packet;
-        int length, rcode, extcode;
-        quadlet_t buffer;
 
-	{		
+	{
 		req = (struct hpsb_packet *)pkb;
 		tcode = req->tcode;
 		write_acked = req->write_acked;
@@ -1242,15 +1240,16 @@ void abort_timedouts(unsigned long data)
 {
 	struct hpsb_packet *packet = (struct hpsb_packet *)data;
 	struct hpsb_host *host = packet->host;
+	unsigned long flags;
+	struct rtpkb *pkb;
 		
 	HPSB_ERR("packet sent to node[%d] from %s timeouts!!!\n", 
 			packet->node_id, packet->host->name);
 	
-	unsigned long flags;
 	rtos_spin_lock_irqsave(&host->pending_packet_queue.lock, flags);
 	
 	//get packet out of the pending packet queue
-	struct rtpkb *pkb = (struct rtpkb *)packet;
+	pkb = (struct rtpkb *)packet;
 	__rtpkb_unlink(pkb, pkb->list); 
 	
 	//assign the state and ack code and queue it to complete queue

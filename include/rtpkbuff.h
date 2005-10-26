@@ -262,8 +262,8 @@ static inline void rtpkb_queue_init(struct rtpkb_queue *list)
  */
 static inline void rtpkb_prio_queue_init(struct rtpkb_prio_queue *prioqueue)
 {
-    rtdm_lock_init(&prioqueue->lock);
     int i;
+    rtdm_lock_init(&prioqueue->lock);
     for(i=0; i<=QUEUE_MIN_PRIO; i++)
     {
 	    rtpkb_queue_init((struct rtpkb_queue *)&prioqueue->queue[i]);

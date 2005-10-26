@@ -136,16 +136,16 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 					unsigned long callback_data,
 					unsigned char *name)
 {
+	struct rt_request_struct *req;
+	unsigned long flags;
 	int id = atomic_read(&srv->pending_req);
 	if(id == srv->max_req){
 		RTSERV_ERR("server[%s] reaches max request number\n", srv->name);
 		return NULL;
 	}
 	
-	unsigned long flags;
-	
 	rtos_spin_lock_irqsave(&srv->requests_list_lock,flags);
-	struct rt_request_struct *req = srv->reqobj_pool_head.next;
+	req = srv->reqobj_pool_head.next;
 	req->prev->next = req->next;
 	req->next->prev = req->prev;
 	rtos_spin_unlock_irqrestore(&srv->requests_list_lock, flags);
@@ -298,6 +298,7 @@ void rt_irq_broker_sync(void)
  void rt_serv_worker(void *data)
  {
 	struct rt_serv_struct *srv = (struct rt_serv_struct*)data;
+	struct rt_request_struct *req;
 	unsigned long flags;
 
 	while(1){	
@@ -306,7 +307,7 @@ void rt_irq_broker_sync(void)
 
 		while(1){
 			rtos_spin_lock_irqsave(&srv->requests_list_lock, flags);
-					struct rt_request_struct *req = srv->requests_list.next;
+					req = srv->requests_list.next;
 					if(req->firing_time > rtdm_clock_read()){
 						srv->firing_time = req->firing_time;
 						break;
@@ -343,11 +344,11 @@ void rt_irq_broker_sync(void)
  void nrt_serv_worker(void)
  {
 	 struct rt_serv_struct *srv;
+	 struct rt_request_struct *req;
 	 struct list_head *lh;
 	 list_for_each(lh, &nrt_servers_list){
 		 srv = list_entry(lh, struct rt_serv_struct, entry);
 		
-		 struct rt_request_struct *req;
 		 req = srv->requests_list.next;
 		 
 		 //get request out of pending queue	 
@@ -409,12 +410,15 @@ void rt_serv_delete(struct rt_serv_struct *srv)
   */
 struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*proc)(unsigned long), int max_req)
 {
+	struct rt_serv_struct *srv;
+	struct rt_request_struct *req;
+	int i;
+
 	if(priority<-1){
 		RTSERV_ERR("illegal priority %d\n", priority);
 		return NULL;
 	}
 
-	struct rt_serv_struct *srv;
 	srv = kmalloc(sizeof(struct rt_serv_struct), GFP_KERNEL);
 	if(!srv){
 		RTSERV_ERR("out of memory\n");
@@ -437,8 +441,6 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 	sprintf(srv->requests_list.name, "list head");
 	srv->requests_list_lock = SPIN_LOCK_UNLOCKED;
 	
-	int i;
-	struct rt_request_struct *req;
 	for(i=0; i<srv->max_req; i++){
 		req=kmalloc(sizeof(*req), GFP_KERNEL);
 		req->next = &srv->reqobj_pool_head;
@@ -529,13 +531,13 @@ done_proc:
 int serv_module_init(void)
 {
 	int err;
+	struct proc_dir_entry *proc_entry;
+
 	err = rt_timer_start(TM_ONESHOT);
 	if(err){
 	    RTSERV_ERR("failed to start timer!\n");
 	    return 1;
 	}
-	
-	struct proc_dir_entry *proc_entry;
 	
 	proc_entry = create_proc_entry("servers", S_IFREG | S_IRUGO | S_IWUSR, 0);
 	if(!proc_entry) {
