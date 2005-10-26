@@ -1,5 +1,13 @@
 OPTDIRS = 
 
-SUBDIRS = include rtpkbuff rtpc rt_serv stack drivers $(OPTDIRS) highlevel tools
+SUBDIRS = include rtpkbuff rt_serv rtpc stack drivers $(OPTDIRS) highlevel tools
+
+install-data-local:
+	rm -f $(DESTDIR)$(prefix)/build
+	$(LN_S) @abs_top_builddir@ $(DESTDIR)$(prefix)/build
+	rm -f $(DESTDIR)$(prefix)/source
+	$(LN_S) @abs_srcdir@ $(DESTDIR)$(prefix)/source
+	rm -f $(DESTDIR)$(prefix)/symbols
+	$(LN_S) @abs_top_builddir@/symbols $(DESTDIR)$(prefix)/symbols
 
 EXTRA_DIST = autogen.sh

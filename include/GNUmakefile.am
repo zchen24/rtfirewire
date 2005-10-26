@@ -10,8 +10,15 @@ nobase_include_HEADERS = \
 	hosts.h \
 	csr.h \
 	ieee1394_transactions.h \
-	bis1394.h
-
+	bis1394.h \
+	rt1394_sys.h \
+	rtos_primitives.h \
+	rtpkbuff.h \
+	rtpc.h \
+	rt_serv.h \
+	rt1394_config.h \
+	dma.h
+	
 noinst_HEADERS = 
 	
 
