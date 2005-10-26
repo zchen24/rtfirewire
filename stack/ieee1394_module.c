@@ -153,7 +153,6 @@ EXPORT_SYMBOL(hpsb_iso_recv_set_channel_mask);
 EXPORT_SYMBOL(hpsb_iso_stop);
 EXPORT_SYMBOL(hpsb_iso_shutdown);
 EXPORT_SYMBOL(hpsb_iso_xmit_queue_packet);
-EXPORT_SYMBOL(hpsb_iso_xmit_sync);
 EXPORT_SYMBOL(hpsb_iso_recv_release_packets);
 EXPORT_SYMBOL(hpsb_iso_n_ready);
 EXPORT_SYMBOL(hpsb_iso_packet_sent);
