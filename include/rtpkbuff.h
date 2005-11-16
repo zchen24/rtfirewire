@@ -1,6 +1,6 @@
 /* rtfirewire/rtpkbuff/rtpkbuff.c
  * Generic Real-Time Memory Object Management Module
- * 	adapted from rtpkb management in RTnet (Jan Kiszka <jan.kiszka@web.de>)
+ * 	adapted from rtskb management in RTnet (Jan Kiszka <jan.kiszka@web.de>)
  *
  *  Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
  *
@@ -170,10 +170,8 @@ struct rtpkb {
 	/*protocol-specific stuff goes here, size agreed among all exsiting protocols, cant be exceeded!!! */
 	char		specific_stuff[256];
 	
-//used for RTcap
-	struct rtpkb	*comp;			/* the compensating packet */
+	struct rtpkb_pool	*comp_pool;			/* the compensating packet */
 	struct rtpkb	*next_cap;		/* the next captured packet */
-	
 };
 
 struct rtpkb_queue_base {
@@ -950,7 +948,6 @@ extern unsigned int rtpkb_pool_init_rt(struct rtpkb_pool *pool,
                                        unsigned int initial_size);
 extern void __rtpkb_pool_release(struct rtpkb_pool *pool);
 extern void __rtpkb_pool_release_rt(struct rtpkb_pool *pool);
-	
 
 static inline unsigned int rtpkb_headlen(const struct rtpkb *pkb)
 {
@@ -983,7 +980,9 @@ extern int rtpkb_acquire(struct rtpkb *rtpkb, struct rtpkb_pool *comp_pool);
 extern int rtpkb_pools_init(void);
 extern void rtpkb_pools_release(void);
 
-
+extern void rtpkbuff_Caphandler(struct rtpkb *);
+extern void rtpkbuff_SetCap(void (*)(struct rtpkb *),struct rtpkb_pool *);
+extern void rtpkbuff_UnsetCap(void);
 /*@}*/
 
 #endif /*__KERNEL__ */

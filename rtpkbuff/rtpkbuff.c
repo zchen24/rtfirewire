@@ -1,8 +1,8 @@
 /* rtfirewire/rtpkbuff/rtpkbuff.c
  * Generic Real-Time Memory Object Management Module
- * 	adapted from rtpkb management in RTnet (Jan Kiszka <jan.kiszka@web.de>)
+ * 	adapted from rtskb management in RTnet (Jan Kiszka <jan.kiszka@web.de>)
  *
- *  Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ *  Copyright (C)  2005 Zhang Yuchen <yuchen623@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -72,7 +72,23 @@ LIST_HEAD(pool_list);
  */
 static rwlock_t pool_list_lock = RW_LOCK_UNLOCKED;
 
-
+void (*Cap_handler)(struct rtpkb *pkb)=NULL;
+struct rtpkb_pool *Cap_pool;
+void rtpkbuff_SetCap(void (*ahandler)(struct rtpkb *), struct rtpkb_pool *apool){
+		Cap_handler = ahandler;
+		Cap_pool = apool;
+}
+void rtpkbuff_UnsetCap(){
+	Cap_handler = NULL;
+	Cap_pool = NULL;
+	
+}
+void rtpkbuff_Caphandler(struct rtpkb *apkb){
+	if (Cap_pool == NULL)
+		printk("NO Capture module inserted, packet capture failed!\n");
+	else
+		apkb->comp_pool = Cap_pool;
+}
 
 /**
  *  pkb_over_panic - private function
@@ -133,27 +149,31 @@ struct rtpkb *alloc_rtpkb(unsigned int size,struct rtpkb_pool *pool)
  *  kfree_rtpkb
  *  @pkb    rtpkb
  */
-void kfree_rtpkb(struct rtpkb *rt_pkb)
+void kfree_rtpkb(struct rtpkb *apkb)
 {
-	struct rtpkb *pkb;
-	RTPKB_ASSERT(rt_pkb != NULL, return;);
-    RTPKB_ASSERT(rt_pkb->pool != NULL, return;);
-    
-    if(rt_pkb->comp != NULL){
-    	struct rtpkb_pool *temp;
-    	pkb = rt_pkb->comp;
-		rt_pkb->comp = NULL;
-    	//now move the packet to the compensating pool
-    	temp = rt_pkb->pool;
-    	rt_pkb->pool = pkb->pool;
-    	pkb->pool = temp;
-    }else
-    	pkb = rt_pkb;
-    
-	//this is to prevent that the same pkb be returned to pool twice. 
-    RTPKB_ASSERT(pkb->list != &(pkb->pool->queue), return;);
+	struct rtpkb *cpkb;
 	
-    rtpkb_queue_tail(&pkb->pool->queue, pkb);
+	RTPKB_ASSERT(apkb != NULL, return;);
+    RTPKB_ASSERT(apkb->pool != NULL, return;);
+    RTPKB_ASSERT(apkb->list != &(apkb->pool->queue), return;);
+    
+    
+restart:
+    if(apkb->comp_pool != NULL){
+    	cpkb = alloc_rtpkb(0,apkb->comp_pool);
+    	if(cpkb == NULL){
+    		RTPKB_ERR("No memory to capture packet!!!\n");
+    		apkb->comp_pool = NULL;
+    		goto restart;
+    	}
+    	rtpkb_queue_tail(&apkb->pool->queue,cpkb);
+    	
+    	apkb->pool = apkb->comp_pool; 
+    	Cap_handler(apkb);
+    }else
+    	rtpkb_queue_tail(&apkb->pool->queue, apkb);
+    	
+    	return;
 }
 
 /***
@@ -504,3 +524,6 @@ EXPORT_SYMBOL(rtpkb_pool_init);
 EXPORT_SYMBOL(__rtpkb_pool_release);
 EXPORT_SYMBOL(rtpkb_over_panic);
 EXPORT_SYMBOL(rtpkb_under_panic);
+EXPORT_SYMBOL(rtpkbuff_Caphandler);
+EXPORT_SYMBOL(rtpkbuff_SetCap);
+EXPORT_SYMBOL(rtpkbuff_UnsetCap);
