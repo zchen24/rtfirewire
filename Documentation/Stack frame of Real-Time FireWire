@@ -1,8 +1,0 @@
-Stack frame of Real-Time FireWire
-==========================
-
-The stack is based on Real-Time Server extension for rtai, which is parallely develop with this FireWire stack. 
-The Real Time Server module eases the way to create server in rtai domain, with a specified priority and routine for 
-serving requests. 
-
-So from 
