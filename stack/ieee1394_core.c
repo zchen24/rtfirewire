@@ -55,6 +55,8 @@ relative to the base priority of server module*/
 #define RT1394_SERVER_PRI	RTDM_TASK_HIGHEST_PRIORITY - 5
 #define TIMEOUT_SERVER_PRI	RTDM_TASK_HIGHEST_PRIORITY - 3
 
+ 
+
 #ifdef CONFIG_IEEE1394_DEBUG
 static void dump_packet(const char *text, quadlet_t *data, int size)
 {
@@ -118,6 +120,8 @@ const int hpsb_speedto_val[] = { 100, 200, 400, 800, 1600, 3200};
 
 static void abort_requests(struct hpsb_host *host);
 static void queue_packet_complete(struct hpsb_packet *packet);
+
+
 
 /**
  * @ingroup kernel
@@ -701,42 +705,6 @@ int hpsb_send_packet(struct hpsb_packet *packet)
         return host->driver->transmit_packet(host, packet);
 }
 
-/**
- * @ingroup kernel
- * @anchor complete_packet
- * To notify the completion of transaction, set as a callback. 
- *
- * @param data -- the counting semaphore set during sending of the packet. 
- */
-static void complete_packet (struct hpsb_packet *packet, void *data)
-{
-	packet->processed = 1;	
-	//~ wake_up(&packet->waitq);
-	rtos_event_signal((rtos_event_t *)data);
-}
-	
-/**
- * @ingroup kernel
- * @anchor hpsb_send_packet_and_wait
- * Wait until packet transaction is done. 
- * Synchronized versoin of hpsb_send_packet. 
- */
-int hpsb_send_packet_and_wait(struct hpsb_packet *packet)
-{
-	int retval;
-	rtos_event_t	sem;
-	rtos_event_init(&sem);
-	
-	//~ init_waitqueue_head(&packet->waitq);
-	hpsb_set_packet_complete_task(packet, complete_packet, (void *)&sem);
-	retval = hpsb_send_packet(packet);
-	if (retval == 0)
-		//~ retval = wait_event_interruptible(packet->waitq, packet->processed);
-		rtos_event_wait(&sem);
-	
-	return retval;
-}
-
 
 /**
  * @ingroup kernel
@@ -847,7 +815,7 @@ void handle_packet_response(struct hpsb_packet *resp)
 	
 	resp->state = hpsb_complete;
 	
-	resp->xmit_time = packet->xmit_time;
+	resp->xmit_time = packet->xmit_time;2
 	resp->no_waiter = packet->no_waiter;
 	resp->complete_routine = packet->complete_routine;
 	resp->complete_data = packet->complete_data;
@@ -1121,7 +1089,14 @@ void req_worker(unsigned long arg)
  */
 void hpsb_packet_received(struct hpsb_packet *packet)
 {
-
+#ifdef CONFIG_ADDONS_RTCAP
+	unsigned long ctx;
+	rtos_spin_lock_irqsave(Cap_lock,ctx);
+	if(Cap_handler)
+		Cap_hander((struct rtpkb*)packet);
+	rtos_spin_unlock_irqrestore(Cap_lock,ctx);
+#endif	
+	
 	struct rt_serv_struct *broker=NULL;
 
         if (packet->host->in_bus_reset) {
