@@ -1293,7 +1293,7 @@ void resp_worker(unsigned long dummy)
 			if(complete_routine)
 				complete_routine(packet, complete_data);
 			
-			hpsb_free_packet(packet);
+			//hpsb_free_packet(packet);
 	}
 }
 
