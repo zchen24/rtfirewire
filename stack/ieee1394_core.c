@@ -585,7 +585,6 @@ static void send_packet_nocare(struct hpsb_packet *packet)
 int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
 {
 	struct hpsb_packet *packet;
-	int retval = 0;
 
 	if (rootid >= ALL_NODES || rootid < -1 || gapcnt > 0x3f || gapcnt < -1 ||
 	   (rootid == -1 && gapcnt == -1)) {
@@ -617,10 +616,10 @@ int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
 
 	packet->generation = get_hpsb_generation(host);
 	
-	retval = send_packet_nocare(packet);
+	send_packet_nocare(packet);
 	hpsb_free_packet(packet);
 	
-	return retval;
+	return 0;
 }
 
 /**
@@ -816,7 +815,7 @@ void handle_packet_response(struct hpsb_packet *resp)
 	
 	resp->state = hpsb_complete;
 	
-	resp->xmit_time = packet->xmit_time;2
+	resp->xmit_time = packet->xmit_time;
 	resp->no_waiter = packet->no_waiter;
 	resp->complete_routine = packet->complete_routine;
 	resp->complete_data = packet->complete_data;
