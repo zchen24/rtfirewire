@@ -88,7 +88,6 @@ EXPORT_SYMBOL(hpsb_free_packet);
 EXPORT_SYMBOL(hpsb_send_phy_config);
 EXPORT_SYMBOL(hpsb_send_packet);
 EXPORT_SYMBOL(hpsb_packet_sent);
-EXPORT_SYMBOL(hpsb_send_packet_and_wait);
 EXPORT_SYMBOL(hpsb_reset_bus);
 EXPORT_SYMBOL(hpsb_bus_reset);
 EXPORT_SYMBOL(hpsb_selfid_complete);

@@ -660,7 +660,7 @@ int hpsb_write(struct hpsb_host *host, nodeid_t node, unsigned int generation,
         if (retval == 0) 
                 rtos_event_wait(&sem); 
                 
-		if (retval < 0) goto hpsb_read_fail;
+		if (retval < 0) goto hpsb_write_fail;
 		
 		packet = transaction_response.pResponsePacket; 
         retval = hpsb_packet_success(packet); 
@@ -690,6 +690,7 @@ int hpsb_lock(struct hpsb_host *host, nodeid_t node, unsigned int generation,
         hpsb_transaction_response transaction_response;
         struct hpsb_packet *packet;
         int retval = 0;
+        rtos_event_t sem;
 
 	//~ BUG_ON(in_interrupt()); // We can't be called in an interrupt, yet
 
@@ -709,18 +710,13 @@ int hpsb_lock(struct hpsb_host *host, nodeid_t node, unsigned int generation,
         if (retval == 0) 
                 rtos_event_wait(&sem); 
                 
-		if (retval < 0) goto hpsb_read_fail;
+		if (retval < 0) goto hpsb_lock_fail;
 		
 		packet = transaction_response.pResponsePacket; 
         retval = hpsb_packet_success(packet); 
         if (retval == 0) 
-        { 
-                if (length == 4) { 
-                        *buffer = packet->header[3]; 
-                } else { 
-                        memcpy(buffer, packet->data, length); 
-                } 
-        } 
+        	*data = packet->data[0];
+        	
 hpsb_lock_fail: 
         hpsb_free_tlabel(packet); 
         hpsb_free_packet(packet); 

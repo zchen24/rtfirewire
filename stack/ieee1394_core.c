@@ -521,7 +521,7 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
 
         if (packet->no_waiter || packet->state == hpsb_complete) {
                 /* if packet->no_waiter, must not have a tlabel allocated */
-		rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
+				rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
                 hpsb_free_packet(packet);
                 return;
         }
@@ -556,6 +556,18 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
 	rt_serv_sync(timeout_server);
 }
 
+/**
+ * @ingroup kernel
+ * @anchor send_packet_nocare
+ */
+static void send_packet_nocare(struct hpsb_packet *packet)
+{
+        if (hpsb_send_packet(packet)) {
+		//sending failed in hardware, so we need to free the packet here. 
+		//otherwise, the packet will be freed in hpsb_packet_sent
+                hpsb_free_packet(packet);
+        }
+}
 
 /**
  * @ingroup kernel
@@ -605,7 +617,7 @@ int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
 
 	packet->generation = get_hpsb_generation(host);
 	
-	retval = hpsb_send_packet_and_wait(packet);
+	retval = send_packet_nocare(packet);
 	hpsb_free_packet(packet);
 	
 	return retval;
@@ -706,18 +718,7 @@ int hpsb_send_packet(struct hpsb_packet *packet)
 }
 
 
-/**
- * @ingroup kernel
- * @anchor send_packet_nocare
- */
-static void send_packet_nocare(struct hpsb_packet *packet)
-{
-        if (hpsb_send_packet(packet)) {
-		//sending failed in hardware, so we need to free the packet here. 
-		//otherwise, the packet will be freed in hpsb_packet_sent
-                hpsb_free_packet(packet);
-        }
-}
+
 
 /**
  * @ingroup kernel
