@@ -616,7 +616,7 @@ int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
 
 	packet->generation = get_hpsb_generation(host);
 	
-	send_packet_nocare(packet);
+	//retval = hpsb_send_packet_and_wait(packet);
 	hpsb_free_packet(packet);
 	
 	return 0;
