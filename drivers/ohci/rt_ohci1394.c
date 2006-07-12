@@ -2556,8 +2556,8 @@ static void dma_rcv_routine (unsigned long data)
 		if ((offset + length) > d->buf_size) {
 			OHCI_NOTICE("Split packet rcv'd");
 			if (length > d->split_buf_size) {
-				ohci1394_stop_context(ohci, d->ctrlClear,
-					     "Split packet size exceeded");
+				/*ohci1394_stop_context(ohci, d->ctrlClear,
+					     "Split packet size exceeded");*/
 				d->buf_ind = idx;
 				d->buf_offset = offset;
 				rtos_spin_unlock_irqrestore(&d->lock, flags);

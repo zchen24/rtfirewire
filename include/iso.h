@@ -2,7 +2,7 @@
  *
 *  Interface and data structure of iso module
  *
- * Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
+ * Copyright (C)  2005 Zhang Yuchen <yuchen623@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

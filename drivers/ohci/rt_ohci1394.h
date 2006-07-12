@@ -163,18 +163,18 @@ struct dma_asyn_recv {
 	unsigned int split_buf_size;
 
 	/* dma block descriptors */
-        struct dma_cmd **prg_cpu;
-        dma_addr_t *prg_bus;
+    struct dma_cmd **prg_cpu;
+    dma_addr_t *prg_bus;
 	struct pci_pool *prg_pool;
 
 	/* dma buffers */
-        quadlet_t **buf_cpu;
-        dma_addr_t *buf_bus;
+    quadlet_t **buf_cpu;
+    dma_addr_t *buf_bus;
 
-        unsigned int buf_ind;
-        unsigned int buf_offset;
-        quadlet_t *spb;
-        rtos_spinlock_t lock;
+    unsigned int buf_ind;
+    unsigned int buf_offset;
+    quadlet_t *spb;
+    rtos_spinlock_t lock;
 	
 	struct rtpkb_pool pool;
 };

@@ -20209,6 +20209,7 @@ if test x$CONFIG_KBUILD = xy; then
 	rtpkbuff \
 	rt_serv \
 	rtpc \
+	rtfw_cap \
 	; do
 	              ac_config_links="$ac_config_links ${DIR}/Makefile:${DIR}/Makefile.kbuild"
 
@@ -20231,7 +20232,7 @@ esac
 { echo "$as_me:$LINENO: generating output" >&5
 echo "$as_me: generating output" >&6;}
 
-                                                                                                                        ac_config_files="$ac_config_files GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rt_serv/GNUmakefile rtpc/GNUmakefile stack/GNUmakefile tools/GNUmakefile"
+                                                                                                                                  ac_config_files="$ac_config_files GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rt_serv/GNUmakefile rtpc/GNUmakefile stack/GNUmakefile tools/GNUmakefile rtfw_cap/GNUmakefile"
 
 
 cat >confcache <<\_ACEOF
@@ -20847,6 +20848,7 @@ do
   "rtpc/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rtpc/GNUmakefile" ;;
   "stack/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES stack/GNUmakefile" ;;
   "tools/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES tools/GNUmakefile" ;;
+  "rtfw_cap/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rtfw_cap/GNUmakefile" ;;
   "${DIR}/Makefile" ) CONFIG_LINKS="$CONFIG_LINKS ${DIR}/Makefile:${DIR}/Makefile.kbuild" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "config/rt-firewire_config_pre.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config/rt-firewire_config_pre.h" ;;
