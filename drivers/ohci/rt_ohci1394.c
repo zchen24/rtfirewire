@@ -160,17 +160,6 @@ static int phys_dma = 1;
 MODULE_PARM(phys_dma, "i");
 MODULE_PARM_DESC(phys_dma, "Enable dma for physical packets (default = 1).");
 
-/**=========== Time Probing ============*/
-static int timing_probe = 0;
-MODULE_PARM(timing_probe, "i");
-MODULE_PARM_DESC(timing_probe, "Enable time probing between tophalf and bottomhalf ISR (default = NO(0)).");
-static int pacnt = 0;
-static int pbcnt = 0;
-struct timing_struct{
-	__u64 paval;
-	__u64 pbval;
-} time_pair[10000];
-
 static unsigned int cards_found;
 
 static void dma_trm_routine(unsigned long data);
@@ -2281,10 +2270,6 @@ static RTOS_IRQ_HANDLER_PROTO(ohci_irq_handler)
 			rt_event_pend(&d->event);
 			tosync = 1;
 		event &= ~OHCI1394_RQPkt;
-		if(timing_probe && pacnt < 10000){
-			time_pair[pacnt].paval=rtos_get_time();
-			pacnt++;
-		}
 	}
 	if (event & OHCI1394_RSPkt) {
 		struct dma_asyn_recv *d = &ohci->ar_resp_context;
@@ -2510,10 +2495,6 @@ static void dma_rcv_routine (unsigned long data)
 	char *split_ptr;
 	char msg[256];
 	
-	if(timing_probe && pbcnt < 10000){
-		time_pair[pbcnt].pbval = rtos_get_time();
-		pbcnt++;
-	}
 	time_stamp = rtos_get_time();
 	
 	d = (struct dma_asyn_recv*)data;
@@ -2556,8 +2537,9 @@ static void dma_rcv_routine (unsigned long data)
 		if ((offset + length) > d->buf_size) {
 			OHCI_NOTICE("Split packet rcv'd");
 			if (length > d->split_buf_size) {
-				/*ohci1394_stop_context(ohci, d->ctrlClear,
-					     "Split packet size exceeded");*/
+				rtos_print("%s:Split packet size exceeded\n", __FUNCTION__);
+				//ohci1394_stop_context(ohci, d->ctrlClear,
+				//	     "Split packet size exceeded");
 				d->buf_ind = idx;
 				d->buf_offset = offset;
 				rtos_spin_unlock_irqrestore(&d->lock, flags);
@@ -3622,81 +3604,6 @@ EXPORT_SYMBOL(ohci1394_init_iso_ctx);
 EXPORT_SYMBOL(ohci1394_register_iso_ctx);
 EXPORT_SYMBOL(ohci1394_unregister_iso_ctx);
 
-
-#define PUTF(fmt, args...)				\
-do {							\
-	len += sprintf(page + len, fmt, ## args);	\
-	pos = begin + len;				\
-	if (pos < off) {				\
-		len = 0;				\
-		begin = pos;				\
-	}						\
-	if (pos > off + count)				\
-		goto done_proc;				\
-} while (0)
-/*==================== for data reduction =======================*/
-#define MAX_BIN 200
-struct bin {
-	int val;
-	int counter;
-};
-
-struct bin binG[MAX_BIN];
-#define BIN_STEP 1000 //1 microsecond
-
-static int timing_read_proc(char *page, char **start, off_t off, int count,
-					int *eof, void *data)
-{
-	off_t begin=0, pos=0;
-	int len=0;
-	int i;
-	
-	if(timing_probe && pacnt ==10000 && pbcnt == 10000){
-		 for(i=0;i<MAX_BIN;i++){
-			binG[i].val=0;
-			binG[i].counter=0;
-		}
-		while(pacnt >= 0 ){
-			int latency_round = ((int)(time_pair[pbcnt].pbval - time_pair[pacnt].paval)/BIN_STEP) *BIN_STEP;
-			for(i=0;i<MAX_BIN;i++){
-				if(binG[i].val==0)
-					binG[i].val=latency_round;
-				if(binG[i].val==latency_round){
-					binG[i].counter+=1;
-					break;
-				}
-			}
-			time_pair[pbcnt].pbval = time_pair[pacnt].paval =0;
-			pacnt = pbcnt = pacnt - 1;
-		}
-		PUTF("\n\n==============================================\n\n");
-		for(i=0;i<MAX_BIN;i++){
-			if(binG[i].val!=0)
-				PUTF("%d - bin val:%d, bin counter: %d\n", i, binG[i].val, binG[i].counter);
-		}
-		PUTF("\n\n==============================================\n\n");
-
-done_proc:
-		*start = page + (off - begin);
-		len -= (off - begin);
-		if (len > count)
-			len = count;
-		else {
-			*eof = 1;
-			if (len <= 0)
-			return 0;
-		}	
-
-		return len;
-	}
-	else{
-		PUTF("Timing probe not enabled or the measurment not finished yet!\n");
-		return len;
-	}
-		
-}
-#undef PUTF
-
 /***********************************
  * General module initialization   *
  ***********************************/
@@ -3712,13 +3619,6 @@ static void __exit ohci1394_cleanup (void)
 
 static int __init ohci1394_init(void)
 {
-	struct proc_dir_entry *proc_entry;
-	proc_entry = create_proc_entry("ohci_isr_timing", S_IFREG | S_IRUGO | S_IWUSR, 0);
-	if(!proc_entry) {
-		rtos_print("failed to create proc entry!\n");
-		return -ENOMEM;
-	}
-	proc_entry->read_proc = timing_read_proc;
 	
 	return pci_module_init(&ohci1394_pci_driver);
 }

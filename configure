@@ -1058,7 +1058,10 @@ Optional Packages:
   --with-tags[=TAGS]
                           include additional configurations [automatic]
   --with-rtext=RT-EXTENSION
-                          installation path of RTAI or Xenomai
+                          installation path of RTAI or Xenomai 2.0.x
+  --with-linux=LINUX      real-time extended Linux kernel
+  --with-rtext-config=CONFIG-PATH
+                          path of the RT-extension's config tool
   --with-module-dir=<module-dir>
                           Installation directory for modules
 
@@ -3735,7 +3738,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 3738 "configure"' > conftest.$ac_ext
+  echo '#line 3741 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -5299,7 +5302,7 @@ fi
 
 
 # Provide some information about the compiler.
-echo "$as_me:5302:" \
+echo "$as_me:5305:" \
      "checking for Fortran 77 compiler version" >&5
 ac_compiler=`set X $ac_compile; echo $2`
 { (eval echo "$as_me:$LINENO: \"$ac_compiler --version </dev/null >&5\"") >&5
@@ -6335,11 +6338,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6338: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6341: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6342: \$? = $ac_status" >&5
+   echo "$as_me:6345: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings
@@ -6568,11 +6571,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6571: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6574: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6575: \$? = $ac_status" >&5
+   echo "$as_me:6578: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings
@@ -6628,11 +6631,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6631: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6634: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:6635: \$? = $ac_status" >&5
+   echo "$as_me:6638: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8816,7 +8819,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 8819 "configure"
+#line 8822 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -8914,7 +8917,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 8917 "configure"
+#line 8920 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11095,11 +11098,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:11098: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:11101: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:11102: \$? = $ac_status" >&5
+   echo "$as_me:11105: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings
@@ -11155,11 +11158,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:11158: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:11161: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:11162: \$? = $ac_status" >&5
+   echo "$as_me:11165: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -12524,7 +12527,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 12527 "configure"
+#line 12530 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12622,7 +12625,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 12625 "configure"
+#line 12628 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -13449,11 +13452,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13452: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13455: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:13456: \$? = $ac_status" >&5
+   echo "$as_me:13459: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings
@@ -13509,11 +13512,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13512: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13515: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:13516: \$? = $ac_status" >&5
+   echo "$as_me:13519: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -15558,11 +15561,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:15561: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:15564: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:15565: \$? = $ac_status" >&5
+   echo "$as_me:15568: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings
@@ -15791,11 +15794,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:15794: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:15797: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:15798: \$? = $ac_status" >&5
+   echo "$as_me:15801: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings
@@ -15851,11 +15854,11 @@ else
    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:15854: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:15857: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:15858: \$? = $ac_status" >&5
+   echo "$as_me:15861: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -18039,7 +18042,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 18042 "configure"
+#line 18045 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -18137,7 +18140,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 18140 "configure"
+#line 18143 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -19375,37 +19378,103 @@ if test "${with_rtext+set}" = set; then
 echo "$as_me: error: You must supply an argument to --with-rtext." >&2;}
    { (exit 1); exit 1; }; } ;;
         *)
-            CONFIG_RTEXT_DIR=${withval} ;;
+            CONFIG_RTEXT_DIR=${withval}
+            CONFIG_RTFW_RTEXT_CLASSIC=y
+            ;;
     esac
 fi;
 
 
-echo "$as_me:$LINENO: checking for RT-extension installation" >&5
-echo $ECHO_N "checking for RT-extension installation... $ECHO_C" >&6
-RTAI_CONFIG="${CONFIG_RTEXT_DIR}/bin/rtai-config"
-if test -x "${RTAI_CONFIG}"; then
-    RTAI_DIR="`cd ${CONFIG_RTEXT_DIR} && pwd`"   # let the shell normalize the path
-    XENO_DIR=
-    echo "$as_me:$LINENO: result: ${RTAI_DIR} (RTAI)" >&5
+
+echo "$as_me:$LINENO: checking for RT-extension" >&5
+echo $ECHO_N "checking for RT-extension... $ECHO_C" >&6
+
+if test "${CONFIG_RTFW_RTEXT_CLASSIC}" = "y"; then
+    RTAI_CONFIG="${CONFIG_RTEXT_DIR}/bin/rtai-config"
+    if test -x "${RTAI_CONFIG}"; then
+        RTAI_DIR="`cd ${CONFIG_RTEXT_DIR} && pwd`"   # let the shell normalize the path
+        XENO_DIR=""
+        echo "$as_me:$LINENO: result: ${RTAI_DIR} (RTAI)" >&5
 echo "${ECHO_T}${RTAI_DIR} (RTAI)" >&6
-else
-    XENO_CONFIG="${CONFIG_RTEXT_DIR}/bin/xeno-config"
-    if test -x "${XENO_CONFIG}"; then
-        RTAI_DIR=
-        XENO_DIR="`cd ${CONFIG_RTEXT_DIR} && pwd`"   # let the shell normalize the path
-        echo "$as_me:$LINENO: result: ${XENO_DIR} (Xenomai)" >&5
-echo "${ECHO_T}${XENO_DIR} (Xenomai)" >&6
     else
-        { { echo "$as_me:$LINENO: error: *** No RT-extension found in $CONFIG_RTEXT_DIR" >&5
+        XENO_CONFIG="${CONFIG_RTEXT_DIR}/bin/xeno-config"
+        if test -x "${XENO_CONFIG}"; then
+            RTAI_DIR=""
+            XENO_DIR="`cd ${CONFIG_RTEXT_DIR} && pwd`"   # let the shell normalize the path
+            echo "$as_me:$LINENO: result: ${XENO_DIR} (Xenomai 2.0.x)" >&5
+echo "${ECHO_T}${XENO_DIR} (Xenomai 2.0.x)" >&6
+        else
+            { { echo "$as_me:$LINENO: error: *** No RT-extension found in $CONFIG_RTEXT_DIR" >&5
 echo "$as_me: error: *** No RT-extension found in $CONFIG_RTEXT_DIR" >&2;}
    { (exit 1); exit 1; }; }
+        fi
     fi
+else
+    RTAI_DIR=""
+    XENO_DIR=""
+
+
+# Check whether --with-linux or --without-linux was given.
+if test "${with_linux+set}" = set; then
+  withval="$with_linux"
+  case "${withval}" in
+            "" | y | ye | yes | n | no)
+                { { echo "$as_me:$LINENO: error: You must supply an argument to --with-linux." >&5
+echo "$as_me: error: You must supply an argument to --with-linux." >&2;}
+   { (exit 1); exit 1; }; } ;;
+            *)
+                CONFIG_RTFW_LINUX_DIR=${withval} ;;
+        esac
+fi;
+
+    # get linux kernel tree and version
+    RTEXT_LINUX_DIR="${CONFIG_RTFW_LINUX_DIR}"
+    RTEXT_LINUX_VERSION=`grep "#define UTS_RELEASE" $RTEXT_LINUX_DIR/include/linux/version.h 2>/dev/null | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
+
+    if test \! -f ${RTEXT_LINUX_DIR}/include/xenomai/nucleus/version.h; then
+        { { echo "$as_me:$LINENO: error: *** RT-extended kernel not found in $RTEXT_LINUX_DIR" >&5
+echo "$as_me: error: *** RT-extended kernel not found in $RTEXT_LINUX_DIR" >&2;}
+   { (exit 1); exit 1; }; }
+    fi
+
+
+# Check whether --with-rtext-config or --without-rtext-config was given.
+if test "${with_rtext_config+set}" = set; then
+  withval="$with_rtext_config"
+  case "${withval}" in
+            "" | y | ye | yes | n | no)
+                { { echo "$as_me:$LINENO: error: You must supply an argument to --with-rtext-config." >&5
+echo "$as_me: error: You must supply an argument to --with-rtext-config." >&2;}
+   { (exit 1); exit 1; }; } ;;
+            *)
+                CONFIG_RTFW_RTEXT_CONFIG_PATH=${withval} ;;
+        esac
+fi;
+
+    XENO_CONFIG=${CONFIG_RTFW_RTEXT_CONFIG_PATH}
+    if test "${XENO_CONFIG}" = ""; then
+        XENO_CONFIG=`which xeno-config 2>/dev/null`
+        if test "${XENO_CONFIG}" = "" && test "${CONFIG_RTFW_EXAMPLES}" \!= "y"; then
+            XENO_CONFIG="/bin/true"
+        fi
+    fi
+    if test "${XENO_CONFIG}" = "" || test \! -x ${XENO_CONFIG} || test \! -f ${XENO_CONFIG}; then
+        { { echo "$as_me:$LINENO: error: *** Xenomai configuration tool not found: ${XENO_CONFIG}" >&5
+echo "$as_me: error: *** Xenomai configuration tool not found: ${XENO_CONFIG}" >&2;}
+   { (exit 1); exit 1; }; }
+    fi
+
+    echo "$as_me:$LINENO: result: $RTEXT_LINUX_DIR (kernel ${RTEXT_LINUX_VERSION}${CONFIG_SMP:+-SMP} + Xenomai)" >&5
+echo "${ECHO_T}$RTEXT_LINUX_DIR (kernel ${RTEXT_LINUX_VERSION}${CONFIG_SMP:+-SMP} + Xenomai)" >&6
 fi
 
 #
 # from now we think we've found some RT-extension, so if we got an error
 # it will be fatal, thus exit with AC_MSG_ERROR
 #
+
+XENO_VERSION=""
+RTAI_VERSION=""
 
 if test "$RTAI_DIR" \!= ""; then
     #
@@ -19438,7 +19507,7 @@ echo $ECHO_N "checking for RTAI version... $ECHO_C" >&6
     RTAI_VERSION="`${RTAI_CONFIG} --version`"
 
     case "$RTAI_VERSION" in
-        magma)
+        magma | 3.3*)
             CONFIG_RTFW_RTEXT_VERSION=rtai-3x
 
 cat >>confdefs.h <<\_ACEOF
@@ -19472,6 +19541,14 @@ echo "${ECHO_T}${RTAI_CONFIG_FILE}" >&6
     # source (load) the rtai configuration
     . ${RTAI_CONFIG_FILE}
 
+    # get linux kernel tree and version
+    echo "$as_me:$LINENO: checking for Linux source tree" >&5
+echo $ECHO_N "checking for Linux source tree... $ECHO_C" >&6
+    RTEXT_LINUX_DIR="`${RTAI_CONFIG} --linux-dir`"
+    RTEXT_LINUX_VERSION="`${RTAI_CONFIG} --linux-version`"
+    echo "$as_me:$LINENO: result: $RTEXT_LINUX_DIR (kernel ${RTEXT_LINUX_VERSION}${CONFIG_SMP:+-SMP})" >&5
+echo "${ECHO_T}$RTEXT_LINUX_DIR (kernel ${RTEXT_LINUX_VERSION}${CONFIG_SMP:+-SMP})" >&6
+
 elif test "$XENO_DIR" \!= ""; then
     #
     # check if Xenomai is installed with DESTDIR
@@ -19503,23 +19580,31 @@ echo $ECHO_N "checking for Xenomai version... $ECHO_C" >&6
     XENO_VERSION="`${XENO_CONFIG} --version`"
 
     case "$XENO_VERSION" in
-        1.9.9 | 2.*)
-            CONFIG_RTFW_RTEXT_VERSION=xeno-2x
+        1.9.9 | 2.0*)
+            CONFIG_RTFW_RTEXT_VERSION=xeno-20x
 
 cat >>confdefs.h <<\_ACEOF
-#define CONFIG_XENO_2x 1
+#define CONFIG_XENO_20x 1
 _ACEOF
 
             ;;
+	2.1*)
+            CONFIG_RTFW_RTEXT_VERSION=xeno-21x
+
+cat >>confdefs.h <<\_ACEOF
+#define CONFIG_XENO_21x 1
+_ACEOF
+
+	    ;;
         *)
             { { echo "$as_me:$LINENO: error: *** Unsupported Xenomai version $XENO_VERSION in $XENO_DIR" >&5
 echo "$as_me: error: *** Unsupported Xenomai version $XENO_VERSION in $XENO_DIR" >&2;}
    { (exit 1); exit 1; }; }
             ;;
     esac
+
     echo "$as_me:$LINENO: result: ${XENO_VERSION}" >&5
 echo "${ECHO_T}${XENO_VERSION}" >&6
-
     echo "$as_me:$LINENO: checking for Xenomai config file" >&5
 echo $ECHO_N "checking for Xenomai config file... $ECHO_C" >&6
     XENO_CONFIG_FILE="`${XENO_CONFIG} --config`"
@@ -19534,11 +19619,70 @@ echo "${ECHO_T}${XENO_CONFIG_FILE}" >&6
     # source (load) the Xenomai configuration
     . ${XENO_CONFIG_FILE}
 
+    # get linux kernel tree and version
+    echo "$as_me:$LINENO: checking for Linux source tree" >&5
+echo $ECHO_N "checking for Linux source tree... $ECHO_C" >&6
+    RTEXT_LINUX_DIR="`${XENO_CONFIG} --linux-dir`"
+    RTEXT_LINUX_VERSION="`${XENO_CONFIG} --linux-version`"
+    echo "$as_me:$LINENO: result: $RTEXT_LINUX_DIR (kernel ${RTEXT_LINUX_VERSION}${CONFIG_SMP:+-SMP})" >&5
+echo "${ECHO_T}$RTEXT_LINUX_DIR (kernel ${RTEXT_LINUX_VERSION}${CONFIG_SMP:+-SMP})" >&6
+
 else
-    { { echo "$as_me:$LINENO: error: *** internal error" >&5
-echo "$as_me: error: *** internal error" >&2;}
+    echo "$as_me:$LINENO: checking for Xenomai installation dir" >&5
+echo $ECHO_N "checking for Xenomai installation dir... $ECHO_C" >&6
+    XENO_DIR="`${XENO_CONFIG} --prefix`"
+    echo "$as_me:$LINENO: result: ${XENO_DIR}" >&5
+echo "${ECHO_T}${XENO_DIR}" >&6
+    #
+    # check if Xenomai is installed with DESTDIR
+    # e.g.: 'make DESTDIR=/foo install'
+    #
+    echo "$as_me:$LINENO: checking for Xenomai DESTDIR" >&5
+echo $ECHO_N "checking for Xenomai DESTDIR... $ECHO_C" >&6
+    RTFW_RTEXT_PREFIX="`cd \`${XENO_CONFIG} --prefix\` && pwd`"        # let the shell normalize the path
+    if test "${RTFW_RTEXT_PREFIX}" \!= "${XENO_DIR}"; then
+        XENO_DESTDIR="`cd \`echo ${XENO_DIR} | sed -e s,${RTFW_RTEXT_PREFIX}$,,\` && pwd`"
+        export DESTDIR="${XENO_DESTDIR}"
+
+        RTFW_RTEXT_PREFIX="`cd \`${XENO_CONFIG} --prefix\` && pwd`"    # let the shell normalize the path
+        if test "${RTFW_RTEXT_PREFIX}" = "${XENO_DIR}"; then
+            echo "$as_me:$LINENO: result: ${DESTDIR}" >&5
+echo "${ECHO_T}${DESTDIR}" >&6
+        else
+            { { echo "$as_me:$LINENO: error: *** Cannot identify DESTDIR" >&5
+echo "$as_me: error: *** Cannot identify DESTDIR" >&2;}
    { (exit 1); exit 1; }; }
+        fi
+    else
+        echo "$as_me:$LINENO: result: none" >&5
+echo "${ECHO_T}none" >&6
+    fi
+
+    echo "$as_me:$LINENO: checking for Xenomai version" >&5
+echo $ECHO_N "checking for Xenomai version... $ECHO_C" >&6
+    XENO_VERSION=`grep "#define XENO_VERSION_STRING" $RTEXT_LINUX_DIR/include/xenomai/nucleus/version.h | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
+
+    case "$XENO_VERSION" in
+        2.1*)
+            CONFIG_RTFW_RTEXT_VERSION=xeno-21x
+
+cat >>confdefs.h <<\_ACEOF
+#define CONFIG_XENO_21x 1
+_ACEOF
+
+            echo "$as_me:$LINENO: result: ${XENO_VERSION}" >&5
+echo "${ECHO_T}${XENO_VERSION}" >&6
+            ;;
+        *)
+            { { echo "$as_me:$LINENO: error: *** Unsupported Xenomai version $XENO_VERSION in $RTEXT_LINUX_DIR" >&5
+echo "$as_me: error: *** Unsupported Xenomai version $XENO_VERSION in $RTEXT_LINUX_DIR" >&2;}
+   { (exit 1); exit 1; }; }
+            ;;
+    esac
 fi
+
+#source (load) the kernel configuration
+. ${RTEXT_LINUX_DIR}/.config
 
 
 
@@ -19605,13 +19749,13 @@ echo $ECHO_N "checking for Linux source tree... $ECHO_C" >&6
 
         ;;
 
-    xeno-2x) # ---> Xenomai 2.x <---
+    xeno-20x | xeno-21x) # ---> Xenomai 2.x <---
 
         # check for RTDM skin, needed by rt-firewire
         echo "$as_me:$LINENO: checking for RTDM skin" >&5
 echo $ECHO_N "checking for RTDM skin... $ECHO_C" >&6
         case "${CONFIG_XENO_SKIN_RTDM}" in
-            y) echo "$as_me:$LINENO: result: ${CONFIG_XENO_SKIN_RTDM}" >&5
+            y | m) echo "$as_me:$LINENO: result: ${CONFIG_XENO_SKIN_RTDM}" >&5
 echo "${ECHO_T}${CONFIG_XENO_SKIN_RTDM}" >&6 ;;
             *) { { echo "$as_me:$LINENO: error: *** Please enable RTDM skin" >&5
 echo "$as_me: error: *** Please enable RTDM skin" >&2;}
@@ -19620,17 +19764,10 @@ echo "$as_me: error: *** Please enable RTDM skin" >&2;}
 
 #        AC_MSG_CHECKING([for RTAI pipes])
 #        case "${CONFIG_RTAI_OPT_NATIVE_PIPE}" in
-#            y) AC_MSG_RESULT([${CONFIG_RTAI_OPT_NATIVE_PIPE}]) ;;
+#            y | m) AC_MSG_RESULT([${CONFIG_RTAI_OPT_NATIVE_PIPE}]) ;;
 #            *) AC_MSG_ERROR([*** Please enable pipes in RTAI]) ;;
 #        esac
-
-        # get linux kernel tree and version
-        echo "$as_me:$LINENO: checking for Linux source tree" >&5
-echo $ECHO_N "checking for Linux source tree... $ECHO_C" >&6
-        RTEXT_LINUX_DIR="`${XENO_CONFIG} --linux-dir`"
-        RTEXT_LINUX_VERSION="`${XENO_CONFIG} --linux-version`"
-
-        ;;
+	;;
 
     *)              # ---> oops <----
         { { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -19639,11 +19776,6 @@ echo "$as_me: error: *** internal error" >&2;}
         ;;
 esac
 
-#source (load) the kernel configuration
-. ${RTEXT_LINUX_DIR}/.config
-
-echo "$as_me:$LINENO: result: $RTEXT_LINUX_DIR (kernel ${RTEXT_LINUX_VERSION}${CONFIG_SMP:+-SMP})" >&5
-echo "${ECHO_T}$RTEXT_LINUX_DIR (kernel ${RTEXT_LINUX_VERSION}${CONFIG_SMP:+-SMP})" >&6
 
 
 
@@ -19696,11 +19828,20 @@ case "${CONFIG_RTFW_RTEXT_VERSION}" in
         RTEXT_USER_CFLAGS="`${RTAI_CONFIG} --lxrt-cflags`"
         CONFIG_RTFW_RTEXT_ARCH="`${RTAI_CONFIG} --arch`"
         ;;
-    xeno-2x)
+    xeno-20x)
         RTEXT_USER_CFLAGS="`${XENO_CONFIG} --xeno-cflags`"
         CONFIG_RTFW_RTEXT_ARCH="`${XENO_CONFIG} --arch`"
         RTEXT_LIBRARIES="`${XENO_CONFIG} --library-dir`"
-        RTFW_RTEXT_SYMBOLS="`${XENO_CONFIG} --symbol-dir`"
+        RTEXT_SYMBOLS="`${XENO_CONFIG} --symbol-dir`"
+        ;;
+    xeno-21x)
+        RTEXT_USER_CFLAGS="`${XENO_CONFIG} --xeno-cflags`"
+        RTEXT_LIBRARIES="`${XENO_CONFIG} --library-dir`"
+        if test "`eval echo \\$$wanted_kernel_arch`" \!= ""; then
+            CONFIG_RTFW_RTEXT_ARCH="${RTFW_TARGET_ARCH}"
+        else
+            CONFIG_RTFW_RTEXT_ARCH="<something else>"
+        fi
         ;;
     *)
         { { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -19714,8 +19855,11 @@ if test "$CONFIG_KBUILD" = "y"; then
         rtai-3x)
             RTEXT_KMOD_CFLAGS="`${RTAI_CONFIG} --module-cflags`"
             ;;
-        xeno-2x)
+        xeno-20x)
             RTEXT_KMOD_CFLAGS="`${XENO_CONFIG} --module-cflags`"
+            ;;
+        xeno-21x)
+            RTEXT_KMOD_CFLAGS="-I${RTEXT_LINUX_DIR}/include/xenomai"
             ;;
         *)
             { { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -19728,10 +19872,16 @@ else
         rtai-3x)
             RTEXT_KMOD_CFLAGS="`${RTAI_CONFIG} --module-cflags`"
             ;;
-        xeno-2x)
-            { { echo "$as_me:$LINENO: error: *** internal error" >&5
-echo "$as_me: error: *** internal error" >&2;}
+        xeno-21x)
+	    # Kernel cflags capturing trick from RTAI
+	    kmod_cflags=`cd $srcdir/config/modules && make -s RTEXT_LINUX_DIR=$RTEXT_LINUX_DIR ARCH=$RTFW_TARGET_ARCH CC=$CC | grep '^RTEXT_KMOD_CFLAGS='`
+	    eval $kmod_cflags
+	    if test "$RTEXT_KMOD_CFLAGS" = ""; then
+	        { { echo "$as_me:$LINENO: error: Unable to retrieve compilation flags for kernel modules out of $RTEXT_LINUX_DIR/Makefile" >&5
+echo "$as_me: error: Unable to retrieve compilation flags for kernel modules out of $RTEXT_LINUX_DIR/Makefile" >&2;}
    { (exit 1); exit 1; }; }
+	    fi
+	    RTEXT_KMOD_CFLAGS="$RTEXT_KMOD_CFLAGS -DEXPORT_SYMTAB -I${RTEXT_LINUX_DIR}/include/xenomai -I${RTEXT_LINUX_DIR}/include/xenomai/compat"
             ;;
         *)
             { { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -20005,7 +20155,7 @@ fi
 done
 
             ;;
-        xeno-2x)
+        xeno-20x | xeno-21x)
             # nothing further to do
             ;;
         *)
@@ -20015,6 +20165,76 @@ echo "$as_me: error: *** internal error" >&2;}
             ;;
     esac
 else                                  # building against linux-2.4
+	CPPFLAGS="${CPPFLAGS} -D__KERNEL__ -I${RTEXT_LINUX_DIR}/include -I${RTEXT_LINUX_DIR}/include/xenomai/compat"
+
+
+
+for ac_header in rtdm/rtdm.h rtdm/rtdm_driver.h
+do
+as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
+echo "$as_me:$LINENO: checking for $ac_header" >&5
+echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
+if eval "test \"\${$as_ac_Header+set}\" = set"; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <linux/kernel.h>
+
+
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  eval "$as_ac_Header=yes"
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+eval "$as_ac_Header=no"
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
+echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
+if test `eval echo '${'$as_ac_Header'}'` = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+else
+  { { echo "$as_me:$LINENO: error: *** header not found or working, please check RT-extension installation" >&5
+echo "$as_me: error: *** header not found or working, please check RT-extension installation" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+done
+
+
     case "${CONFIG_RTFW_RTEXT_VERSION}" in
         rtai-3x)    # mandatory RTAI-3 headers
 
@@ -20085,10 +20305,8 @@ fi
 done
 
             ;;
-        xeno-2x)
-            { { echo "$as_me:$LINENO: error: *** internal error" >&5
-echo "$as_me: error: *** internal error" >&2;}
-   { (exit 1); exit 1; }; }
+        xeno-21x)
+            # nothing to do
             ;;
         *)
             { { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -20158,7 +20376,7 @@ echo "$as_me: WARNING:
 echo "${ECHO_T}${CONFIG_REGPARM:-n}" >&6
         fi
         ;;
-    xeno-2x) CONFIG_RTFW_LXRT=n
+    xeno-20x | xeno-21x) CONFIG_RTFW_LXRT=n
         ;;
     *)
         { { echo "$as_me:$LINENO: error: *** internal error" >&5
@@ -20209,7 +20427,6 @@ if test x$CONFIG_KBUILD = xy; then
 	rtpkbuff \
 	rt_serv \
 	rtpc \
-	rtfw_cap \
 	; do
 	              ac_config_links="$ac_config_links ${DIR}/Makefile:${DIR}/Makefile.kbuild"
 
@@ -20232,7 +20449,7 @@ esac
 { echo "$as_me:$LINENO: generating output" >&5
 echo "$as_me: generating output" >&6;}
 
-                                                                                                                                  ac_config_files="$ac_config_files GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rt_serv/GNUmakefile rtpc/GNUmakefile stack/GNUmakefile tools/GNUmakefile rtfw_cap/GNUmakefile"
+                                                                                                                        ac_config_files="$ac_config_files GNUmakefile include/GNUmakefile highlevel/GNUmakefile highlevel/bis1394/GNUmakefile drivers/GNUmakefile drivers/ohci/GNUmakefile drivers/sim/GNUmakefile rtpkbuff/GNUmakefile rt_serv/GNUmakefile rtpc/GNUmakefile stack/GNUmakefile tools/GNUmakefile"
 
 
 cat >confcache <<\_ACEOF
@@ -20848,7 +21065,6 @@ do
   "rtpc/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rtpc/GNUmakefile" ;;
   "stack/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES stack/GNUmakefile" ;;
   "tools/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES tools/GNUmakefile" ;;
-  "rtfw_cap/GNUmakefile" ) CONFIG_FILES="$CONFIG_FILES rtfw_cap/GNUmakefile" ;;
   "${DIR}/Makefile" ) CONFIG_LINKS="$CONFIG_LINKS ${DIR}/Makefile:${DIR}/Makefile.kbuild" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "config/rt-firewire_config_pre.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config/rt-firewire_config_pre.h" ;;

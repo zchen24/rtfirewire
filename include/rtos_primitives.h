@@ -452,7 +452,7 @@ static inline void rtos_irq_reacquire_lock(void)
 
 
 //#if defined(CONFIG_FUSION_090)
-#if defined(CONFIG_XENO_2x)
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x)
 /*supports Xenomai 2.0 or better */
 
 #include <nucleus/pod.h>
@@ -590,7 +590,7 @@ static inline void rtos_timer_stop(void)
 /* IRQ management */
 #define RTOS_IRQ_HANDLER_PROTO(name)        int name(rtdm_irq_t *irq_handle)
 #define RTOS_IRQ_GET_ARG(type)              rtdm_irq_get_arg(irq_handle, type)
-#define RTOS_IRQ_RETURN_HANDLED()           return RTDM_IRQ_ENABLE
+#define RTOS_IRQ_RETURN_HANDLED()           return 0X2 /*XN_ISR_ENABLE*/ 
 #define RTOS_IRQ_RETURN_UNHANDLED()         return 0 /* mask, don't propgt. */
 
 #define rtos_irq_request(irq_handle, irq_no, handler, arg)  \

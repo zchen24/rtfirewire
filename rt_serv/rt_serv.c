@@ -94,7 +94,7 @@ struct rt_serv_struct *irq_brk;
 	 if(srv->priority==RTOS_LINUX_PRIORITY){
 		rtos_nrt_signal_pend(&nrt_serv_srq);
 	}else
-#if defined(CONFIG_XENO_2x)
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x)
 		rtdm_task_unblock(&srv->task);
 #else
 		rem_timed_task(&srv->task);
@@ -225,7 +225,7 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 	rtos_spin_unlock_irqrestore(&srv->requests_list_lock,flags);
 	
 	if(srv->priority != RTOS_LINUX_PRIORITY && req->prev == &srv->requests_list) {
-#if defined(CONFIG_XENO_2x)
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x)
 		rtdm_task_unblock(&srv->task);
 #else
 		rem_timed_task(&srv->task);
@@ -458,7 +458,7 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 		spin_lock(&servers_list_lock);
 		list_add_tail(&srv->entry, &rt_servers_list);
 		spin_unlock(&servers_list_lock);
-#if defined(CONFIG_XENO_2x)	
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x)	
 		if(rtos_task_init(&srv->task, name, rt_serv_worker, (void *)srv, srv->priority, 0)) {
 #else
 		if(rtos_task_init(&srv->task, rt_serv_worker, (void *)srv, srv->priority)) {
@@ -533,7 +533,12 @@ int serv_module_init(void)
 	int err;
 	struct proc_dir_entry *proc_entry;
 
+#if defined(CONFIG_XENO_20x)
 	err = rt_timer_start(TM_ONESHOT);
+#elif defined(CONFIG_XENO_21x)
+	err = rt_timer_set_mode(TM_ONESHOT);
+#endif
+	
 	if(err){
 	    RTSERV_ERR("failed to start timer!\n");
 	    return 1;

@@ -1,9 +1,0 @@
-EXTRA_CFLAGS += \
-	-I$(rtext_dir)/include \
-	-I$(top_srcdir)/include \
-	-I$(top_builddir)/include \
-	-I$(srcdir) \
-	$(rtfirewire_extradef) \
-	-D__IN_RTFW__
-
-obj-m += $(build_target).o

@@ -197,7 +197,7 @@ sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 OPTDIRS = 
-SUBDIRS = include rtpkbuff rt_serv rtpc stack drivers $(OPTDIRS) highlevel tools rtfw_cap
+SUBDIRS = include rtpkbuff rt_serv rtpc stack drivers $(OPTDIRS) highlevel tools
 EXTRA_DIST = autogen.sh
 all: all-recursive
 

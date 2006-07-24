@@ -20,8 +20,11 @@
 
 #ifdef __IN_RTFW__
 
+/* We build for Xenomai 2.0.x */
+#undef CONFIG_XENO_20x
+
 /* We build for Xenomai 2.x */
-#undef CONFIG_XENO_2x
+#undef CONFIG_XENO_21x
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
