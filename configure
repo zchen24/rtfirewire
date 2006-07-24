@@ -19244,7 +19244,6 @@ test "${CCASFLAGS+set}" = set || CCASFLAGS=$CFLAGS
 
 
 
-
 case "$host" in
     i*86*-*)
 	RTFW_TARGET_ARCH=i386
@@ -19254,10 +19253,10 @@ case "$host" in
 #	RTFW_TARGET_ARCH=arm
 #	wanted_kernel_arch=CONFIG_ARM
 #        ;;
-#   powerpc-*|ppc-*)
-#	RTFW_TARGET_ARCH=ppc
-#	wanted_kernel_arch=CONFIG_PPC
-#        ;;
+     powerpc-*|ppc-*)
+        RTFW_TARGET_ARCH=ppc
+        wanted_kernel_arch=CONFIG_PPC
+         ;;
 #    mips-*|mipsel-*)
 #	RTFW_TARGET_ARCH=mips
 #	wanted_kernel_arch=CONFIG_MIPS
@@ -19588,14 +19587,6 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
             ;;
-	2.1*)
-            CONFIG_RTFW_RTEXT_VERSION=xeno-21x
-
-cat >>confdefs.h <<\_ACEOF
-#define CONFIG_XENO_21x 1
-_ACEOF
-
-	    ;;
         *)
             { { echo "$as_me:$LINENO: error: *** Unsupported Xenomai version $XENO_VERSION in $XENO_DIR" >&5
 echo "$as_me: error: *** Unsupported Xenomai version $XENO_VERSION in $XENO_DIR" >&2;}
@@ -19663,7 +19654,7 @@ echo $ECHO_N "checking for Xenomai version... $ECHO_C" >&6
     XENO_VERSION=`grep "#define XENO_VERSION_STRING" $RTEXT_LINUX_DIR/include/xenomai/nucleus/version.h | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
 
     case "$XENO_VERSION" in
-        2.1*)
+        2.1* | 2.2*)
             CONFIG_RTFW_RTEXT_VERSION=xeno-21x
 
 cat >>confdefs.h <<\_ACEOF

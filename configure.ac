@@ -1,6 +1,3 @@
-dnl===========================================================
-dnl	due to the enormous similarities, most of the script were borrowed from RTnet <www.rtnet.org>
-dnl===========================================================
 
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
@@ -43,10 +40,6 @@ AM_PROG_AS
 AC_SUBST(LD)
 
 
-dnl ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-dnl ++++++++++++ copied from rtai 3.0 +++ start ++++++++++++++++++++++++++
-dnl ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
 case "$host" in
     i*86*-*)
 	RTFW_TARGET_ARCH=i386
@@ -56,10 +49,10 @@ case "$host" in
 #	RTFW_TARGET_ARCH=arm
 #	wanted_kernel_arch=CONFIG_ARM
 #        ;;
-#   powerpc-*|ppc-*)
-#	RTFW_TARGET_ARCH=ppc
-#	wanted_kernel_arch=CONFIG_PPC
-#        ;;
+     powerpc-*|ppc-*)
+        RTFW_TARGET_ARCH=ppc
+        wanted_kernel_arch=CONFIG_PPC
+         ;;
 #    mips-*|mipsel-*)
 #	RTFW_TARGET_ARCH=mips
 #	wanted_kernel_arch=CONFIG_MIPS
@@ -75,9 +68,6 @@ case "$host" in
 	;;
 esac
 
-dnl ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-dnl ++++++++++++ copied from rtai-3.0 +++ end ++++++++++++++++++++++++++++
-dnl ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 #
 # define helper function
@@ -269,10 +259,6 @@ elif test "$XENO_DIR" \!= ""; then
             CONFIG_RTFW_RTEXT_VERSION=xeno-20x
             AC_DEFINE(CONFIG_XENO_20x, 1, [We build for Xenomai 2.0.x])
             ;;
-	2.1*)
-            CONFIG_RTFW_RTEXT_VERSION=xeno-21x
-            AC_DEFINE(CONFIG_XENO_21x, 1, [We build for Xenomai 2.1.x])
-	    ;;
         *)
             AC_MSG_ERROR([*** Unsupported Xenomai version $XENO_VERSION in $XENO_DIR])
             ;;
@@ -323,7 +309,7 @@ else
     XENO_VERSION=`grep "#define XENO_VERSION_STRING" $RTEXT_LINUX_DIR/include/xenomai/nucleus/version.h | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
 
     case "$XENO_VERSION" in
-        2.1*)
+        2.1* | 2.2*)
             CONFIG_RTFW_RTEXT_VERSION=xeno-21x
             AC_DEFINE(CONFIG_XENO_21x, 1, [We build for Xenomai 2.x])
             AC_MSG_RESULT([${XENO_VERSION}])
