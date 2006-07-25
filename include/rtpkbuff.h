@@ -168,7 +168,7 @@ struct rtpkb {
 	unsigned int priority;
 
 	/*protocol-specific stuff goes here, size agreed among all exsiting protocols, cant be exceeded!!! */
-	char		meta_stuff[256];
+	char		specific_stuff[256];
 	
 	struct rtpkb_pool	*comp_pool;			/* the compensating packet */
 	struct rtpkb	*next_cap;		/* the next captured packet */

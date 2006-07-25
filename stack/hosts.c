@@ -130,8 +130,6 @@ struct hpsb_host *host_get_by_name(const char *name)
 		
 	down(&hpsb_hosts_lock);
 	host = __host_get_by_name(name);
-	if(host)
-		atomic_inc(&host->refcount);
 	up(&hpsb_hosts_lock);
 	
 	return host;
@@ -162,8 +160,6 @@ struct hpsb_host *host_get_by_index(int ifindex)
 	
 	down(&hpsb_hosts_lock);
 	host = __host_get_by_index(ifindex);
-	if(host)
-		atomic_inc(&host->refcount);
 	up(&hpsb_hosts_lock);
 	
 	return host;
@@ -201,12 +197,8 @@ struct hpsb_host *host_get_by_devid(unsigned short type, char *dev_id)
 		
 	down(&hpsb_hosts_lock);
 	host = __host_get_by_devid(type, dev_id);
-	if(host)
-		atomic_inc(&host->refcount);
 	up(&hpsb_hosts_lock);
-	
-	
-	
+		
 	return host;
 }
 

@@ -9,6 +9,15 @@
 #define _IEEE1394_TRANSACTIONS_H
 
 #include <ieee1394_core.h>
+#include <rtos_primitives.h>
+
+// Define a structure for callback instead of only then semaphore
+typedef struct _hpsb_transaction_packet
+{
+    struct hpsb_packet * pSendPacket;
+    struct hpsb_packet * pResponsePacket;
+    rtos_event_t *       pSem;
+}hpsb_transaction_packet;
 
 /*
  * Get and free transaction labels.

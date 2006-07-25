@@ -55,8 +55,6 @@ relative to the base priority of server module*/
 #define RT1394_SERVER_PRI	RTDM_TASK_HIGHEST_PRIORITY - 5
 #define TIMEOUT_SERVER_PRI	RTDM_TASK_HIGHEST_PRIORITY - 3
 
- 
-
 #ifdef CONFIG_IEEE1394_DEBUG
 static void dump_packet(const char *text, quadlet_t *data, int size)
 {
@@ -120,8 +118,6 @@ const int hpsb_speedto_val[] = { 100, 200, 400, 800, 1600, 3200};
 
 static void abort_requests(struct hpsb_host *host);
 static void queue_packet_complete(struct hpsb_packet *packet);
-
-
 
 /**
  * @ingroup kernel
@@ -521,7 +517,7 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
 
         if (packet->no_waiter || packet->state == hpsb_complete) {
                 /* if packet->no_waiter, must not have a tlabel allocated */
-				rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
+		rtos_spin_unlock_irqrestore(&host->pending_packet_queue.lock, flags);
                 hpsb_free_packet(packet);
                 return;
         }
@@ -556,18 +552,6 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
 	rt_serv_sync(timeout_server);
 }
 
-/**
- * @ingroup kernel
- * @anchor send_packet_nocare
- */
-static void send_packet_nocare(struct hpsb_packet *packet)
-{
-        if (hpsb_send_packet(packet)) {
-		//sending failed in hardware, so we need to free the packet here. 
-		//otherwise, the packet will be freed in hpsb_packet_sent
-                hpsb_free_packet(packet);
-        }
-}
 
 /**
  * @ingroup kernel
@@ -585,6 +569,7 @@ static void send_packet_nocare(struct hpsb_packet *packet)
 int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
 {
 	struct hpsb_packet *packet;
+	int retval = 0;
 
 	if (rootid >= ALL_NODES || rootid < -1 || gapcnt > 0x3f || gapcnt < -1 ||
 	   (rootid == -1 && gapcnt == -1)) {
@@ -616,10 +601,10 @@ int hpsb_send_phy_config(struct hpsb_host *host, int rootid, int gapcnt)
 
 	packet->generation = get_hpsb_generation(host);
 	
-	//retval = hpsb_send_packet_and_wait(packet);
+	retval = hpsb_send_packet_and_wait(packet);
 	hpsb_free_packet(packet);
 	
-	return 0;
+	return retval;
 }
 
 /**
@@ -716,8 +701,52 @@ int hpsb_send_packet(struct hpsb_packet *packet)
         return host->driver->transmit_packet(host, packet);
 }
 
+/**
+ * @ingroup kernel
+ * @anchor complete_packet
+ * To notify the completion of transaction, set as a callback. 
+ *
+ * @param data -- the counting semaphore set during sending of the packet. 
+ */
+static void complete_packet (struct hpsb_packet *packet, void *data)
+{
+	packet->processed = 1;	
+	rtos_event_signal((rtos_event_t *)data);
+}
+	
+/**
+ * @ingroup kernel
+ * @anchor hpsb_send_packet_and_wait
+ * Wait until packet transaction is done. 
+ * Synchronized versoin of hpsb_send_packet. 
+ */
+int hpsb_send_packet_and_wait(struct hpsb_packet *packet)
+{
+	int retval;
+	rtos_event_t	sem;
+	rtos_event_init(&sem);
+	
+	hpsb_set_packet_complete_task(packet, complete_packet, (void *)&sem);
+	retval = hpsb_send_packet(packet);
+	if (retval == 0)
+		rtos_event_wait(&sem);
+	
+	return retval;
+}
 
 
+/**
+ * @ingroup kernel
+ * @anchor send_packet_nocare
+ */
+static void send_packet_nocare(struct hpsb_packet *packet)
+{
+        if (hpsb_send_packet(packet)) {
+		//sending failed in hardware, so we need to free the packet here. 
+		//otherwise, the packet will be freed in hpsb_packet_sent
+                hpsb_free_packet(packet);
+        }
+}
 
 /**
  * @ingroup kernel
@@ -1089,14 +1118,7 @@ void req_worker(unsigned long arg)
  */
 void hpsb_packet_received(struct hpsb_packet *packet)
 {
-#ifdef CONFIG_ADDONS_RTCAP
-	unsigned long ctx;
-	rtos_spin_lock_irqsave(Cap_lock,ctx);
-	if(Cap_handler)
-		Cap_hander((struct rtpkb*)packet);
-	rtos_spin_unlock_irqrestore(Cap_lock,ctx);
-#endif	
-	
+
 	struct rt_serv_struct *broker=NULL;
 
         if (packet->host->in_bus_reset) {
@@ -1293,7 +1315,7 @@ void resp_worker(unsigned long dummy)
 			if(complete_routine)
 				complete_routine(packet, complete_data);
 			
-			//hpsb_free_packet(packet);
+			hpsb_free_packet(packet);
 	}
 }
 

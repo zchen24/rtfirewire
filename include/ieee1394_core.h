@@ -132,14 +132,6 @@ struct hpsb_packet {
 };
 
 
-/*define a structure for hooking the response packet,
- * used in hpsb_read/write/lock*/ 
-typedef struct _hpsb_transaction_response 
-{ 
-    struct hpsb_packet * pResponsePacket; 
-    rtos_event_t *       pSem;       
-}hpsb_transaction_response;
-
 
 /* Set a task for when a packet completes */
 void hpsb_set_packet_complete_task(struct hpsb_packet *packet,

@@ -561,17 +561,15 @@ struct hpsb_packet *hpsb_make_isopacket(struct hpsb_host *host,
 	return packet;
 }
 
-/* 
- * Define the call back function used in hpsb_read/write/lock
- * set the response packet
- */ 
-static void tranaction_complete_packet (struct hpsb_packet *packet, void *data) 
-{ 
-        packet->processed = 1; 
-        // Set the response packet 
-        ((hpsb_transaction_response*) data)->pResponsePacket = packet; 
-       // Free the semaphore 
-        rtos_event_signal(((hpsb_transaction_response*) data)->pSem); 
+
+// Define the call back function, set the response packet
+static void tranaction_complete_packet (struct hpsb_packet *packet, void *data)
+{
+        packet->processed = 1;
+        // Set the response packet
+        ((hpsb_transaction_packet*) data)->pResponsePacket = packet;
+       // Free the semaphore
+        rtos_event_signal(((hpsb_transaction_packet*) data)->pSem);
 }
 
 /**
@@ -582,9 +580,9 @@ static void tranaction_complete_packet (struct hpsb_packet *packet, void *data)
 int hpsb_read(struct hpsb_host *host, nodeid_t node, unsigned int generation,
 	      u64 addr, quadlet_t *buffer, size_t length, unsigned int pri)
 {
-        hpsb_transaction_response transaction_response; 
+	hpsb_transaction_packet transaction_packet;
+	rtos_event_t    sem;
         struct hpsb_packet *packet;
-        rtos_event_t sem;
         int retval = 0;
 
         if (length == 0)
@@ -592,38 +590,41 @@ int hpsb_read(struct hpsb_host *host, nodeid_t node, unsigned int generation,
 
 	//~ BUG_ON(in_interrupt()); // We can't be called in an interrupt, yet
 
-		packet = hpsb_make_readpacket(host, node, addr, length,pri);
-		if (!packet) return -ENOMEM;
-		packet->generation = generation;
-		
-		
-		rtos_event_init(&sem); 
-        // Set the call back data 
-        transaction_response.pResponsePacket = NULL; 
-        transaction_response.pSem = &sem; 
-      
-        // Set the callback 
-        hpsb_set_packet_complete_task(packet, tranaction_complete_packet, (void *)&transaction_response); 
-        retval = hpsb_send_packet(packet); 
-        if (retval == 0) 
-                rtos_event_wait(&sem); 
-                
-		if (retval < 0) goto hpsb_read_fail;
-		
-		packet = transaction_response.pResponsePacket; 
-        retval = hpsb_packet_success(packet); 
-        if (retval == 0) 
-        { 
-                if (length == 4) { 
-                        *buffer = packet->header[3]; 
-                } else { 
-                        memcpy(buffer, packet->data, length); 
-                } 
-        } 
-hpsb_read_fail: 
-        hpsb_free_tlabel(packet); 
-        hpsb_free_packet(packet); 
-        return retval; 
+	packet = hpsb_make_readpacket(host, node, addr, length,pri);
+        if (!packet) {
+                return -ENOMEM;
+        }
+	
+	rtos_event_init(&sem);
+        // Set the call back data
+        transaction_packet.pSendPacket = packet;
+        transaction_packet.pResponsePacket = NULL;
+        transaction_packet.pSem = &sem;
+        // Set the callback
+        hpsb_set_packet_complete_task(packet, tranaction_complete_packet, (void *)&transaction_packet);
+        retval = hpsb_send_packet(packet);
+        if (retval == 0)
+                rtos_event_wait(&sem);
+        if (retval < 0)
+                goto hpsb_read_fail;
+
+        // check the response packet and copy the data
+        packet = transaction_packet.pResponsePacket;
+        retval = hpsb_packet_success(packet);
+        if (retval == 0)
+        {
+                if (length == 4) {
+                        *buffer = packet->header[3];
+                } else {
+                        memcpy(buffer, packet->data, length);
+                }
+        }
+
+hpsb_read_fail:
+        hpsb_free_tlabel(packet);
+        hpsb_free_packet(packet);
+
+        return retval;
 }
 
 /**
@@ -634,48 +635,31 @@ hpsb_read_fail:
 int hpsb_write(struct hpsb_host *host, nodeid_t node, unsigned int generation,
 	       u64 addr, quadlet_t *buffer, size_t length, unsigned int pri)
 {
-		hpsb_transaction_response transaction_response;
-		struct hpsb_packet *packet;
-		rtos_event_t sem;
-		int retval;
+	struct hpsb_packet *packet;
+	int retval;
 
-		if (length == 0)
-			return -EINVAL;
+	if (length == 0)
+		return -EINVAL;
 
 	//~ BUG_ON(in_interrupt()); // We can't be called in an interrupt, yet
 
-		packet = hpsb_make_writepacket (host, node, addr, buffer, length, pri);
-		if (!packet)
-			return -ENOMEM;
-		packet->generation = generation;
-		
-		rtos_event_init(&sem); 
-        // Set the call back data 
-        transaction_response.pResponsePacket = NULL; 
-        transaction_response.pSem = &sem; 
-        
-        // Set the callback 
-        hpsb_set_packet_complete_task(packet, tranaction_complete_packet, (void *)&transaction_response); 
-        retval = hpsb_send_packet(packet); 
-        if (retval == 0) 
-                rtos_event_wait(&sem); 
-                
-		if (retval < 0) goto hpsb_write_fail;
-		
-		packet = transaction_response.pResponsePacket; 
-        retval = hpsb_packet_success(packet); 
-        if (retval == 0) 
-        { 
-                if (length == 4) { 
-                        *buffer = packet->header[3]; 
-                } else { 
-                        memcpy(buffer, packet->data, length); 
-                } 
-        } 
-hpsb_write_fail: 
-        hpsb_free_tlabel(packet); 
-        hpsb_free_packet(packet); 
-        return retval; 
+	packet = hpsb_make_writepacket (host, node, addr, buffer, length, pri);
+
+	if (!packet)
+		return -ENOMEM;
+
+	packet->generation = generation;
+        retval = hpsb_send_packet_and_wait(packet);
+	if (retval < 0)
+		goto hpsb_write_fail;
+
+        retval = hpsb_packet_success(packet);
+
+hpsb_write_fail:
+        hpsb_free_tlabel(packet);
+        hpsb_free_packet(packet);
+
+        return retval;
 }
 
 /**
@@ -687,40 +671,31 @@ int hpsb_lock(struct hpsb_host *host, nodeid_t node, unsigned int generation,
 		u64 addr, int extcode, quadlet_t *data, quadlet_t arg, 
 		unsigned int pri)
 {
-        hpsb_transaction_response transaction_response;
         struct hpsb_packet *packet;
         int retval = 0;
-        rtos_event_t sem;
 
 	//~ BUG_ON(in_interrupt()); // We can't be called in an interrupt, yet
 
-		packet = hpsb_make_lockpacket(host, node, addr, extcode, data, arg, pri);
+	packet = hpsb_make_lockpacket(host, node, addr, extcode, data, arg, pri);
         if (!packet)
                 return -ENOMEM;
-       	packet->generation = generation;
-       	
-       	rtos_event_init(&sem); 
-        // Set the call back data 
-        transaction_response.pResponsePacket = NULL; 
-        transaction_response.pSem = &sem; 
-        
-        // Set the callback 
-        hpsb_set_packet_complete_task(packet, tranaction_complete_packet, (void *)&transaction_response); 
-        retval = hpsb_send_packet(packet); 
-        if (retval == 0) 
-                rtos_event_wait(&sem); 
-                
-		if (retval < 0) goto hpsb_lock_fail;
-		
-		packet = transaction_response.pResponsePacket; 
-        retval = hpsb_packet_success(packet); 
-        if (retval == 0) 
-        	*data = packet->data[0];
-        	
-hpsb_lock_fail: 
-        hpsb_free_tlabel(packet); 
-        hpsb_free_packet(packet); 
-        return retval; 
+
+	packet->generation = generation;
+        retval = hpsb_send_packet_and_wait(packet);
+	if (retval < 0)
+		goto hpsb_lock_fail;
+
+        retval = hpsb_packet_success(packet);
+
+        if (retval == 0) {
+                *data = packet->data[0];
+        }
+
+hpsb_lock_fail:
+        hpsb_free_tlabel(packet);
+        hpsb_free_packet(packet);
+
+        return retval;
 }
 
 /**
