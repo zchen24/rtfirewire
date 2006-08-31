@@ -33,7 +33,9 @@
 #define RTOS_SET_MODULE_OWNER(some_struct)	\
 	do {(some_struct)->rt_owner = THIS_MODULE; } while (0)
 
+#ifdef __IN_RTFW__
 typedef __u64 nanosecs_t; /*used for time calculations and I/O */
+#endif
 
 #define RTOS_TIME_LIMIT	0x7FFFFFFFFFFFFFFFLL //copied from rtai_hal.h 
 
@@ -452,7 +454,7 @@ static inline void rtos_irq_reacquire_lock(void)
 
 
 //#if defined(CONFIG_FUSION_090)
-#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x)
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x) || defined(CONFIG_XENO_2_0x) || defined(CONFIG_XENO_2_1x)
 /*supports Xenomai 2.0 or better */
 
 #include <nucleus/pod.h>
@@ -460,7 +462,9 @@ static inline void rtos_irq_reacquire_lock(void)
 
 
 /* basic types */
+#ifdef __IN_RTFW__
 typedef rtdm_lock_t                 rtos_spinlock_t;
+#endif
 typedef rtdm_task_t                 rtos_task_t;
 typedef rtdm_event_t                rtos_event_t;
 typedef rtdm_sem_t                  rtos_sem_t;
