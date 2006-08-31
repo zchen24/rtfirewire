@@ -151,13 +151,13 @@ static char version[] __devinitdata =
 
 /* Module Parameters */
 static int cards = 2;
-MODULE_PARM(cards, "i");
+module_param(cards, int, 0444);
 MODULE_PARM_DESC(cards, "Number of cards to be steered by this driver (default  = 2).");
 static int disable_irm = 0;
-MODULE_PARM(disable_irm, "i");
+module_param(disable_irm, int, 0444);
 MODULE_PARM_DESC(disable_irm, "Disable Isochronous Resource Manager Contending on local adapter (default = NO).");
 static int phys_dma = 1;
-MODULE_PARM(phys_dma, "i");
+module_param(phys_dma, int, 0444);
 MODULE_PARM_DESC(phys_dma, "Enable dma for physical packets (default = 1).");
 
 static unsigned int cards_found;
@@ -3129,7 +3129,7 @@ void ohci_remove1(struct ti_ohci *ohci)
 		ohci_soft_reset(ohci);
 		if(rtos_irq_free(&ohci->irq_handle)<0)
 			OHCI_ERR("failed to free irq\n");
-		
+
 	case OHCI_INIT_HAVE_TXRX_BUFFERS__MAYBE:
 		/* Free AR dma */
 		free_dma_asyn_recv(&ohci->ar_req_context);
@@ -3152,6 +3152,7 @@ void ohci_remove1(struct ti_ohci *ohci)
 		OHCI_NOTICE("consistent csr_config_rom");
 
 	case OHCI_INIT_HAVE_IOMAPPING:
+	case OHCI_INIT_HAVE_MEM_REGION:
 		iounmap(ohci->registers);
 
 #ifdef CONFIG_ALL_PPC
@@ -3345,9 +3346,8 @@ int ohci_found1(struct pci_dev *pdev)
 	//~ ohci->ir_legacy_context.ohci = NULL;
 	/* same for the IT DMA context */
 	//~ ohci->it_legacy_context.ohci = NULL;
-
 	ohci->id = cards_found;
-	if (rtos_irq_request(&ohci->irq_handle,pdev->irq, ohci_irq_handler, ohci)){
+	if (rtos_irq_request(&ohci->irq_handle,pdev->irq, ohci_irq_handler,0, NULL, ohci)){
 		FAIL(-ENOMEM, "Failed to allocate interrupt %d", pdev->irq);
 	}else{
 		OHCI_NOTICE( "irq: %d requested",pdev->irq);
@@ -3372,6 +3372,7 @@ int ohci_found1(struct pci_dev *pdev)
 		FAIL(ret, "Failed to register new host");
 	
 	ohci->init_state = OHCI_INIT_DONE;
+
 	return ret;
 	
 #undef FAIL
@@ -3530,7 +3531,7 @@ void ohci1394_init_iso_ctx(struct dma_base_ctx *d, int type, struct hpsb_iso *is
 			rt_event_init(&d->event ,d->name, ohci_iso_xmit_task, (unsigned long)iso);
 			break;
 		case OHCI_ISO_RECEIVE:
-			OHCI_ISO_MULTICHANNEL_RECEIVE:
+		case OHCI_ISO_MULTICHANNEL_RECEIVE:
 			rt_event_init(&d->event, d->name, ohci_iso_recv_task, (unsigned long)iso);
 			break;
 		default:
