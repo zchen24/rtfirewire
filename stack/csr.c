@@ -46,7 +46,7 @@
 /* Module Parameters */
 /* this module parameter can be used to disable mapping of the FCP registers */
 static int fcp = 1;
-MODULE_PARM(fcp,"i");
+module_param(fcp, int, 0444);
 MODULE_PARM_DESC(fcp, "Map FCP registers (default = 1, disable = 0).");
 
 static struct csr1212_keyval *node_cap = NULL;

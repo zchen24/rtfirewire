@@ -39,7 +39,7 @@
 	rtdm_printk("RTPKB:%s[%d]: " fmt "\n",  __FUNCTION__, __LINE__, ## args)
 
 static unsigned int rtpkb_cache_size = DEFAULT_RTPKB_CACHE_SIZE;
-MODULE_PARM(rtpkb_cache_size, "i");
+module_param(rtpkb_cache_size, uint, 0444);
 MODULE_PARM_DESC(rtpkb_cache_size, "Number of cached rtpkbs for creating pools in real-time");
 
 
