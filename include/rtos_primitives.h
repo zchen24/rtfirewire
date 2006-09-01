@@ -605,6 +605,7 @@ static inline void rtos_timer_stop(void)
 
 #define rtos_irq_end(irq_handle)    /* done by returning RT_INTR_ENABLE */
 
+/*
 static inline void rtos_irq_release_lock(void)
 {
     xnpod_set_thread_mode(xnpod_current_thread(), 0, XNLOCK);
@@ -615,7 +616,7 @@ static inline void rtos_irq_reacquire_lock(void)
 {
     rthal_local_irq_disable_hw();
     xnpod_set_thread_mode(xnpod_current_thread(), XNLOCK, 0);
-}
+}*/
 
 #endif /*CONFIG_XENO_2x*/
 
