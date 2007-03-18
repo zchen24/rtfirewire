@@ -1,5 +1,10 @@
 OPTDIRS = 
 
+
+
+
+
+
 SUBDIRS = include rtpkbuff rt_serv rtpc stack drivers $(OPTDIRS) highlevel tools
 
 install-data-local:
