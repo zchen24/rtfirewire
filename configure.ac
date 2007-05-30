@@ -3,9 +3,9 @@
 # Process this file with autoconf to produce a configure script.
 #
 
-AC_PREREQ(2.59)
+AC_PREREQ(2.61)
 
-AC_INIT([RT-FireWire],[0.1.0],[rtfirewire-devel@lists.berlios.de])
+AC_INIT([RT-FireWire],[0.1.1],[rtfirewire-devel@lists.berlios.de])
 AC_CONFIG_HEADERS([config/rt-firewire_config_pre.h])
 AC_CONFIG_AUX_DIR([config/autoconf])
 AC_CONFIG_MACRO_DIR([config/m4])
@@ -310,7 +310,7 @@ else
     XENO_VERSION=`grep "#define XENO_VERSION_STRING" $RTEXT_LINUX_DIR/include/xenomai/nucleus/version.h | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
 
     case "$XENO_VERSION" in
-        2.1* | 2.2*)
+        2.1* | 2.2* | 2.3*)
             CONFIG_RTFW_RTEXT_VERSION=xeno-21x
             AC_DEFINE(CONFIG_XENO_21x, 1, [We build for Xenomai 2.x])
             AC_MSG_RESULT([${XENO_VERSION}])
