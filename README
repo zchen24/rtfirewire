@@ -1,0 +1,58 @@
+                             RT-FireWire Version 0.2.1
+                             ===================
+
+What is it?
+-----------
+RT-FireWire is an OpenSource project, being aimed at developing software to use 
+FireWire as new generation, yet high performance serial fieldbus in distributed 
+control field. 
+
+Current RT-FireWire supports OHCI-compliant FireWire adapters. 
+
+
+What are the requirements?
+--------------------------
+- Linux kernel 2.6.x
+  Linux kernel 2.4.x
+- Xenomai 2.0 or better
+- OHCI-compliant adapter
+
+
+How to install it?
+------------------
+1. Install and test a suitable real-time Linux version
+2. cd to a preferred directory (e.g. /usr/src)
+3. tar xvjf <PATH-TO-RTNET-ARCHIVE>/rtfirewire-X.X.X.tar.bz2
+4. cd rtfirewire
+5. for Xenomai 2.0  ./configure --with-linux=<PATH_TO_REAL_TIME_PATCHED_LINUX> --with-rtext=<PATH_TO_XENOMAI_INSTALLATION>
+   for Xenomai 2.1 or better ./configure --with-linux=<PATH_TO_REAL_TIME_PATCHED_LINUX> --with-rtext_config=<PATH_TO_CONFIG_OF_XENOMAI_INSTALLATION>
+   for example, if you have Xenomai-2.1 installed in /usr/xenomai and real-time linux code in /home/username/linux-2.6.14-xeno2.1,the configure command line would be something like: ./configure --with-linux=/home/username/linux-2.6.14-xeno2.1 --with-rtext-config=/usr/xenomai/bin/xeno-config
+6. make
+7. make install
+   This will create the directories <PREFIX>/sbin with all configuration tools,
+   <PREFIX>/modules containing all core modules, <PREFIX>/include with the
+   required API header files.
+8. run "mknod /dev/rt-firewire c 10 241" on your target system to create the
+   configuration interface device node.
+
+
+How to test it?
+---------------
+After inmoding all the modules, you can run hostconfig now to see all your FireWire adapters, quite similiar
+to ifconfig on Ethernet. 
+
+for example: hostconfig -a 
+
+This gives a view of all local hosts. 
+
+If you have 2 machines, you can run rtping to test the latency between request and response. 
+
+for example:  rtping -h fwhost0 -d 0 -s 500. 
+
+This does a test between local host "fwhost0" and remote node with id 0. 
+If the id of local host is used, then it is a loopback test. Use rtping -h for more help.
+
+
+RT-FireWire is free software, and you are welcome to redistribute it under
+the terms of the GNU General Public License. This program comes with
+ABSOLUTELY NO WARRANTY. See "COPYING" for details.
