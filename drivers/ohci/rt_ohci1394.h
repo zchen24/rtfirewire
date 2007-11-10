@@ -48,7 +48,7 @@
 #define AR_REQ_SPLIT_BUF_SIZE	AR_REQ_BUF_SIZE	/* split packet buffer */
 
 #define AR_RESP_NUM_DESC	4		/* number of AR resp descriptors */
-#define AR_RESP_BUF_SIZE	1024	/* size of AR resp buffers */
+#define AR_RESP_BUF_SIZE	4096	/* size of AR resp buffers */
 #define AR_RESP_SPLIT_BUF_SIZE	AR_RESP_BUF_SIZE	/* split packet buffer */
 
 #define IR_NUM_DESC		16		/* number of IR descriptors */
@@ -163,18 +163,18 @@ struct dma_asyn_recv {
 	unsigned int split_buf_size;
 
 	/* dma block descriptors */
-    struct dma_cmd **prg_cpu;
-    dma_addr_t *prg_bus;
+        struct dma_cmd **prg_cpu;
+        dma_addr_t *prg_bus;
 	struct pci_pool *prg_pool;
 
 	/* dma buffers */
-    quadlet_t **buf_cpu;
-    dma_addr_t *buf_bus;
+        quadlet_t **buf_cpu;
+        dma_addr_t *buf_bus;
 
-    unsigned int buf_ind;
-    unsigned int buf_offset;
-    quadlet_t *spb;
-    rtos_spinlock_t lock;
+        unsigned int buf_ind;
+        unsigned int buf_offset;
+        quadlet_t *spb;
+        rtos_spinlock_t lock;
 	
 	struct rtpkb_pool pool;
 };
@@ -325,6 +325,7 @@ struct ti_ohci {
 		OHCI_INIT_HAVE_SELFID_BUFFER,
 		OHCI_INIT_HAVE_TXRX_BUFFERS__MAYBE,
 		OHCI_INIT_HAVE_IRQ,
+		OHCI_INIT_HAVE_HOST,
 		OHCI_INIT_DONE,
 	} init_state;
 

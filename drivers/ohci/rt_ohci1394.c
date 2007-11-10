@@ -84,7 +84,7 @@
  */
  /**********************************************************************************/
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/slab.h>
@@ -1052,7 +1052,7 @@ static int ohci_iso_recv_init(struct hpsb_iso *iso)
 		/* one block per page of data in the DMA buffer, minus the final guard page */
 		recv->nblocks = iso->buf_size/PAGE_SIZE - 1;
 		if (recv->nblocks < 3) {
-			OHCI_NOTICE("ohci_iso_recv_init: DMA buffer too small\n");
+			OHCI_NOTICE("ohci_iso_recv_init: DMA buffer too small, page size is %d\n",PAGE_SIZE);
 			goto err;
 		}
 
@@ -1221,6 +1221,14 @@ static void ohci_iso_recv_program(struct hpsb_iso *iso)
 		}
 
 		prev_branch = &cmd->branchAddress;
+		
+		struct ti_ohci *ohci = recv->ohci;
+		OHCI_NOTICE	("block%d\n: %08x\n%08x\n%08x\n%08x\n\n",	blk,
+														cmd->control,
+														cmd->address,
+														cmd->branchAddress,
+														cmd->status
+					);
 	}
 
 	/* the final descriptor's branch address and Z should be left at 0 */
@@ -1231,6 +1239,8 @@ static void ohci_iso_recv_change_channel(struct hpsb_iso *iso, unsigned char cha
 {
 	struct dma_iso_recv *recv = iso->hostdata;
 	int reg, i;
+	u32 mask;
+	struct ti_ohci *ohci = recv->ohci;
 
 	if (channel < 32) {
 		reg = listen ? OHCI1394_IRMultiChanMaskLoSet : OHCI1394_IRMultiChanMaskLoClear;
@@ -1245,6 +1255,11 @@ static void ohci_iso_recv_change_channel(struct hpsb_iso *iso, unsigned char cha
 	/* issue a dummy read to force all PCI writes to be posted immediately */
 	mb();
 	reg_read(recv->ohci, OHCI1394_IsochronousCycleTimer);
+	
+	//then we read the channel mask to make sure that it is set correctly
+	mask = reg_read(recv->ohci, reg);
+	OHCI_NOTICE("the channel mask is %08x\n",mask);
+	
 }
 
 
@@ -1279,6 +1294,8 @@ static int ohci_iso_recv_start(struct hpsb_iso *iso, int cycle, int tag_mask, in
 	struct ti_ohci *ohci = recv->ohci;
 	u32 command, contextMatch;
 
+	OHCI_NOTICE("%s",__FUNCTION__);
+	
 	reg_write(recv->ohci, recv->ctrlClear, 0xFFFFFFFF);
 	wmb();
 
@@ -1336,6 +1353,9 @@ static int ohci_iso_recv_start(struct hpsb_iso *iso, int cycle, int tag_mask, in
 	
 	wmb();
 	
+	reg_read(recv->ohci, OHCI1394_IsochronousCycleTimer);
+	OHCI_NOTICE("ContextMatch 0x%08x\n",
+		      reg_read(recv->ohci, recv->ctxtMatch));
 
 	/* address of first descriptor block */
 	command = dma_prog_region_offset_to_bus(&recv->prog,
@@ -1351,6 +1371,8 @@ static int ohci_iso_recv_start(struct hpsb_iso *iso, int cycle, int tag_mask, in
 	wmb();
 			
 
+	/*debug: let's read the interrupt mask clear to see if the isochronous receive interrupt is really enabled*/
+	OHCI_NOTICE("IntMaskSet: 0x%08x)\n",reg_read(recv->ohci, OHCI1394_IntMaskSet));						
 	/* run */
 	reg_write(recv->ohci, recv->ctrlSet, 0x8000);
 
@@ -1919,6 +1941,20 @@ static int ohci_iso_xmit_queue(struct hpsb_iso *iso, struct hpsb_iso_packet_info
 		prev->output_last.control |= cpu_to_le32(3 << 20); /* enable interrupt */
 	}
 
+	struct dma_cmd *cmd = &next->output_more_immediate;
+	OHCI_NOTICE	("output_more_immediate:\n %08x\n%08x\n%08x\n%08x\n\n",
+													cmd->control,
+													cmd->address,
+													cmd->branchAddress,
+													cmd->status
+				);
+	cmd = &next->output_last;
+	OHCI_NOTICE	("output_last:\n %08x\n%08x\n%08x\n%08x\n\n",
+													cmd->control,
+													cmd->address,
+													cmd->branchAddress,
+													cmd->status
+				);
 	wmb();
 
 	/* wake DMA in case it is sleeping */
@@ -1942,11 +1978,11 @@ static int ohci_iso_xmit_start(struct hpsb_iso *iso, int cycle)
 	struct ti_ohci *ohci = xmit->ohci;
 
 	/* clear out the control register */
-	reg_write(xmit->ohci, xmit->ctrlClear, 0xFFFFFFFF);
+	reg_write(ohci, xmit->ctrlClear, 0xFFFFFFFF);
 	wmb();
 
 	/* address and length of first descriptor block (Z=3) */
-	reg_write(xmit->ohci, xmit->cmdPtr,
+	reg_write(ohci, xmit->cmdPtr,
 		  dma_prog_region_offset_to_bus(&xmit->prog, iso->pkt_dma * sizeof(struct iso_xmit_cmd)) | 3);
 
 	/* cycle match */
@@ -1955,30 +1991,33 @@ static int ohci_iso_xmit_start(struct hpsb_iso *iso, int cycle)
 
 		/* 'cycle' is only mod 8000, but we also need two 'seconds' bits -
 		   just snarf them from the current time */
-		u32 seconds = reg_read(xmit->ohci, OHCI1394_IsochronousCycleTimer) >> 25;
+		u32 seconds = reg_read(ohci, OHCI1394_IsochronousCycleTimer) >> 25;
 
 		/* advance one second to give some extra time for DMA to start */
 		seconds += 1;
 
 		start |= (seconds & 3) << 13;
 
-		reg_write(xmit->ohci, xmit->ctrlSet, 0x80000000 | (start << 16));
+		reg_write(ohci, xmit->ctrlSet, 0x80000000 | (start << 16));
 	}
 
 	/* enable interrupts */
-	reg_write(xmit->ohci, OHCI1394_IsoXmitIntMaskSet, 1 << xmit->context);
+	reg_write(ohci, OHCI1394_IsoXmitIntMaskSet, 1 << xmit->context);
 
 	/* run */
-	reg_write(xmit->ohci, xmit->ctrlSet, 0x8000);
+	reg_write(ohci, xmit->ctrlSet, 0x8000);
 	mb();
 
 	/* wait 100 usec to give the card time to go active */
 	udelay(100);
+	
+	/*debug: let's read the interrupt mask clear to see if the isochronous transmit interrupt is really enabled*/
+	OHCI_NOTICE("IntMaskSet: 0x%08x)\n",reg_read(xmit->ohci, OHCI1394_IntMaskSet));
 
 	/* check the RUN bit */
-	if (!(reg_read(xmit->ohci, xmit->ctrlSet) & 0x8000)) {
+	if (!(reg_read(ohci, xmit->ctrlSet) & 0x8000)) {
 		OHCI_ERR( "Error starting IT DMA (ContextControl 0x%08x)\n",
-		      reg_read(xmit->ohci, xmit->ctrlSet));
+		      reg_read(ohci, xmit->ctrlSet));
 		return -1;
 	}
 
@@ -1997,6 +2036,7 @@ static int ohci_iso_xmit_start(struct hpsb_iso *iso, int cycle)
 static int ohci_isoctl(struct hpsb_iso *iso, enum isoctl_cmd cmd, unsigned long arg)
 {
 
+	rtos_print("%s,cmd is %d\n",__FUNCTION__,cmd);
 	switch(cmd) {
 	case XMIT_INIT:
 		return ohci_iso_xmit_init(iso);
@@ -2015,6 +2055,7 @@ static int ohci_isoctl(struct hpsb_iso *iso, enum isoctl_cmd cmd, unsigned long 
 		return ohci_iso_recv_init(iso);
 	case RECV_START: 
 	{
+		rtos_print("so cmd is recv_start\n");
 		int *args = (int*) arg;
 		return ohci_iso_recv_start(iso, args[0], args[1], args[2]);
 	}
@@ -2916,7 +2957,7 @@ alloc_dma_asyn_recv(struct ti_ohci *ohci, struct dma_asyn_recv *d,
 			return -ENOMEM;
 		}
 
-		d->prg_cpu[i] = pci_pool_alloc(d->prg_pool, SLAB_KERNEL, d->prg_bus+i);
+		d->prg_cpu[i] = pci_pool_alloc(d->prg_pool, GFP_KERNEL, d->prg_bus+i);
 		OHCI_NOTICE("pool asyn_recv prg[%d]", i);
 
                 if (d->prg_cpu[i] != NULL) {
@@ -3021,7 +3062,7 @@ alloc_dma_asyn_xmit(struct ti_ohci *ohci, struct dma_asyn_xmit *d,
 
 	for (i = 0; i < d->num_desc; i++) {
 		/*!allocate the prg block memory and setup its corresponding dma bus address */
-		d->prg_cpu[i] = pci_pool_alloc(d->prg_pool, SLAB_KERNEL, d->prg_bus+i);
+		d->prg_cpu[i] = pci_pool_alloc(d->prg_pool, GFP_KERNEL, d->prg_bus+i);
 		OHCI_NOTICE("asyn_xmit prg pool[%d]", i);
 
                 if (d->prg_cpu[i] != NULL) {
@@ -3098,14 +3139,6 @@ void ohci_remove1(struct ti_ohci *ohci)
 {
 	switch (ohci->init_state) {
 	case OHCI_INIT_DONE:
-		host_unregister(ohci->host);
-		/* Clear out BUS Options */
-		reg_write(ohci, OHCI1394_ConfigROMhdr, 0);
-		reg_write(ohci, OHCI1394_BusOptions,
-			  (reg_read(ohci, OHCI1394_BusOptions) & 0x0000f007) |
-			  0x00ff0000);
-		memset(ohci->csr_config_rom_cpu, 0, OHCI_CONFIG_ROM_LEN);
-
 	case OHCI_INIT_HAVE_IRQ:
 		/* Clear interrupt registers */
 		reg_write(ohci, OHCI1394_IntMaskClear, 0xffffffff);
@@ -3130,6 +3163,15 @@ void ohci_remove1(struct ti_ohci *ohci)
 		if(rtos_irq_free(&ohci->irq_handle)<0)
 			OHCI_ERR("failed to free irq\n");
 
+	case OHCI_INIT_HAVE_HOST:
+		host_unregister(ohci->host);
+		/* Clear out BUS Options */
+		reg_write(ohci, OHCI1394_ConfigROMhdr, 0);
+		reg_write(ohci, OHCI1394_BusOptions,
+			  (reg_read(ohci, OHCI1394_BusOptions) & 0x0000f007) |
+			  0x00ff0000);
+		memset(ohci->csr_config_rom_cpu, 0, OHCI_CONFIG_ROM_LEN);
+
 	case OHCI_INIT_HAVE_TXRX_BUFFERS__MAYBE:
 		/* Free AR dma */
 		free_dma_asyn_recv(&ohci->ar_req_context);
@@ -3152,8 +3194,9 @@ void ohci_remove1(struct ti_ohci *ohci)
 		OHCI_NOTICE("consistent csr_config_rom");
 
 	case OHCI_INIT_HAVE_IOMAPPING:
-	case OHCI_INIT_HAVE_MEM_REGION:
 		iounmap(ohci->registers);
+	
+	case OHCI_INIT_HAVE_MEM_REGION:
 
 #ifdef CONFIG_ALL_PPC
 	/* On UniNorth, power down the cable and turn off the chip
@@ -3346,16 +3389,20 @@ int ohci_found1(struct pci_dev *pdev)
 	//~ ohci->ir_legacy_context.ohci = NULL;
 	/* same for the IT DMA context */
 	//~ ohci->it_legacy_context.ohci = NULL;
+	if ( (ret=host_register(host)) )
+		FAIL(ret, "Failed to register new host");
+	ohci->init_state = OHCI_INIT_HAVE_HOST;
+	
 	ohci->id = cards_found;
-	if (rtos_irq_request(&ohci->irq_handle,pdev->irq, ohci_irq_handler,0, NULL, ohci)){
+	if (rtos_irq_request(&ohci->irq_handle,pdev->irq, ohci_irq_handler, 0, host->name, ohci)){
 		FAIL(-ENOMEM, "Failed to allocate interrupt %d", pdev->irq);
 	}else{
 		OHCI_NOTICE( "irq: %d requested",pdev->irq);
 	}
 	rtos_irq_enable(&ohci->irq_handle);
-	host->irq = pdev->irq;
-			
+	host->irq = pdev->irq;		
 	ohci->init_state = OHCI_INIT_HAVE_IRQ;
+	
 	ohci_initialize(ohci);
 	/*! set certain csr values */
 	host->csr.guid_hi = reg_read(ohci, OHCI1394_GUIDHi);
@@ -3367,13 +3414,9 @@ int ohci_found1(struct pci_dev *pdev)
 	host->csr.lnk_spd = reg_read(ohci, OHCI1394_BusOptions) & 0x7;
 	host->mmio_start = 	pci_resource_start(ohci->dev, 0);
 	host->mmio_end	=	pci_resource_start(ohci->dev, 0) + OHCI1394_REGISTER_SIZE - 1;
-	
-	if ( (ret=host_register(host)) )
-		FAIL(ret, "Failed to register new host");
-	
 	ohci->init_state = OHCI_INIT_DONE;
 
-	return ret;
+	return 0;
 	
 #undef FAIL
 }	
@@ -3621,7 +3664,8 @@ static void __exit ohci1394_cleanup (void)
 static int __init ohci1394_init(void)
 {
 	
-	return pci_module_init(&ohci1394_pci_driver);
+	//return pci_module_init(&ohci1394_pci_driver);
+	return pci_register_driver(&ohci1394_pci_driver);
 }
 
 module_init(ohci1394_init);

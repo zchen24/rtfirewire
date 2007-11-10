@@ -1,11 +1,9 @@
-
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
-#
 
-AC_PREREQ(2.61)
+AC_PREREQ(2.59)
 
-AC_INIT([RT-FireWire],[0.1.1],[rtfirewire-devel@lists.berlios.de])
+AC_INIT([RT-FireWire],[0.2.1],[rtfirewire-devel@lists.berlios.de])
 AC_CONFIG_HEADERS([config/rt-firewire_config_pre.h])
 AC_CONFIG_AUX_DIR([config/autoconf])
 AC_CONFIG_MACRO_DIR([config/m4])
@@ -140,7 +138,12 @@ else
 
     # get linux kernel tree and version
     RTEXT_LINUX_DIR="${CONFIG_RTFW_LINUX_DIR}"
-    RTEXT_LINUX_VERSION=`grep "#define UTS_RELEASE" $RTEXT_LINUX_DIR/include/linux/version.h 2>/dev/null | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
+    #RTEXT_LINUX_VERSION=`grep "#define UTS_RELEASE" $RTEXT_LINUX_DIR/include/linux/version.h 2>/dev/null | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
+    LINUX_RELEASE_FILE=${RTEXT_LINUX_DIR}/include/linux/utsrelease.h
+    if test \! -f $LINUX_RELEASE_FILE; then
+	LINUX_RELEASE_FILE=${RTEXT_LINUX_DIR}/include/linux/version.h
+    fi
+    RTEXT_LINUX_VERSION=`grep "#define UTS_RELEASE" $LINUX_RELEASE_FILE 2>/dev/null | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
 
     if test \! -f ${RTEXT_LINUX_DIR}/include/xenomai/nucleus/version.h; then
         AC_MSG_ERROR([*** RT-extended kernel not found in $RTEXT_LINUX_DIR])
@@ -310,14 +313,17 @@ else
     XENO_VERSION=`grep "#define XENO_VERSION_STRING" $RTEXT_LINUX_DIR/include/xenomai/nucleus/version.h | sed -e 's/[^\"]*\"\([^\"]*\)\"/\1/'`
 
     case "$XENO_VERSION" in
-        2.1* | 2.2* | 2.3*)
-            CONFIG_RTFW_RTEXT_VERSION=xeno-21x
-            AC_DEFINE(CONFIG_XENO_21x, 1, [We build for Xenomai 2.x])
-            AC_MSG_RESULT([${XENO_VERSION}])
-            ;;
-        *)
-            AC_MSG_ERROR([*** Unsupported Xenomai version $XENO_VERSION in $RTEXT_LINUX_DIR])
-            ;;
+	2.[[1-3]]*)
+             CONFIG_RTFW_RTEXT_VERSION=xeno-21x
+	     AC_DEFINE(CONFIG_XENO_21x, 1, [We build for Xenomai 2.1-2.3])
+             AC_MSG_RESULT([${XENO_VERSION}])
+             ;;
+        2.[[4-9]]*)
+             CONFIG_RTFW_RTEXT_VERSION=xeno-24x
+             AC_DEFINE(CONFIG_XENO_24x, 1, [We build for Xenomai 2.4 or later])
+             AC_MSG_RESULT([${XENO_VERSION}])
+             ;;
+         *)
     esac
 fi
 
@@ -358,7 +364,7 @@ case "$CONFIG_RTFW_RTEXT_VERSION" in
 
         ;;
 
-    xeno-20x | xeno-21x) # ---> Xenomai 2.x <---
+    xeno-*) # ---> Xenomai 2.x <---
 
         # check for RTDM skin, needed by rt-firewire
         AC_MSG_CHECKING([for RTDM skin])
@@ -429,7 +435,7 @@ case "${CONFIG_RTFW_RTEXT_VERSION}" in
         RTEXT_LIBRARIES="`${XENO_CONFIG} --library-dir`"
         RTEXT_SYMBOLS="`${XENO_CONFIG} --symbol-dir`"
         ;;
-    xeno-21x)
+    xeno-21x | xeno-24x)
         RTEXT_USER_CFLAGS="`${XENO_CONFIG} --xeno-cflags`"
         RTEXT_LIBRARIES="`${XENO_CONFIG} --library-dir`"
         if test "`eval echo \\$$wanted_kernel_arch`" \!= ""; then
@@ -451,7 +457,7 @@ if test "$CONFIG_KBUILD" = "y"; then
         xeno-20x)
             RTEXT_KMOD_CFLAGS="`${XENO_CONFIG} --module-cflags`"
             ;;
-        xeno-21x)
+        xeno-21x | xeno-24x)
             RTEXT_KMOD_CFLAGS="-I${RTEXT_LINUX_DIR}/include/xenomai"
             ;;
         *)
@@ -463,7 +469,7 @@ else
         rtai-3x)
             RTEXT_KMOD_CFLAGS="`${RTAI_CONFIG} --module-cflags`"
             ;;
-        xeno-21x)
+        xeno-21x | xeno-24x)
 	    # Kernel cflags capturing trick from RTAI 
 	    kmod_cflags=`cd $srcdir/config/modules && make -s RTEXT_LINUX_DIR=$RTEXT_LINUX_DIR ARCH=$RTFW_TARGET_ARCH CC=$CC | grep '^RTEXT_KMOD_CFLAGS='`
 	    eval $kmod_cflags
@@ -626,7 +632,7 @@ if test "${CONFIG_KBUILD}" = "y"; then  # building against linux-2.6
 #include <linux/kernel.h>
                 ])
             ;;
-        xeno-20x | xeno-21x)
+        xeno-*)
             # nothing further to do
             ;;
         *)
@@ -652,7 +658,7 @@ else                                  # building against linux-2.4
 #include <linux/kernel.h>
             ])
             ;;
-        xeno-21x)
+        xeno-*)
             # nothing to do
             ;;
         *)
@@ -707,7 +713,8 @@ case "${CONFIG_RTFW_RTEXT_VERSION}" in
             AC_MSG_RESULT([${CONFIG_REGPARM:-n}])
         fi
         ;;
-    xeno-20x | xeno-21x) CONFIG_RTFW_LXRT=n
+    xeno-*) 
+	CONFIG_RTFW_LXRT=n
         ;;
     *)
         AC_MSG_ERROR([*** internal error])
@@ -818,3 +825,4 @@ if cmp -s nclude/rt-firewire_config.h.new include/rt-firewire_config.h; then
 else
     mv include/rt-firewire_config.h.new include/rt-firewire_config.h
 fi
+

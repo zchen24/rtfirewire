@@ -23,8 +23,11 @@
 /* We build for Xenomai 2.0.x */
 #undef CONFIG_XENO_20x
 
-/* We build for Xenomai 2.x */
+/* We build for Xenomai 2.1-2.3 */
 #undef CONFIG_XENO_21x
+
+/* We build for Xenomai 2.4 or later */
+#undef CONFIG_XENO_24x
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H

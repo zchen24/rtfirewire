@@ -59,7 +59,8 @@
  
  #define RTOS_LINUX_PRIORITY	0xFFFF
  
- #define RTOS_TIME_LIMIT 0x7FFFFFFFFFFFFFFFLL 
+ #define RTOS_TIME_LIMIT	(LLONG_MAX - LONG_MAX)	/* hackish by Jan */ 
+//#define RTOS_TIME_LIMIT 0x7FFFFFFFFFFFFFFFLL 
   
  LIST_HEAD(rt_servers_list);
  LIST_HEAD(nrt_servers_list);
@@ -94,7 +95,7 @@ struct rt_serv_struct *irq_brk;
 	 if(srv->priority==RTOS_LINUX_PRIORITY){
 		rtos_nrt_signal_pend(&nrt_serv_srq);
 	}else
-#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x)
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x) || defined(CONFIG_XENO_24x)
 		rtdm_task_unblock(&srv->task);
 #else
 		rem_timed_task(&srv->task);
@@ -173,7 +174,9 @@ struct rt_request_struct *rt_request_pend(struct rt_serv_struct *srv, unsigned l
 		//find the previous request which requires just later service
 		//than the request in concern. 
 		do {
-			if(tmpreq->firing_time > req->firing_time)
+			//Jan
+			//if(tmpreq->firing_time > req->firing_time)
+			if((nanosecs_rel_t)(tmpreq->firing_time - req->firing_time) > 0)					
 				break;
 			
 			tmpreq = tmpreq->next;
@@ -225,7 +228,7 @@ void rt_request_delete(struct rt_serv_struct *srv, struct rt_request_struct *req
 	rtos_spin_unlock_irqrestore(&srv->requests_list_lock,flags);
 	
 	if(srv->priority != RTOS_LINUX_PRIORITY && req->prev == &srv->requests_list) {
-#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x)
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x) || defined(CONFIG_XENO_24x)
 		rtdm_task_unblock(&srv->task);
 #else
 		rem_timed_task(&srv->task);
@@ -302,13 +305,24 @@ void rt_irq_broker_sync(void)
 	unsigned long flags;
 
 	while(1){	
-		if(srv->firing_time > rtdm_clock_read())
+		//Jan
+		//if(srv->firing_time > rtdm_clock_read())
+		if((nanosecs_rel_t)(srv->firing_time - rtdm_clock_read()) > 0)
 					rtos_task_sleep_until(srv->firing_time);
 
 		while(1){
 			rtos_spin_lock_irqsave(&srv->requests_list_lock, flags);
+					//add by Jan to avoid endless loop					
+					if (srv->requests_list.next == &srv->requests_list) 
+					{
+						srv->firing_time += RTOS_TIME_LIMIT;
+						break;
+					}
+					
 					req = srv->requests_list.next;
-					if(req->firing_time > rtdm_clock_read()){
+					//Jan						
+					if((nanosecs_rel_t)(req->firing_time - rtdm_clock_read()) > 0){						
+					//if(req->firing_time > rtdm_clock_read()){
 						srv->firing_time = req->firing_time;
 						break;
 					}
@@ -437,10 +451,14 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 	atomic_set(&srv->pending_req, 0);
 	
 	srv->requests_list.next = srv->requests_list.prev = &srv->requests_list;
-	srv->requests_list.firing_time = RTOS_TIME_LIMIT;
+	//Jan	
+	//srv->requests_list.firing_time = RTOS_TIME_LIMIT;
+	srv->requests_list.firing_time = rtdm_clock_read() + RTOS_TIME_LIMIT;
 	sprintf(srv->requests_list.name, "list head");
-	srv->requests_list_lock = SPIN_LOCK_UNLOCKED;
-	
+	//Jan	
+	//srv->requests_list_lock = SPIN_LOCK_UNLOCKED;
+	rtdm_lock_init(&srv->requests_list_lock);
+
 	for(i=0; i<srv->max_req; i++){
 		req=kmalloc(sizeof(*req), GFP_KERNEL);
 		req->next = &srv->reqobj_pool_head;
@@ -458,7 +476,7 @@ struct rt_serv_struct *rt_serv_init(unsigned char *name, int priority, void (*pr
 		spin_lock(&servers_list_lock);
 		list_add_tail(&srv->entry, &rt_servers_list);
 		spin_unlock(&servers_list_lock);
-#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x)	
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x) || defined(CONFIG_XENO_24x)	
 		if(rtos_task_init(&srv->task, name, rt_serv_worker, (void *)srv, srv->priority, 0)) {
 #else
 		if(rtos_task_init(&srv->task, rt_serv_worker, (void *)srv, srv->priority)) {
@@ -530,19 +548,20 @@ done_proc:
 
 int serv_module_init(void)
 {
-	int err;
 	struct proc_dir_entry *proc_entry;
 
+#if !defined(CONFIG_XENO_24x)
 #if defined(CONFIG_XENO_20x)
-	err = rt_timer_start(TM_ONESHOT);
-#elif defined(CONFIG_XENO_21x)
-	err = rt_timer_set_mode(TM_ONESHOT);
+	int err = rt_timer_start(TM_ONESHOT);
+#else
+	int err = rt_timer_set_mode(TM_ONESHOT);
 #endif
 	
 	if(err){
 	    RTSERV_ERR("failed to start timer!\n");
 	    return 1;
 	}
+#endif
 	
 	proc_entry = create_proc_entry("servers", S_IFREG | S_IRUGO | S_IWUSR, 0);
 	if(!proc_entry) {
