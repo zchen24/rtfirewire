@@ -18,8 +18,9 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
- 
-#include <linux/config.h>
+
+//removed to compile with the latest linux kernel >= 2.6.23
+//#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
@@ -39,12 +40,14 @@
 	rtdm_printk("RTPKB:%s[%d]: " fmt "\n",  __FUNCTION__, __LINE__, ## args)
 
 static unsigned int rtpkb_cache_size = DEFAULT_RTPKB_CACHE_SIZE;
+//MODULE_PARM(rtpkb_cache_size, "i");
 module_param(rtpkb_cache_size, uint, 0444);
 MODULE_PARM_DESC(rtpkb_cache_size, "Number of cached rtpkbs for creating pools in real-time");
 
 
 /* Linux slab pool for rtpkbs */
-static kmem_cache_t *rtpkb_slab_pool;
+//static kmem_cache_t *rtpkb_slab_pool;
+static struct kmem_cache *rtpkb_slab_pool;
 
 /**
  * @ingroup
@@ -454,7 +457,13 @@ int  rtpkb_pools_init(void)
 	
 	rtpkb_slab_pool = kmem_cache_create("rtpkb_slab_pool",
 		ALIGN_RTPKB_STRUCT_LEN + RTPKB_SIZE,
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
+		0, SLAB_HWCACHE_ALIGN, NULL);
+#else
 		0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+#endif
+
 	if (rtpkb_slab_pool == NULL)
 		return -ENOMEM;
 	
@@ -503,11 +512,16 @@ void rtpkb_pools_release(void)
 
     remove_proc_entry("rtpkb",0);
 
+/*
     if (kmem_cache_destroy(rtpkb_slab_pool) != 0)
         RTPKB_ERR("memory leakage detected "
                "- reboot required!\n");
     else
 	    RTPKB_NOTICE("Real-Time Packet Buffer Module unloaded\n");
+*/
+
+     kmem_cache_destroy(rtpkb_slab_pool);
+     RTPKB_NOTICE("Real-Time Packet Buffer Module unloaded\n");
 }
 
 module_init(rtpkb_pools_init);
