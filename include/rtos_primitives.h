@@ -33,11 +33,9 @@
 #define RTOS_SET_MODULE_OWNER(some_struct)	\
 	do {(some_struct)->rt_owner = THIS_MODULE; } while (0)
 
-#ifdef __IN_RTFW__
 typedef __u64 nanosecs_t; /*used for time calculations and I/O */
-#endif
 
-#define RTOS_TIME_LIMIT	0x7FFFFFFFFFFFFFFFLL //copied from rtai_hal.h 
+//#define RTOS_TIME_LIMIT	0x7FFFFFFFFFFFFFFFLL //copied from rtai_hal.h 
 
 #if defined(CONFIG_RTAI_24) || defined(CONFIG_RTAI_30) || \
     defined(CONFIG_RTAI_31) || defined(CONFIG_RTAI_32)
@@ -69,7 +67,7 @@ typedef __u64 nanosecs_t; /*used for time calculations and I/O */
 /**
  * @addtogroup 
  *@{*/
-typedef spinlock_t rtos_spinlock_t;   /* spin locks with hard IRQ locks */
+typedef rtdm_spinlock_t rtos_spinlock_t;   /* spin locks with hard IRQ locks */
 typedef RT_TASK    rtos_task_t;       /* hard real-time task */
 typedef SEM        rtos_event_t;      /* to signal events (non-storing) */
 typedef SEM        rtos_event_sem_t;  /* to signal events (storing) */
@@ -454,7 +452,7 @@ static inline void rtos_irq_reacquire_lock(void)
 
 
 //#if defined(CONFIG_FUSION_090)
-#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x) || defined(CONFIG_XENO_2_0x) || defined(CONFIG_XENO_2_1x)
+#if defined(CONFIG_XENO_20x) || defined(CONFIG_XENO_21x) || defined(CONFIG_XENO_24x) || defined(CONFIG_XENO_2_0x) || defined(CONFIG_XENO_2_1x)
 /*supports Xenomai 2.0 or better */
 
 #include <nucleus/pod.h>
@@ -462,9 +460,7 @@ static inline void rtos_irq_reacquire_lock(void)
 
 
 /* basic types */
-#ifdef __IN_RTFW__
 typedef rtdm_lock_t                 rtos_spinlock_t;
-#endif
 typedef rtdm_task_t                 rtos_task_t;
 typedef rtdm_event_t                rtos_event_t;
 typedef rtdm_sem_t                  rtos_sem_t;
@@ -537,16 +533,17 @@ static inline int rtos_task_init_periodic(rtos_task_t *task,
 #define rtos_task_set_priority(task, priority)  \
     rtdm_task_set_priority(task, priority)
 
-#define CONFIG_RTOS_STARTSTOP_TIMER 1
+//#define CONFIG_RTOS_STARTSTOP_TIMER 1
 
 static inline int rtos_timer_start_oneshot(void)
 {
-    return xnpod_start_timer(XN_APERIODIC_TICK, XNPOD_DEFAULT_TICKHANDLER);
+    //return xnpod_start_timer(XN_APERIODIC_TICK, XNPOD_DEFAULT_TICKHANDLER);
+	return 0; 
 }
 
 static inline void rtos_timer_stop(void)
 {
-    xnpod_stop_timer();
+    //xnpod_stop_timer();
 }
 
 #define rtos_task_wait_period(task)         rtdm_task_wait_period()
@@ -580,8 +577,13 @@ static inline void rtos_timer_stop(void)
 
 
 /* non-RT signals */
+#if RTDM_API_VER >= 6
+#define rtos_nrt_signal_init(nrt_sig, handler)  \
+    rtdm_nrtsig_init(nrt_sig, (rtdm_nrtsig_handler_t)handler, NULL)
+#else
 #define rtos_nrt_signal_init(nrt_sig, handler)  \
     rtdm_nrtsig_init(nrt_sig, (rtdm_nrtsig_handler_t)handler)
+#endif
 #define rtos_nrt_signal_delete(nrt_sig)     rtdm_nrtsig_destroy(nrt_sig)
 #define rtos_nrt_signal_pend(nrt_sig)       rtdm_nrtsig_pend(nrt_sig)
 
@@ -605,7 +607,6 @@ static inline void rtos_timer_stop(void)
 
 #define rtos_irq_end(irq_handle)    /* done by returning RT_INTR_ENABLE */
 
-/*
 static inline void rtos_irq_release_lock(void)
 {
     xnpod_set_thread_mode(xnpod_current_thread(), 0, XNLOCK);
@@ -616,7 +617,7 @@ static inline void rtos_irq_reacquire_lock(void)
 {
     rthal_local_irq_disable_hw();
     xnpod_set_thread_mode(xnpod_current_thread(), XNLOCK, 0);
-}*/
+}
 
 #endif /*CONFIG_XENO_2x*/
 

@@ -17,7 +17,7 @@
 /* Transaction Label handling */
 struct hpsb_tlabel_pool {
 	DECLARE_BITMAP(pool, 64);
-	spinlock_t lock;
+	rtdm_lock_t lock;
 	u8 next;
 	u32 allocations;
 	//~ rtos_res_lock_t count; //64 tasks can can the "wait" on count without blocking. 

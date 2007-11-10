@@ -20,7 +20,7 @@
 struct bis_host_info {
 	struct hpsb_host *host;
 		
-	spinlock_t	echo_calls_lock;
+	rtdm_lock_t	echo_calls_lock;
 	struct list_head	echo_calls;
 };
 #endif
@@ -57,6 +57,12 @@ struct bis_cmd {
 #define IOC_RTFW_ISO_START	_IOWR(RTFW_IOC_TYPE_BIS, 1,	\
 						struct bis_cmd)
 #define IOC_RTFW_ISO_SHUTDOWN	_IOWR(RTFW_IOC_TYPE_BIS, 2,	\
+						struct bis_cmd)
+#define IOC_RTFW_ISO_RECEIVE 	_IOWR(RTFW_IOC_TYPE_BIS, 3,	\
+						struct bis_cmd)
+#define IOC_RTFW_ISO_XMIT_ALLOC 	_IOWR(RTFW_IOC_TYPE_BIS, 4,	\
+						struct bis_cmd)
+#define IOC_RTFW_ISO_TRANSMIT 	_IOWR(RTFW_IOC_TYPE_BIS, 5,	\
 						struct bis_cmd)
 
 #endif /* _IEEE1394_BIS_H */

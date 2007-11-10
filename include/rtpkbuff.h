@@ -180,7 +180,8 @@ struct rtpkb_queue_base {
 	struct rtpkb	* prev;
 		
 	__u32		qlen;
-	spinlock_t	lock;
+	//spinlock_t	lock;
+	rtdm_lock_t	lock;
 };
 
 struct rtpkb_queue {
@@ -189,7 +190,8 @@ struct rtpkb_queue {
 	struct rtpkb	* prev;
 		
 	__u32		qlen;
-	spinlock_t	lock;
+	//spinlock_t	lock;
+	rtdm_lock_t	lock;
 	
 	struct rtpkb_pool	 *pool;
 	
@@ -217,7 +219,8 @@ struct rtpkb_pool {
 struct rtpkb_prio_queue {
     unsigned char name[32];
     struct rtpkb_pool	 *pool;		
-    spinlock_t     lock;
+    //spinlock_t     lock;
+    rtdm_lock_t	     lock;
     unsigned long       usage;  /* bit array encoding non-empty sub-queues */
     struct rtpkb_queue_base  queue[QUEUE_MIN_PRIO+1];
 };
