@@ -35,7 +35,7 @@
  */
 
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/list.h>
@@ -252,7 +252,8 @@ struct hpsb_host *host_alloc(size_t extra)
 	struct hpsb_host *h;
 	int i;
 	
-	h = kmalloc(sizeof(struct hpsb_host)+extra, SLAB_KERNEL);
+	//h = kmalloc(sizeof(struct hpsb_host)+extra, SLAB_KERNEL);
+	h = kmalloc(sizeof(struct hpsb_host)+extra, GFP_KERNEL);	
 	if(!h) return NULL;
 	memset(h,0,sizeof(struct hpsb_host)+extra);
 		

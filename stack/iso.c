@@ -2,7 +2,7 @@
  * Application interface for isochronous transaction of RT-FireWire.
  * adapted from Linux 1394subsystem.  
  *
- * Copyright (C)  2005 Zhang Yuchen <yuchen623@gmail.com>
+ * Copyright (C)  2005 Zhang Yuchen <y.zhang-4@student.utwente.nl>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -73,7 +73,7 @@ void hpsb_iso_shutdown(struct hpsb_iso *iso)
 
 /**
  * @ingroup iso
- * @anchor hpsb_iso_common_init
+ * @anchor _hpsb_iso_common_init
  * initialize the common iso structure for a host
  *  - buufferd packets
  *  - dma receving mode
@@ -82,7 +82,7 @@ void hpsb_iso_shutdown(struct hpsb_iso *iso)
  *  - allocate the data buffer
  *  - assign the priority, which will be used for the bottomhalf server
  */
-static struct hpsb_iso* hpsb_iso_common_init(struct hpsb_host *host, enum hpsb_iso_type type,
+static struct hpsb_iso* _hpsb_iso_common_init(struct hpsb_host *host, enum hpsb_iso_type type,
 					     unsigned int data_buf_size,
 					     unsigned int buf_packets,
 					     int channel,
@@ -211,7 +211,7 @@ struct hpsb_iso* hpsb_iso_xmit_init(struct hpsb_host *host,
 {
 	int speed_val;
 	
-	struct hpsb_iso *iso = hpsb_iso_common_init(host, HPSB_ISO_XMIT,
+	struct hpsb_iso *iso = _hpsb_iso_common_init(host, HPSB_ISO_XMIT,
 						    data_buf_size, buf_packets,
 						    channel, HPSB_ISO_DMA_DEFAULT, irq_interval, callback, arg, name, pri);
 	if (!iso)
@@ -257,7 +257,7 @@ struct hpsb_iso* hpsb_iso_recv_init(struct hpsb_host *host,
 				    unsigned char *name,
 				    int pri)
 {
-	struct hpsb_iso *iso = hpsb_iso_common_init(host, HPSB_ISO_RECV,
+	struct hpsb_iso *iso = _hpsb_iso_common_init(host, HPSB_ISO_RECV,
 						    data_buf_size, buf_packets,
 						    channel, dma_mode, irq_interval, callback, arg, name, pri);
 	
@@ -281,8 +281,12 @@ err:
  */
 int hpsb_iso_recv_listen_channel(struct hpsb_iso *iso, unsigned char channel)
 {
-	if (iso->type != HPSB_ISO_RECV || iso->channel != -1 || channel >= 64)
+	//if (iso->type != HPSB_ISO_RECV || iso->channel != -1 || channel >= 64)
+	if (iso->type != HPSB_ISO_RECV || channel >= 64 || channel <=-1)
+	{
+		rtos_print("%s:type or channel dismatch\n",__FUNCTION__);
 		return -EINVAL;
+	}
 	return iso->host->driver->isoctl(iso, RECV_LISTEN_CHANNEL, channel);
 }
 
@@ -327,11 +331,15 @@ static int do_iso_xmit_start(struct hpsb_iso *iso, int cycle)
 {
 	int retval;
 
+	rtos_print("%s called on %s\n",__FUNCTION__,iso->host->name);
 	retval = iso->host->driver->isoctl(iso, XMIT_START, cycle);
 	if (retval)
+	{
+		rtos_print("%s:xmit start failed\n",__FUNCTION__);
+		iso->flags |= HPSB_ISO_STARTED;
 		return retval;
-
-	iso->flags |= HPSB_ISO_STARTED;
+	}
+	
 	return retval;
 }
 
@@ -462,7 +470,10 @@ int hpsb_iso_xmit_queue_packet(struct hpsb_iso *iso, u32 offset, u16 len, u8 tag
 
 	/* check for bogus offset/length */
 	if (hpsb_iso_check_offset_len(iso, offset, len, &info->offset, &info->len))
+	{
+		rtos_print("%s:offset and length check failed\n",__FUNCTION__);
 		return -EFAULT;
+	}
 
 	info->tag = tag;
 	info->sy = sy;
@@ -471,7 +482,10 @@ int hpsb_iso_xmit_queue_packet(struct hpsb_iso *iso, u32 offset, u16 len, u8 tag
 
 	rv = iso->host->driver->isoctl(iso, XMIT_QUEUE, (unsigned long) info);
 	if (rv)
+	{
+		rtos_print("%s:packet queue failed\n",__FUNCTION__);
 		goto out;
+	}
 
 	/* increment cursors */
 	iso->first_packet = (iso->first_packet+1) % iso->buf_packets;

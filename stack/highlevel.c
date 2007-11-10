@@ -541,14 +541,17 @@ int hpsb_register_addrspace(struct hpsb_highlevel *hl, struct hpsb_host *host,
         int retval = 0;
         unsigned long flags;
 
-        if (((start|end) & 3) || (start >= end) || (end > 0x1000000000000ULL)) {
+        if (((start|end) & 3) || (start >= end) || (end > 0x1000000000000ULL)) 
+	{
                 HPSB_ERR("%s called with invalid addresses", __FUNCTION__);
                 return 0;
         }
 
         as = (struct hpsb_address_serve *)
                 kmalloc(sizeof(struct hpsb_address_serve), GFP_KERNEL);
-        if (as == NULL) {
+        if (as == NULL) 
+	{
+		rtos_print("%s: cannot allocate memory for address\n",__FUNCTION__);
                 return 0;
         }
 
@@ -561,16 +564,21 @@ int hpsb_register_addrspace(struct hpsb_highlevel *hl, struct hpsb_host *host,
 
         write_lock_irqsave(&addr_space_lock, flags);
 	
-	list_for_each(lh, &host->addr_space) {
+	list_for_each(lh, &host->addr_space) 
+	{
 		struct hpsb_address_serve *as_this =
 			list_entry(lh, struct hpsb_address_serve, host_list);
 		struct hpsb_address_serve *as_next =
 			list_entry(lh->next, struct hpsb_address_serve, host_list);
 
 		if (as_this->end > as->start)
+		{
+			rtos_print("%s:address overlap on %s with %s!\n", __FUNCTION__, host->name, ((struct hpsb_host *)(as_this->host))->name);
 			break;
+		}
 
-		if (as_next->start >= as->end) {
+		if (as_next->start >= as->end) 
+		{
 			list_add(&as->host_list, lh);
 			list_add_tail(&as->hl_list, &hl->addr_list);
 			retval = 1;

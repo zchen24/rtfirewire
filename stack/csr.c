@@ -268,7 +268,8 @@ static void add_host(struct hpsb_host *host)
 				CSR_REGISTER_BASE + CSR_SPEED_MAP,
 				CSR_REGISTER_BASE + CSR_SPEED_MAP_END);
 
-        spin_lock_init(&host->csr.lock);
+        //spin_lock_init(&host->csr.lock);
+	rtdm_lock_init(&host->csr.lock);
 
         host->csr.state                 = 0;
         host->csr.node_ids              = 0;
