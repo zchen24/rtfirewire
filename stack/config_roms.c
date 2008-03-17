@@ -22,7 +22,7 @@
   * ConfigRom Entry Module
   */
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/types.h>
 
 #include "csr1212.h"

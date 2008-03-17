@@ -35,7 +35,7 @@
   * see @ref highlevel drivers section in "Overview of Real-Time Firewire Stack". 
   */
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/slab.h>
 #include <linux/list.h>
 

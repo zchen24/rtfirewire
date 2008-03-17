@@ -19,7 +19,7 @@
   * - asynchronous transaction layer implementation
   */
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/string.h>
